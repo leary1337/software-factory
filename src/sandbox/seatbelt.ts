@@ -28,6 +28,7 @@ import type { SandboxProfile, SpawnCommand } from "./types.ts";
 
 export const SYSTEM_READ_SUBPATHS: readonly string[] = [
 	"/usr",
+	"/opt/homebrew",
 	"/System",
 	"/Library",
 	"/bin",

@@ -41,11 +41,11 @@ export function resolveModelTiers(
 	return {
 		opus: {
 			provider: pick(env.WARREN_MODEL_OPUS_PROVIDER, "anthropic"),
-			model: pick(env.WARREN_MODEL_OPUS, "claude-opus-4-8"),
+			model: pick(env.WARREN_MODEL_OPUS, "claude-opus-5-5"),
 		},
 		sonnet: {
 			provider: pick(env.WARREN_MODEL_SONNET_PROVIDER, "anthropic"),
-			model: pick(env.WARREN_MODEL_SONNET, "claude-sonnet-4-6"),
+			model: pick(env.WARREN_MODEL_SONNET, "claude-sonnet-5-5"),
 		},
 	};
 }

@@ -232,6 +232,8 @@ export async function runUpWizard(
 	return next;
 }
 
+const SETUP_TOKEN_PATTERN = /sk-ant-oat[0-9a-z]*-[A-Za-z0-9_-]+/;
+
 /** Try the `claude setup-token` path, then a paste; undefined means skipped. */
 async function captureSubscriptionToken(
 	context: CliContext,
@@ -241,8 +243,9 @@ async function captureSubscriptionToken(
 	if (deps.hasBinary("claude")) {
 		out.write("Running `claude setup-token`…\n");
 		const result = await deps.runCommand(["claude", "setup-token"]);
-		const captured = result.stdout.trim();
-		if (result.exitCode === 0 && captured !== "") return captured;
+		// `setup-token` prints a full TUI around the token; keep only the token.
+		const captured = result.stdout.match(SETUP_TOKEN_PATTERN)?.[0];
+		if (result.exitCode === 0 && captured !== undefined) return captured;
 		out.write("`claude setup-token` did not return a token — falling back to a paste.\n");
 	} else {
 		out.write(

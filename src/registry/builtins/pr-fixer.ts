@@ -77,7 +77,7 @@ export const PR_FIXER_BUILTIN: AgentDefinition = {
 	version: 1,
 	sections: {
 		system: SYSTEM_BODY,
-		burrow_config: '[sandbox]\nnetwork = "open"\n',
+		burrow_config: '[sandbox]\nnetwork = "restricted"\n',
 	},
 	gatedPrompts: GATED_PROMPTS,
 	resolvedFrom: ["builtin:pr-fixer"],

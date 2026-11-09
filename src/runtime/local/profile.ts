@@ -207,6 +207,25 @@ function defaultHostBunInstall(): string {
 /* Project burrow.toml [sandbox]                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Hosts a `network = "restricted"` run may reach when the project ships no
+ * `burrow.toml` allowlist: the model and its sign-in, GitHub, and the package
+ * registries of the factory stack. Subdomains match too. A project's own list
+ * replaces this one.
+ */
+export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = [
+	"api.anthropic.com",
+	"platform.claude.com",
+	"claude.ai",
+	"github.com",
+	"objects.githubusercontent.com",
+	"registry.npmjs.org",
+	"proxy.golang.org",
+	"sum.golang.org",
+	"pypi.org",
+	"files.pythonhosted.org",
+];
+
 export interface LocalSandboxConfig {
 	readonly allowedDomains?: string[];
 	readonly readOnlyPaths?: string[];
@@ -350,7 +369,7 @@ export async function buildLocalSandboxProfile(input: BuildProfileInput): Promis
 		home: input.homePath,
 		readOnlyMounts,
 		network: spec.network,
-		allowedDomains: toml.allowedDomains ?? [],
+		allowedDomains: toml.allowedDomains ?? [...DEFAULT_ALLOWED_DOMAINS],
 		envPassthrough: resolveEnvPassthrough(spec.runtimeId, input.frontmatter),
 		setEnv: input.env,
 		toolchainPaths: resolveToolchainPaths(spec.runtimeId, input.which),

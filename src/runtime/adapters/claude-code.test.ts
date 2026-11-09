@@ -38,6 +38,17 @@ function fakeSpawnContext(extra: Partial<AdapterSpawnContext> = {}): AdapterSpaw
 }
 
 describe("claudeCodeAdapter.buildSpawnCommand", () => {
+	test("passes the frontmatter model to claude", () => {
+		const cmd = claudeCodeAdapter.buildSpawnCommand?.({
+			runId: "run_1",
+			prompt: "go",
+			pendingMessages: [],
+			workspacePath: "/tmp/w",
+			frontmatter: { model: "claude-opus-5-5" },
+		});
+		expect(cmd?.argv.slice(-2)).toEqual(["--model", "claude-opus-5-5"]);
+	});
+
 	test("renders stream-json argv with the prompt + steering on stdin", () => {
 		const cmd = claudeCodeAdapter.buildSpawnCommand?.(
 			fakeSpawnContext({ prompt: "fix the bug", pendingMessages: [fakeMessage()] }),

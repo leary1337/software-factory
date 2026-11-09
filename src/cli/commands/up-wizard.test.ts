@@ -175,6 +175,25 @@ describe("runUpWizard", () => {
 		expect(text).not.toContain("sk-ant-oat-captured");
 	});
 
+	test("keeps only the token when claude setup-token prints a TUI around it", async () => {
+		const home = freshHome();
+		const { context } = captureContext();
+		const result = await runUpWizard(
+			context,
+			wizardDeps(home, {
+				hasBinary: (name) => name === "claude",
+				runCommand: async () => ({
+					stdout:
+						"Welcome to Claude Code\n\u001b[32msk-ant-oat01-abc_DEF-123\u001b[39m\n\nStore this token\n",
+					exitCode: 0,
+				}),
+				prompt: async () => "",
+			}),
+			{ wizard: true },
+		);
+		expect(result.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-abc_DEF-123");
+	});
+
 	test("falls back to a pasted CLAUDE_CODE_OAUTH_TOKEN when the claude CLI is absent", async () => {
 		const home = freshHome();
 		const { context, out } = captureContext();

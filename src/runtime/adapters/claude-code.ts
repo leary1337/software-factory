@@ -100,6 +100,7 @@ export const claudeCodeAdapter: AgentRuntimeAdapter = {
 				// The sandbox is the enforcement boundary; an in-app prompt would
 				// deadlock a non-interactive spawn.
 				"--dangerously-skip-permissions",
+				...(ctx.frontmatter?.model !== undefined ? ["--model", ctx.frontmatter.model] : []),
 			],
 			env: { TMPDIR: claudeCodeBurrowTmpdir(ctx.workspacePath) },
 			stdin: encodeClaudeStdin(ctx.prompt, ctx.pendingMessages),

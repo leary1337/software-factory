@@ -4,8 +4,8 @@ import { MODEL_TIERS, resolveModelTiers } from "./model-tiers.ts";
 describe("resolveModelTiers", () => {
 	test("falls back to anthropic defaults when env is empty", () => {
 		const tiers = resolveModelTiers({});
-		expect(tiers.opus).toEqual({ provider: "anthropic", model: "claude-opus-4-8" });
-		expect(tiers.sonnet).toEqual({ provider: "anthropic", model: "claude-sonnet-4-6" });
+		expect(tiers.opus).toEqual({ provider: "anthropic", model: "claude-opus-5-5" });
+		expect(tiers.sonnet).toEqual({ provider: "anthropic", model: "claude-sonnet-5-5" });
 	});
 
 	test("overrides model and provider per tier from env", () => {
@@ -20,8 +20,8 @@ describe("resolveModelTiers", () => {
 
 	test("treats empty or whitespace env values as unset", () => {
 		const tiers = resolveModelTiers({ WARREN_MODEL_OPUS: "   ", WARREN_MODEL_SONNET: "" });
-		expect(tiers.opus.model).toBe("claude-opus-4-8");
-		expect(tiers.sonnet.model).toBe("claude-sonnet-4-6");
+		expect(tiers.opus.model).toBe("claude-opus-5-5");
+		expect(tiers.sonnet.model).toBe("claude-sonnet-5-5");
 	});
 });
 

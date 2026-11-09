@@ -9,6 +9,7 @@ import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
 import type { RunSpec } from "../contract.ts";
 import {
 	buildLocalSandboxProfile,
+	DEFAULT_ALLOWED_DOMAINS,
 	PI_PROVIDER_ENV_KEYS,
 	parseSandboxSection,
 	readLocalSandboxConfig,
@@ -215,6 +216,16 @@ describe("readLocalSandboxConfig", () => {
 });
 
 describe("buildLocalSandboxProfile", () => {
+	test("a project with no burrow.toml gets the default allowlist", async () => {
+		const profile = await buildLocalSandboxProfile({
+			spec: makeSpec({ network: "restricted" }),
+			env: {},
+			workspace: fakeWorkspace(),
+			homePath: "/tmp/home",
+		});
+		expect(profile.allowedDomains).toEqual([...DEFAULT_ALLOWED_DOMAINS]);
+	});
+
 	test("binds the workspace and the separate writable HOME (warren-c865)", async () => {
 		const profile = await buildLocalSandboxProfile({
 			spec: makeSpec(),

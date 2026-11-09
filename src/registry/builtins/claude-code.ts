@@ -40,7 +40,7 @@ export const CLAUDE_CODE_BUILTIN: AgentDefinition = {
 	version: 1,
 	sections: {
 		system: SYSTEM_BODY,
-		burrow_config: '[sandbox]\nnetwork = "open"\n',
+		burrow_config: '[sandbox]\nnetwork = "restricted"\n',
 	},
 	// warren-cb46: tracker/mulch text as capability-gated fragments — a
 	// project with no .seeds/ / .mulch/ gets no false tooling assertions.
