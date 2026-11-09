@@ -26,7 +26,6 @@ const CONNECT_DIR = join(REPO_ROOT, "factory", "connect");
 const TEMPLATE_DIR = join(REPO_ROOT, "factory", "template");
 const BRANCH = "factory/connect";
 const TEMPLATE_GATE = "./scripts/check.sh";
-const TOKEN_PAGE = "https://github.com/settings/personal-access-tokens";
 
 const AGENT_SKILLS_BLOCK = `## Agent skills
 
@@ -140,7 +139,6 @@ function finish(dir: string): void {
 	run(["git", "push", "-u", "origin", BRANCH], dir);
 	const url = run(["gh", "pr", "create", "--fill", "--base", defaultBranchOf(dir)], dir);
 	console.log(`PR: ${url}`);
-	console.log(`Add this repository to the Warren token: ${TOKEN_PAGE}`);
 	console.log(`After merging the PR, run: bun scripts/connect-project.ts register ${dir}`);
 }
 
@@ -169,8 +167,7 @@ function createNew(name: string, parent: string, shouldRegister: boolean): void 
 	run(["git", "commit", "-m", "chore: создать проект из шаблона фабрики"], dir);
 	run(["git", "push", "-u", "origin", "main"], dir);
 	console.log(`Created ${dir}.`);
-	console.log(`Add this repository to the Warren token first: ${TOKEN_PAGE}`);
-	if (shouldRegister) console.log(`Then run: bun scripts/connect-project.ts register ${dir}`);
+	if (shouldRegister) console.log(`Next run: bun scripts/connect-project.ts register ${dir}`);
 }
 
 function flagValue(args: readonly string[], flag: string): string | undefined {
