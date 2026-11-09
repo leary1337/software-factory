@@ -234,13 +234,8 @@ bun run acceptance:nightly     # the nightly acceptance suite
 bun run check:ui-visual        # Playwright smoke over every UI screen (scripts/ui-visual/README.md)
 ```
 
-CI (`.github/workflows/ci.yml`) runs each manifest gate as its own
-step. The test job invokes `check:coverage:ci`, which emits
-`test-results/junit.xml` and uploads `coverage/lcov.info`. CI then runs
-`report:test-timing` for a slowest-suite summary and
-`report:quality-metrics` (warren-5b95) for a code-quality panel in the
-GitHub Actions step summary. Git ignores `test-results/` and
-`coverage/` as build artifacts.
+This fork has no CI workflows, so run the gates locally. Git ignores
+`test-results/` and `coverage/` as build artifacts.
 
 UI-only (its own package):
 
@@ -281,13 +276,6 @@ Warren's resolved manifest, in order:
 - `gen:docs:check`
 - `gen:openapi:check`
 - `check:coverage` (tests + coverage ratchet)
-- `check:ci-parity`
-
-The release workflow (`.github/workflows/release.yml`) runs the same
-`check:all` before any release work, so a release can never ship code
-CI would reject. `check:ci-parity` proves the local manifest and the CI
-workflow agree in both directions. Per-repo escape hatches live in
-`scripts/ci-parity-config.json`.
 
 ### Validation discipline (warren-7e82)
 
@@ -385,8 +373,6 @@ Details on the additional checks:
   reports the files with 10 lines of slack or less, and never fails
   (warren-8746). A file at its ceiling passes every PR that touches it
   alone. It then fails once a merge lands the union of two of them.
-  `.github/workflows/size-overshoot-report.yml` names what overshot, on
-  the PR itself.
 - **`check:debt`** (warren-7f2b) — scans `src/` and `scripts/` for
   `TODO` / `FIXME` / `HACK` / `XXX`. Any marker without a tracker
   reference on the same line fails the gate. Accepted references are
@@ -515,8 +501,8 @@ CI adds two gates that a local run cannot give you.
 
 - The golden comparison runs only in the pinned CI container.
   Never commit a baseline that a laptop rendered.
-- New PNGs under `scripts/ui-visual/__golden__/` come from the
-  `update_goldens` dispatch of `.github/workflows/ui-visual.yml`.
+- New PNGs under `scripts/ui-visual/__golden__/` came from that CI
+  container. This fork has no such workflow, so do not regenerate them.
 - Auto-merge refuses a PR that changes the goldens until a human
   approver applies the `ui-baseline-approved` label.
   A label from a bot never counts.
@@ -530,8 +516,6 @@ CI adds two gates that a local run cannot give you.
 
 A UI bug fix starts with a failing reproduction.
 The next section gives the steps.
-Paste the UI checklist from `.github/pull_request_template.md` into
-the PR body, and tick each item.
 
 ## UI bugs: reproduction first
 
@@ -562,9 +546,7 @@ Name each file `<seed-id>.pw.ts`, never `<seed-id>.spec.ts`, because
 `bun test` loads spec files. `scripts/ui-visual/repros.test.ts` enforces
 the name.
 
-Human reporters use the UI bug issue template
-(`.github/ISSUE_TEMPLATE/ui-bug.yml`), which asks for the page,
-viewport, theme, and a screenshot. The harness details are in
+The harness details are in
 [scripts/ui-visual/README.md](scripts/ui-visual/README.md).
 
 ## TypeScript conventions
@@ -711,10 +693,6 @@ The script also drafts an `[Unreleased]` block into `CHANGELOG.md` from
 markers. The draft is assistive only. Curate it and delete the markers
 before releasing. All rewrites roll back together on failure.
 
-`.github/workflows/release.yml` fails the release job if `package.json`
-and `src/index.ts` disagree. It then auto-tags the release and creates
-it from the matching `CHANGELOG.md` section.
-
 `bun run check:version-sync` (warren-0210,
 `scripts/check-version-sync.ts`) asserts on every PR that all four
 sites agree. It shares the
@@ -748,13 +726,8 @@ Per [docs/CONSTITUTION.md](docs/CONSTITUTION.md) Article IX, some
 changes require explicit human review and must not ride an auto-merged
 PR. The protected paths are `docs/CONSTITUTION.md` itself,
 `.warren/triggers.yaml`, and the agent definitions in
-`src/registry/builtins/`. The "Article IX check" step in
-`.github/workflows/auto-merge.yml` refuses to enable auto-merge on any
-PR touching those paths or the workflow itself.
-For a PR that touches `src/ui/` or `scripts/ui-visual/`, the same workflow
-also waits for the `ui-visual` and `design-review` checks to succeed on
-the head commit, as "The merge gate" in
-[docs/design/ui-visual-gate.md](docs/design/ui-visual-gate.md) describes.
+`src/registry/builtins/`. This fork has no auto-merge workflow, so a
+human reviews every PR that touches them.
 
 ## Auth modes
 
@@ -839,10 +812,8 @@ real warren boot. Scenarios live in
 idempotent, and clean up after themselves.
 
 Scenario 39 (`scripts/acceptance/scenarios/39-public-exposure.ts`, warren-c405) is the
-public-instance leak guard. It is the only scenario wired into CI, via
-`.github/workflows/acceptance-public.yml` and
-`bun run acceptance:public`. The rest of the suite runs locally and on
-the nightly workflow.
+public-instance leak guard. Run it with `bun run acceptance:public`.
+The rest of the suite also runs locally.
 
 ## Session completion protocol
 

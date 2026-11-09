@@ -15,10 +15,9 @@ import {
 const CANONICAL_ORDER = CANONICAL_GATES.map((g) => g.name);
 
 describe("check-all", () => {
-	test("canonical order: lint first, coverage second-to-last, ci-parity last", () => {
+	test("canonical order: lint first, coverage last", () => {
 		expect(CANONICAL_ORDER[0]).toBe("lint");
-		expect(CANONICAL_ORDER[CANONICAL_ORDER.length - 2]).toBe("check:coverage");
-		expect(CANONICAL_ORDER[CANONICAL_ORDER.length - 1]).toBe("check:ci-parity");
+		expect(CANONICAL_ORDER[CANONICAL_ORDER.length - 1]).toBe("check:coverage");
 	});
 
 	test("resolveGates includes every core gate even when scripts are missing", () => {
@@ -46,11 +45,11 @@ describe("check-all", () => {
 		expect(gates).toEqual(CANONICAL_ORDER);
 	});
 
-	test("GATES is a canonical-order subsequence ending in check:ci-parity", () => {
+	test("GATES is a canonical-order subsequence ending in check:coverage", () => {
 		const indices = GATES.map((g) => CANONICAL_ORDER.indexOf(g));
 		expect(indices).not.toContain(-1);
 		expect([...indices].sort((a, b) => a - b)).toEqual(indices);
-		expect(GATES[GATES.length - 1]).toBe("check:ci-parity");
+		expect(GATES[GATES.length - 1]).toBe("check:coverage");
 	});
 
 	test("loadScripts tolerates a missing package.json", () => {

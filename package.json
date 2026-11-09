@@ -86,7 +86,6 @@
 		"gen:openapi:check": "bun run scripts/generate-openapi.ts --check",
 		"gen:cli-ref": "bun run scripts/generate-cli-reference.ts",
 		"gen:cli-ref:check": "bun run scripts/generate-cli-reference.ts --check",
-		"check:ci-parity": "bun scripts/check-ci-parity.ts",
 		"check:all": "bun scripts/check-all.ts",
 		"verify": "bun run check:all",
 		"version:bump": "bun run scripts/version-bump.ts",

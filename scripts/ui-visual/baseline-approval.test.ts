@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { load } from "js-yaml";
 
 import {
 	type Activity,
@@ -20,7 +19,6 @@ import {
 	policyProblem,
 } from "./baseline-approval.ts";
 
-const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 const POLICY: ApproverPolicy = { approvers: ["jayminwest"], bots: ["warren-run-bot"] };
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
@@ -257,52 +255,5 @@ describe("the gate source", () => {
 		const src = readFileSync(resolve(import.meta.dir, "baseline-approval.ts"), "utf8");
 		const imports = [...src.matchAll(/^import .* from "([^"]+)";$/gm)].map((m) => m[1]);
 		expect(imports.every((m) => m?.startsWith("node:"))).toBe(true);
-	});
-});
-
-type Step = { name?: string; id?: string; if?: string; run?: string; env?: Record<string, string> };
-type AutoMergeWorkflow = {
-	on?: { pull_request?: { types?: string[] } };
-	jobs?: Record<string, { if?: string; steps?: Step[] }>;
-};
-
-describe("auto-merge.yml wiring", () => {
-	const wf = load(
-		readFileSync(resolve(REPO_ROOT, ".github/workflows/auto-merge.yml"), "utf8"),
-	) as AutoMergeWorkflow;
-	const job = wf.jobs?.["enable-auto-merge"];
-	const steps = job?.steps ?? [];
-	const named = (name: string): Step | undefined => steps.find((s) => s.name === name);
-
-	test("re-evaluates when the approval label is added or removed", () => {
-		expect(wf.on?.pull_request?.types).toEqual(
-			expect.arrayContaining(["labeled", "unlabeled", "synchronize"]),
-		);
-		// warren-dbef moved the admission `if:` to the `targets` job.
-		expect(wf.jobs?.targets?.if).toContain(APPROVAL_LABEL);
-	});
-
-	test("runs the base-branch copy of the gate and fails closed", () => {
-		const step = named("UI baseline approval check");
-		expect(step?.id).toBe("baseline");
-		expect(step?.run).toContain("git show");
-		expect(step?.run).toMatch(
-			/git show "origin\/\$\{BASE_REF\}:scripts\/ui-visual\/baseline-approval\.ts"/,
-		);
-		expect(step?.run).toContain("hit=false");
-	});
-
-	test("mints the token and arms only when both gates say hit=false", () => {
-		for (const name of ["Mint app installation token", "Enable auto-merge (squash)"]) {
-			const cond = named(name)?.if ?? "";
-			expect(cond).toContain("steps.protected.outputs.hit == 'false'");
-			expect(cond).toContain("steps.baseline.outputs.hit == 'false'");
-		}
-	});
-
-	test("disarms when the baseline gate refuses", () => {
-		const step = named("Disarm auto-merge when a UI gate refuses");
-		expect(step?.if).toContain("steps.baseline.outputs.hit != 'false'");
-		expect(step?.run).toContain("--disable-auto");
 	});
 });

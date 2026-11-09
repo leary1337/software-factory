@@ -1,4 +1,6 @@
-> **No longer maintained (Nov 2026).** MIT licensed: fork freely.
+> **Личный форк [Warren](https://github.com/jayminwest/warren).** Это не проект Warren и не сервис warren.run. План: [docs/PLAN.md](docs/PLAN.md).
+>
+> Upstream note: **No longer maintained (Nov 2026).** MIT licensed: fork freely.
 
 <p align="center">
   <a href="https://warren.run">

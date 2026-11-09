@@ -31,7 +31,7 @@
  * runs (so the corruption never lands) is tracked in warren-f6b5.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
@@ -165,6 +165,10 @@ function readQueueText(): string {
 }
 
 function main(): void {
+	if (!process.argv.includes(STDIN_FLAG) && !existsSync(resolve(REPO_ROOT, ISSUES_FILE))) {
+		console.log(`check:seeds-integrity — ok (no ${ISSUES_FILE} in this repo)`);
+		return;
+	}
 	const text = readQueueText();
 	const violations = scanText(ISSUES_FILE, text);
 	if (violations.length === 0) {

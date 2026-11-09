@@ -40,9 +40,7 @@ export type CanonicalGate = { name: string; conditional: boolean };
 
 /**
  * The frozen, ordered gate vocabulary. Cheap static gates first,
- * conditional gates next, the expensive test+coverage gate
- * second-to-last, and the CI-parity meta-gate always LAST so it sees
- * the final manifest.
+ * conditional gates next, and the expensive test+coverage gate last.
  */
 export const CANONICAL_GATES: readonly CanonicalGate[] = [
 	{ name: "lint", conditional: false },
@@ -56,7 +54,6 @@ export const CANONICAL_GATES: readonly CanonicalGate[] = [
 	{ name: "gen:docs:check", conditional: true },
 	{ name: "gen:openapi:check", conditional: true },
 	{ name: "check:coverage", conditional: false },
-	{ name: "check:ci-parity", conditional: false },
 ];
 
 type PackageJson = { scripts?: Record<string, string> };
@@ -79,8 +76,7 @@ export function resolveGates(scripts: Record<string, string>): string[] {
 	);
 }
 
-/** The host repo's resolved manifest — the single source of truth that
- *  check-ci-parity.ts imports. */
+/** The host repo's resolved manifest. */
 export const GATES: readonly string[] = resolveGates(loadScripts());
 
 export function formatGateLine(

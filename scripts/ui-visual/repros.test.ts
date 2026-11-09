@@ -10,7 +10,6 @@ import { join } from "node:path";
  */
 
 const REPROS = join(import.meta.dir, "repros");
-const ISSUE_TEMPLATE = join(import.meta.dir, "..", "..", ".github", "ISSUE_TEMPLATE", "ui-bug.yml");
 const REPRO_FILE = /^(warren-[0-9a-f]{4,})\.pw\.ts$/;
 /** playwright.config.ts `testMatch`. */
 const PW_TEST_MATCH = /.*\.pw\.ts$/;
@@ -36,20 +35,5 @@ describe("ui-visual repros", () => {
 			return readFileSync(join(REPROS, e.name), "utf8").includes(seed) ? [] : [e.name];
 		});
 		expect(unnamed).toEqual([]);
-	});
-});
-
-describe("ui-bug issue template", () => {
-	const yml = readFileSync(ISSUE_TEMPLATE, "utf8");
-
-	test("asks for page, viewport, theme, and a screenshot", () => {
-		for (const id of ["page", "viewport", "theme", "screenshot"]) {
-			expect(yml).toContain(`id: ${id}`);
-		}
-	});
-
-	test("states the repro-first rule and where the spec goes", () => {
-		expect(yml).toContain("scripts/ui-visual/repros/<seed-id>.pw.ts");
-		expect(yml).toContain("fails before the fix");
 	});
 });

@@ -199,7 +199,7 @@
 			}
 		},
 		{
-			"includes": ["scripts/check-all.ts", "scripts/check-ci-parity.ts"],
+			"includes": ["scripts/check-all.ts"],
 			"formatter": {
 				"enabled": false
 			}
