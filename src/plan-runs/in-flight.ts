@@ -17,6 +17,7 @@ import type { PrMergeChecker } from "../runs/pr-merge.ts";
 import type {
 	AdvanceResult,
 	CoordinatorCloseChildSeedFn,
+	CoordinatorCommentFn,
 	CoordinatorEmitFn,
 	CoordinatorGetIssueFn,
 	CoordinatorRepos,
@@ -39,6 +40,7 @@ import {
 	mergeTimeoutDiagnosis,
 } from "./merge-stall.ts";
 import { shouldRetryChild } from "./retry.ts";
+import { advanceReview } from "./review.ts";
 
 export interface HandleInFlightInput {
 	readonly planRun: PlanRunRow;
@@ -56,6 +58,7 @@ export interface HandleInFlightInput {
 	readonly reopenPr?: CoordinatorReopenPrFn; // warren-22de: (re)open PR before failing
 	readonly closeChildSeed?: CoordinatorCloseChildSeedFn; // warren-3806: host-side seed close on merge
 	readonly spawn: CoordinatorSpawnFn; // warren-6de9: automatic child re-dispatch
+	readonly commentOnPr?: CoordinatorCommentFn; // posts the finished review on the PR
 }
 
 /**
@@ -336,6 +339,8 @@ async function pollMergeState(
 		return { kind: "merged" };
 	}
 	if (polled.kind === "open") {
+		const review = await advanceReview(input, run, effectivePrUrl);
+		if (review !== null) return review;
 		return await handleOpenPr(input, run, effectivePrUrl);
 	}
 	if (polled.kind === "closed_unmerged" || isFatalForgeError(polled)) {

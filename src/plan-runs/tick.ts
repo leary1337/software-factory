@@ -31,6 +31,7 @@ import {
 	type AdvanceResult,
 	advancePlanRun,
 	type CoordinatorCloseChildSeedFn,
+	type CoordinatorCommentFn,
 	type CoordinatorEmitFn,
 	type CoordinatorGetIssueFn,
 	type CoordinatorReopenPrFn,
@@ -87,6 +88,8 @@ export interface PlanRunTickDeps {
 	 * never depends on agent initiative. Omit to leave it unwired (tests).
 	 */
 	readonly closeChildSeed?: CoordinatorCloseChildSeedFn;
+	/** Posts the finished review on the PR. */
+	readonly commentOnPr?: CoordinatorCommentFn;
 }
 
 export interface PlanRunAdvanceLog {
@@ -164,6 +167,7 @@ function buildAdvanceInput(
 		...(deps.probeMergeStall !== undefined ? { probeMergeStall: deps.probeMergeStall } : {}),
 		...(deps.reopenPr !== undefined ? { reopenPr: deps.reopenPr } : {}),
 		...(deps.closeChildSeed !== undefined ? { closeChildSeed: deps.closeChildSeed } : {}),
+		...(deps.commentOnPr !== undefined ? { commentOnPr: deps.commentOnPr } : {}),
 		...(deps.now !== undefined ? { now: deps.now } : {}),
 	};
 }

@@ -180,6 +180,10 @@ export class FakeForge implements Forge {
 		return { ok: true, value: { outcome: "armed" } };
 	}
 
+	async commentOnPullRequest(): Promise<ForgeResult<void>> {
+		return ok(undefined);
+	}
+
 	async setPullRequestBody(
 		ref: RepoRef,
 		pr: PullRequestRef,

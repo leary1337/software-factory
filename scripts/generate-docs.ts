@@ -261,6 +261,10 @@ function escapeCell(text: string): string {
  * `gen:docs:check` red on registry drift.
  */
 const BUILTIN_AGENT_ROLES: Readonly<Record<string, string>> = {
+	implementer: "Unattended agent that builds one ticket and commits it on the run branch.",
+	reviewer:
+		"Unattended agent that reviews a factory PR cold against its ticket and reports a verdict.",
+	rework: "Unattended agent that fixes the findings of an automated review on the PR branch.",
 	bugwatch: "Bug triage agent — investigates open bug seeds and produces a seeds fix plan per bug.",
 	"claude-code":
 		"General-purpose coding agent on the claude-code harness; dispatchable on a fresh install.",

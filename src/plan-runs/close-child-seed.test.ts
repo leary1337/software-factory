@@ -88,7 +88,7 @@ describe("closeMergedChildSeed", () => {
 
 		const has = (sub: string) => calls.some((c) => c.cmd.includes(sub));
 		expect(has("fetch")).toBe(true);
-		expect(has("worktree")).toBe(true);
+		expect(has("clone")).toBe(true);
 		expect(has("commit")).toBe(true);
 		expect(has("push")).toBe(true);
 
@@ -102,9 +102,6 @@ describe("closeMergedChildSeed", () => {
 		// The push targets the default branch directly.
 		const push = calls.find((c) => c.cmd.includes("push"));
 		expect(push?.cmd).toEqual(["git", "push", "origin", "HEAD:main"]);
-
-		// The worktree is always cleaned up.
-		expect(has("remove")).toBe(true);
 	});
 
 	test("githubToken → fetch + push carry the credential env; token stays out of argv", async () => {
@@ -153,11 +150,10 @@ describe("closeMergedChildSeed", () => {
 		expect(calls.some((c) => c.cmd.includes("commit"))).toBe(false);
 		expect(calls.some((c) => c.cmd.includes("push"))).toBe(false);
 		// Worktree still torn down on the noop path.
-		expect(calls.some((c) => c.cmd.includes("remove"))).toBe(true);
 	});
 
-	test("push failure throws and still removes the worktree", async () => {
-		const { spawn, calls } = makeGitSpawn({ dirtyAfterClose: true, pushExit: 1 });
+	test("push failure throws", async () => {
+		const { spawn } = makeGitSpawn({ dirtyAfterClose: true, pushExit: 1 });
 		const { issueTracker } = makeTracker();
 		await expect(
 			closeMergedChildSeed({
@@ -170,7 +166,6 @@ describe("closeMergedChildSeed", () => {
 				gitBinary: "git",
 			}),
 		).rejects.toThrow(/git push failed/);
-		expect(calls.some((c) => c.cmd.includes("remove"))).toBe(true);
 	});
 
 	test("non-git-native tracker collapses to one tracker.closeIssue call (warren-6234)", async () => {

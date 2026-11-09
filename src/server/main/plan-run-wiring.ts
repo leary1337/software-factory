@@ -31,6 +31,7 @@ import {
 	resolveRunBranchPrefix,
 } from "../../runs/index.ts";
 import { buildPrContent } from "../../runs/pr.ts";
+import { resolvePollTarget } from "../../runs/pr-merge.ts";
 import { runAutoMergeArm } from "../../runs/reap/auto-merge-arm.ts";
 import type { ReapExec } from "../../runs/reap/types.ts";
 import type { RuntimeProvider } from "../../runtime/contract.ts";
@@ -75,6 +76,21 @@ function buildReopenPrContent(
 		...(autoOpenPr.warrenBaseUrl !== null ? { warrenBaseUrl: autoOpenPr.warrenBaseUrl } : {}),
 	});
 	return { title: content.title, body: content.body };
+}
+
+/** Post the finished review on the PR. Best-effort: a failed comment is only logged. */
+export function createCommentOnPr(deps: {
+	readonly forge: Forge;
+	readonly logger: { warn: (obj: object, msg: string) => void };
+}): (prUrl: string, body: string) => Promise<void> {
+	return async (prUrl, body) => {
+		const target = resolvePollTarget(deps.forge, prUrl);
+		if (target.kind === "unparseable") return;
+		const result = await deps.forge.commentOnPullRequest(target.ref, target.pr, body);
+		if (!result.ok) {
+			deps.logger.warn({ prUrl, reason: result.error.kind }, "plan_run.review_comment_failed");
+		}
+	};
 }
 
 /**
@@ -366,6 +382,7 @@ export function bootPlanRunCoordinatorWiring(input: PlanRunWiringInput): PlanRun
 		// auto-merge, and the same diagnosis on a merge-timeout failure.
 		probeMergeStall: createMergeStallProbe({ forge }),
 		mergeStallWarningMs: planRunCoordinatorConfig.mergeStallWarningMs,
+		commentOnPr: createCommentOnPr({ forge, logger }),
 		// warren-3806: deterministic host-side seed close when a child merges.
 		closeChildSeed: createCloseChildSeed({
 			forge,

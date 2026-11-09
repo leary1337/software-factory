@@ -68,6 +68,8 @@ const DELIBERATE: Readonly<Record<string, string>> = {
 	"src/registry/schema.ts": "declares DEFAULT_RUNTIME_ID, the id agents fall back to",
 	"src/registry/builtins/bugwatch.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/claude-code.ts": "built-in agent declaring the runtime it dispatches onto",
+	"src/registry/builtins/factory-roles.ts":
+		"built-in agents declaring the runtime they dispatch onto",
 	"src/registry/builtins/healer.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/nightwatch.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/pi.ts": "built-in agent declaring the runtime it dispatches onto",

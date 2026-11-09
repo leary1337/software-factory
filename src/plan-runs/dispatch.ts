@@ -22,6 +22,7 @@
  */
 
 import type { Repos } from "../db/repos/index.ts";
+import type { PlanRunRow } from "../db/schema.ts";
 import type { Forge } from "../forge/contract.ts";
 import { mintGitCredential } from "../forge/credentials.ts";
 import type { SpawnFn } from "../projects/clone.ts";
@@ -62,9 +63,18 @@ export interface CreatePlanRunSpawnInput {
 	readonly spawnRunFn?: typeof spawnRun;
 }
 
+/** Per-plan overrides applied to each dispatch; the spend cap applies per child. */
+function planRunOverrides(planRun: PlanRunRow) {
+	return {
+		...(planRun.providerOverride !== null ? { providerOverride: planRun.providerOverride } : {}),
+		...(planRun.modelOverride !== null ? { modelOverride: planRun.modelOverride } : {}),
+		...(planRun.maxCostUsd !== null ? { maxCostUsdOverride: planRun.maxCostUsd } : {}),
+	};
+}
+
 export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorSpawnFn {
 	const spawnRunFn = input.spawnRunFn ?? spawnRun;
-	return async ({ planRun, child, prompt }) => {
+	return async ({ planRun, child, prompt, agentName, existingBranch }) => {
 		const project = await input.repos.projects.require(planRun.projectId);
 		const ref = planRun.ref ?? project.defaultBranch;
 		const gitCredential =
@@ -72,20 +82,16 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		const result = await spawnRunFn({
 			repos: input.repos,
 			runtimeProvider: input.runtimeProvider,
-			agentName: planRun.agentName,
+			agentName: agentName ?? planRun.agentName,
 			projectId: planRun.projectId,
 			prompt,
 			trigger: "plan-run",
 			// warren-9ce3: underscore spelling matches the dispatch-origin
 			// vocabulary (distinct from the hyphenated trigger column).
 			dispatchOrigin: "plan_run",
-			seedId: child.seedId,
-			...(planRun.providerOverride !== null ? { providerOverride: planRun.providerOverride } : {}),
-			...(planRun.modelOverride !== null ? { modelOverride: planRun.modelOverride } : {}),
-			// warren-a63d: the plan-run's spend cap applies to EACH child dispatch
-			// on the override tier, same slot a POST /runs body cap rides.
-			...(planRun.maxCostUsd !== null ? { maxCostUsdOverride: planRun.maxCostUsd } : {}),
-			ref,
+			...(existingBranch === undefined ? { seedId: child.seedId } : {}),
+			...planRunOverrides(planRun),
+			...(existingBranch !== undefined ? { existingBranch } : { ref }),
 			metadata: {
 				planRunId: planRun.id,
 				planId: planRun.planId,

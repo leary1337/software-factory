@@ -55,6 +55,10 @@ export interface CoordinatorSpawnInput {
 	readonly planRun: PlanRunRow;
 	readonly child: PlanRunChildRow;
 	readonly prompt: string;
+	/** Review steps only: the role to run instead of the plan's own agent. */
+	readonly agentName?: string;
+	/** Review steps only: work on the child's PR branch and open no new PR. */
+	readonly existingBranch?: string;
 }
 
 export interface CoordinatorSpawnResult {
@@ -62,6 +66,9 @@ export interface CoordinatorSpawnResult {
 }
 
 export type CoordinatorSpawnFn = (input: CoordinatorSpawnInput) => Promise<CoordinatorSpawnResult>;
+
+/** Best-effort PR comment; the implementation handles its own failures. */
+export type CoordinatorCommentFn = (prUrl: string, body: string) => Promise<void>;
 
 export type CoordinatorEmitFn = (
 	runId: string,
@@ -95,6 +102,8 @@ export const PLAN_RUN_EVENT_KINDS = [
 	"plan_run.waiting_for_pr_reopen",
 	"plan_run.child_retried",
 	"plan_run.resumed",
+	"plan_run.review_step",
+	"plan_run.review_finished",
 ] as const;
 export type PlanRunEventKind = (typeof PLAN_RUN_EVENT_KINDS)[number];
 
@@ -121,6 +130,8 @@ export interface AdvancePlanRunInput {
 	readonly emit: CoordinatorEmitFn;
 	/** warren-3806: host-side seed close fired when a child transitions to merged. */
 	readonly closeChildSeed?: CoordinatorCloseChildSeedFn;
+	/** Posts the finished review on the PR. */
+	readonly commentOnPr?: CoordinatorCommentFn;
 	/** warren-3937: merge-wait budget (ms); defaults to {@link DEFAULT_MERGE_TIMEOUT_MS}, 0 disables. */
 	readonly mergeTimeoutMs?: number;
 	/** pl-92a3 step 7: stall-warning grace period (ms); 0 disables the warning. */
@@ -188,6 +199,7 @@ export async function advancePlanRun(input: AdvancePlanRunInput): Promise<Advanc
 				reopenPr: input.reopenPr,
 				spawn: input.spawn,
 				...(input.closeChildSeed !== undefined ? { closeChildSeed: input.closeChildSeed } : {}),
+				...(input.commentOnPr !== undefined ? { commentOnPr: input.commentOnPr } : {}),
 			});
 			if (decision.kind === "merged") {
 				mergedChildSeq = inFlight.seq;

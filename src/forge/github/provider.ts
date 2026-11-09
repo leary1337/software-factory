@@ -51,6 +51,7 @@ import { armGitHubAutoMerge } from "./auto-merge.ts";
 import type { GitHubHttpError } from "./errors.ts";
 import { GITHUB_API_BASE } from "./headers.ts";
 import { requestGitHub } from "./http.ts";
+import { sendPrText } from "./pr-text.ts";
 import { readAutoMergeState, readJson, readText } from "./readers.ts";
 import { GITHUB_FORGE_KIND, parseGitHubRepoRef } from "./repo-ref.ts";
 import {
@@ -275,24 +276,24 @@ export class GitHubForge implements Forge {
 		return armGitHubAutoMerge({ tokens: this.tokens, fetch: this.fetch, slug, pr, ...options });
 	}
 
-	async setPullRequestBody(
-		ref: RepoRef,
-		pr: PullRequestRef,
-		body: string,
-	): Promise<ForgeResult<void>> {
-		const minted = await this.mint(ref);
-		if (!minted.ok) return err(minted.error);
-		const result = await requestGitHub({
-			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/pulls/${pr.number}`,
-			method: "PATCH",
-			token: minted.value.secret,
+	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string) {
+		return this.sendText(ref, `issues/${pr.number}/comments`, "POST", body);
+	}
+
+	setPullRequestBody(ref: RepoRef, pr: PullRequestRef, body: string) {
+		return this.sendText(ref, `pulls/${pr.number}`, "PATCH", body);
+	}
+
+	private sendText(ref: RepoRef, path: string, method: "PATCH" | "POST", text: string) {
+		return sendPrText({
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/${path}`,
+			method,
 			userAgent: USER_AGENT,
-			context: `PATCH /pulls/${pr.number}`,
-			body: { body },
+			context: `${method} /${path}`,
+			text,
 			fetch: this.fetch,
 		});
-		if (!result.ok) return err(toForgeError(result.error));
-		return ok(undefined);
 	}
 
 	async listChecks(ref: RepoRef, commit: string): Promise<ForgeResult<CheckSummary>> {

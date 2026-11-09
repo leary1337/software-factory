@@ -22,5 +22,6 @@ export async function materializeSkillPack(
 	const claudeDir = join(homePath, ".claude");
 	await cp(join(packDir, "pstack"), pstackPluginDir(homePath), { recursive: true });
 	await cp(join(packDir, "mattpocock", "skills"), join(claudeDir, "skills"), { recursive: true });
+	await cp(join(packDir, "factory", "skills"), join(claudeDir, "skills"), { recursive: true });
 	await cp(join(packDir, "rules"), join(claudeDir, "rules"), { recursive: true });
 }

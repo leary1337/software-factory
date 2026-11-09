@@ -341,6 +341,9 @@ export interface Forge {
 		options: ArmAutoMergeOptions,
 	): Promise<ArmAutoMergeResult>;
 
+	/** Post a comment on a PR. Providers without support return `unsupported`. */
+	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string): Promise<ForgeResult<void>>;
+
 	/**
 	 * Rewrite a PR body. The domain composes the body; the forge only
 	 * transports it (§3).

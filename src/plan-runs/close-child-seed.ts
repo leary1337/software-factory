@@ -85,31 +85,29 @@ async function runGit(
 	}
 }
 
-/** Create the throwaway worktree off origin/<defaultBranch> (local fallback). */
-async function addWorktree(
+/**
+ * Create the throwaway checkout at origin/<defaultBranch>. A plain clone, because
+ * `sd` sends a linked worktree's writes to the main checkout.
+ */
+async function createCloseCheckout(
 	input: CloseMergedChildSeedInput,
-	worktreePath: string,
+	checkoutPath: string,
 	branchName: string,
 	scrub: Record<string, string | undefined>,
 ): Promise<void> {
-	const { defaultBranch } = input;
-	let res = await runGit(
-		input,
-		["worktree", "add", "-b", branchName, worktreePath, `origin/${defaultBranch}`],
-		input.projectPath,
-		scrub,
-	);
-	if (res.exitCode !== 0) {
-		res = await runGit(
-			input,
-			["worktree", "add", "-b", branchName, worktreePath, defaultBranch],
-			input.projectPath,
-			scrub,
-		);
-	}
-	if (res.exitCode !== 0) {
-		throw new Error(`git worktree add failed (exit ${res.exitCode}): ${res.stderr}`);
-	}
+	const { defaultBranch, projectPath } = input;
+	const git = async (args: string[], cwd: string) => {
+		const res = await runGit(input, args, cwd, scrub);
+		if (res.exitCode !== 0) {
+			throw new Error(`git ${args[0]} failed (exit ${res.exitCode}): ${res.stderr}`);
+		}
+		return res.stdout.trim();
+	};
+	const originUrl = await git(["remote", "get-url", "origin"], projectPath);
+	const head = await git(["rev-parse", `origin/${defaultBranch}`], projectPath);
+	await git(["clone", "--shared", "--no-checkout", projectPath, checkoutPath], projectPath);
+	await git(["remote", "set-url", "origin", originUrl], checkoutPath);
+	await git(["checkout", "-b", branchName, head], checkoutPath);
 }
 
 /**
@@ -145,7 +143,7 @@ export async function closeMergedChildSeed(
 	const worktreePath = await mkdtemp(join(tmpdir(), `warren-seed-close-${hash}-`));
 
 	try {
-		await addWorktree(input, worktreePath, branchName, scrub);
+		await createCloseCheckout(input, worktreePath, branchName, scrub);
 
 		// The close is idempotent; it rewrites .seeds/issues.jsonl only when the
 		// seed was open on this branch (seeds: `sd close` inside the worktree).
@@ -197,7 +195,6 @@ export async function closeMergedChildSeed(
 
 		return { kind: "closed", branch: input.defaultBranch };
 	} finally {
-		await runGit(input, ["worktree", "remove", "--force", worktreePath], input.projectPath, scrub);
 		await rm(worktreePath, { recursive: true, force: true }).catch(() => {});
 	}
 }

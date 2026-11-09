@@ -1,6 +1,6 @@
 {
 	"source": "src/registry/builtins/index.ts (BUILTIN_AGENTS)",
-	"count": 7,
+	"count": 10,
 	"agents": [
 		{
 			"name": "bugwatch",
@@ -13,6 +13,10 @@
 		{
 			"name": "healer",
 			"role": "Closed-loop repair agent — diagnoses production alerts and opens a fresh fix branch + PR."
+		},
+		{
+			"name": "implementer",
+			"role": "Unattended agent that builds one ticket and commits it on the run branch."
 		},
 		{
 			"name": "nightwatch",
@@ -29,6 +33,14 @@
 		{
 			"name": "pr-fixer",
 			"role": "CI-repair agent — fixes failing checks on warren-opened PRs directly on the PR branch."
+		},
+		{
+			"name": "reviewer",
+			"role": "Unattended agent that reviews a factory PR cold against its ticket and reports a verdict."
+		},
+		{
+			"name": "rework",
+			"role": "Unattended agent that fixes the findings of an automated review on the PR branch."
 		}
 	]
 }

@@ -120,6 +120,14 @@ export class HotForge implements Forge {
 		return this.delegate.armAutoMerge(ref, pr, options);
 	}
 
+	commentOnPullRequest(
+		ref: Parameters<Forge["commentOnPullRequest"]>[0],
+		pr: Parameters<Forge["commentOnPullRequest"]>[1],
+		body: Parameters<Forge["commentOnPullRequest"]>[2],
+	) {
+		return this.delegate.commentOnPullRequest(ref, pr, body);
+	}
+
 	setPullRequestBody(
 		ref: Parameters<Forge["setPullRequestBody"]>[0],
 		pr: Parameters<Forge["setPullRequestBody"]>[1],

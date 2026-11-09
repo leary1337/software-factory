@@ -249,6 +249,10 @@ export class GitLabForge implements Forge {
 		});
 	}
 
+	async commentOnPullRequest(): Promise<ForgeResult<void>> {
+		return err({ kind: "unsupported", detail: "PR comments are implemented for GitHub only" });
+	}
+
 	async setPullRequestBody(
 		ref: RepoRef,
 		pr: PullRequestRef,

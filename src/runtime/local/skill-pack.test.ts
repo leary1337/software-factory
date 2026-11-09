@@ -28,6 +28,7 @@ describe("materializeSkillPack", () => {
 		const home = tempDir();
 		write(pack, "pstack/skills/swarm/SKILL.md", "swarm");
 		write(pack, "mattpocock/skills/tdd/SKILL.md", "tdd");
+		write(pack, "factory/skills/go-best-practices/SKILL.md", "go");
 		write(pack, "rules/pstack-models.md", "models");
 
 		await materializeSkillPack(home, pack);
@@ -36,6 +37,9 @@ describe("materializeSkillPack", () => {
 			"swarm",
 		);
 		expect(readFileSync(join(home, ".claude/skills/tdd/SKILL.md"), "utf8")).toBe("tdd");
+		expect(readFileSync(join(home, ".claude/skills/go-best-practices/SKILL.md"), "utf8")).toBe(
+			"go",
+		);
 		expect(readFileSync(join(home, ".claude/rules/pstack-models.md"), "utf8")).toBe("models");
 	});
 
