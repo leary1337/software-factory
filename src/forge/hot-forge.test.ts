@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { AdoForge } from "./ado/provider.ts";
 import type { Forge } from "./contract.ts";
 import { FakeForge } from "./fake/fake-forge.ts";
 import { generateTestAppKeyPair, stubGitHubAppServer } from "./github-app/test-helpers.ts";
+import { GitLabForge } from "./gitlab/provider.ts";
+import { gitLabDotCom } from "./gitlab/test-helpers.ts";
 import { HotForge } from "./hot-forge.ts";
 
 describe("HotForge", () => {
@@ -43,11 +44,11 @@ describe("HotForge", () => {
 	});
 
 	test("mirrors the delegate's repoLayout declaration — present, layout-declaring, or absent", () => {
-		const layoutForge = new AdoForge({ token: "t" });
+		const layoutForge = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
 		const hot = new HotForge(layoutForge);
 		expect(hot.repoLayout).toBeDefined();
-		expect(hot.repoLayout?.("https://dev.azure.com/acme/Widgets/_git/widget")).toEqual(
-			layoutForge.repoLayout("https://dev.azure.com/acme/Widgets/_git/widget"),
+		expect(hot.repoLayout?.("https://gitlab.com/acme/Widgets/widget.git")).toEqual(
+			layoutForge.repoLayout("https://gitlab.com/acme/Widgets/widget.git"),
 		);
 		expect(new HotForge(new FakeForge()).repoLayout).toBeUndefined();
 	});
@@ -81,11 +82,11 @@ describe("HotForge", () => {
 	});
 
 	test("mirrors the delegate's repoLayout declaration — present, layout-declaring, or absent", () => {
-		const layoutForge = new AdoForge({ token: "t" });
+		const layoutForge = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
 		const hot = new HotForge(layoutForge);
 		expect(hot.repoLayout).toBeDefined();
-		expect(hot.repoLayout?.("https://dev.azure.com/acme/Widgets/_git/widget")).toEqual(
-			layoutForge.repoLayout("https://dev.azure.com/acme/Widgets/_git/widget"),
+		expect(hot.repoLayout?.("https://gitlab.com/acme/Widgets/widget.git")).toEqual(
+			layoutForge.repoLayout("https://gitlab.com/acme/Widgets/widget.git"),
 		);
 		expect(new HotForge(new FakeForge()).repoLayout).toBeUndefined();
 	});

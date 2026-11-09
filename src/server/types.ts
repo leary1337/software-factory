@@ -188,23 +188,12 @@ export interface ServerDeps {
 	readonly gitHubAppActivation?: import("../forge/hot-forge.ts").GitHubAppActivation;
 	/** warren-48f8: armed setup-handoff store; absent ⇒ GET /setup answers 404. */
 	readonly setupHandoff?: import("./setup-handoff.ts").SetupHandoffStore;
-	/** K8s-topology `/readyz` sync seam (warren-39e1), boot-wired from the started
-	 * pod-watcher under `WARREN_RUNTIME=k8s`; absent under `local`. */
-	readonly k8sPodSync?: import("../runtime/k8s/pod-watcher.ts").PodSyncSource;
 	/** Preview sidecar resolver (warren-e24d), gated on `previewPorts`. The local
 	 * backend's combined facade resolver satisfies both preview consumer seams. */
 	readonly previewSidecars?: import("../runtime/local/preview/sidecars.ts").LocalSidecarsResolver;
 	/** K8s in-pod finalize correlation registry (warren-0d35); defaults to the
 	 * shared singleton, so prod needs no wiring — tests inject a private instance. */
-	readonly finalizeCoordinator?: import("../runtime/k8s/finalize-coordinator.ts").FinalizeCoordinator;
-	/**
-	 * K8s finalize-intent recovery hook (warren-5202). Fired by
-	 * `GET /runs/:id/finalize-intent` on an intent MISS so a post-restart
-	 * control plane re-drives reap for a pod still awaiting its intent.
-	 * Boot-wired only under `WARREN_RUNTIME=k8s`; absent under `local` (no pod
-	 * ever polls the route there) and in tests that don't opt in.
-	 */
-	readonly finalizeRecovery?: import("../runs/finalize-recovery.ts").FinalizeRecoveryHook;
+	readonly finalizeCoordinator?: import("../runtime/container/finalize-coordinator.ts").FinalizeCoordinator;
 	/**
 	 * Durable salvage-bundle directory (warren-cd3b). The `POST /runs/:id/salvage`
 	 * intake writes pod-captured git bundles here (`<runId>.bundle`); boot wires
@@ -359,10 +348,6 @@ export interface ServerDeps {
 	 * Counter registry for `GET /metrics` (observability Phase 1); undefined omits the counters.
 	 */
 	readonly metricsRegistry?: import("../observability/metrics-registry.ts").MetricsRegistry;
-	/**
-	 * K8s pod-phase gauge source for `GET /metrics` (pl-829f step 16); set under WARREN_RUNTIME=k8s.
-	 */
-	readonly podMetrics?: import("../runtime/k8s/pod-metrics.ts").PodMetricsSource;
 	/**
 	 * Concurrency admission for the two NDJSON event-stream routes
 	 * (warren-25f6). `bootServer` always wires one from

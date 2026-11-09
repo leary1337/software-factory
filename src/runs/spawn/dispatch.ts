@@ -28,7 +28,7 @@ import { readCachedAgent, readProjectDefaults, resolveOverride } from "./agent-c
 import { injectWarrenCallbackEnv } from "./callback-env.ts";
 import { resolveContinuationRef, resolveExistingBranch } from "./continuation.ts";
 import { writeDispatchContext } from "./dispatch-context.ts";
-import { injectGitIdentityEnv, warnIfGitIdentityUnconfigured } from "./git-identity.ts";
+import { injectGitIdentityEnv } from "./git-identity.ts";
 import {
 	appendMigrationCollisionNote,
 	detectMigrationJournalCollisions,
@@ -261,7 +261,6 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		dispatchOrigin: input.dispatchOrigin,
 	});
 	// warren-e7b7: warn once per dispatch when agent git identity is unset (K8s).
-	warnIfGitIdentityUnconfigured(log, input.serverEnv ?? process.env);
 	// Runtime-provider seam (warren-c42c: burrow-client eviction, bucket 2).
 	// `provider.create` collapses burrow's provision + dispatch (`sandboxUp` +
 	// `runs.create`) into one call and owns the sandbox-half rollback on a partial

@@ -3,7 +3,7 @@
 # Referenced by pod-spec.ts as WARREN_K8S_AGENT_IMAGE (default
 # `warren-agent:latest`). One bare Pod per run mounts the `/workspace`
 # emptyDir the workspace-init container materialized, then runs this image's
-# entrypoint (`bun run agent:run` → src/runtime/k8s/agent-entrypoint.ts). The
+# entrypoint (`bun run agent:run` → src/runtime/container/agent-entrypoint.ts). The
 # runner resolves the selected runtime off burrow's registry (`@os-eco/burrow-cli`,
 # a warren dependency installed below), launches the agent binary directly (the
 # pod IS the sandbox — no bwrap), streams its events as NDJSON on stdout, and
@@ -31,7 +31,7 @@ FROM oven/bun:1.2
 # util-linux ships `setpriv`, the warren-cb93 entrypoint/agent uid-split
 # primitive: the in-pod entrypoint (uid 1000) setpriv-drops the AGENT process
 # to uid 1001 so a forged write at the entrypoint's stdout fd (/proc/1/fd/1)
-# fails EACCES (see src/runtime/k8s/agent-uid-drop.ts). K8s-only: the
+# fails EACCES (see src/runtime/container/agent-uid-drop.ts). K8s-only: the
 # DockerProvider spawns the agent argv directly as the container's pid 1, so
 # there is no entrypoint fd to protect and no split applies.
 #

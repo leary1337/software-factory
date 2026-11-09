@@ -95,21 +95,6 @@ describe("/readyz runtime-topology scoping (warren-c128)", () => {
 		expect(names).not.toContain("docker_cli");
 	});
 
-	test("k8s backend scopes local-sandbox probes out entirely (⇒ 200)", async () => {
-		process.env.WARREN_RUNTIME = "k8s";
-		db = await openDatabase({ path: ":memory:" });
-		const { status, ok, names } = await readyzChecks(db, { isSynced: () => true });
-		expect(status).toBe(200);
-		expect(ok).toBe(true);
-		expect(names).not.toContain("burrow_reachable");
-		expect(names).not.toContain("bwrap");
-		expect(names).not.toContain("stale_sandbox_workspaces");
-		// The topology-relevant checks survive.
-		expect(names).toContain("db_reachable");
-		expect(names).toContain("agents");
-		expect(names).not.toContain("docker_cli");
-	});
-
 	// warren-5c42: the docker topology dispatches every agent through the
 	// docker CLI, so a broken CLI must fail readiness rather than boot green
 	// and die at the first dispatch with `Executable not found in $PATH`.

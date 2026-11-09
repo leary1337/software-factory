@@ -18,7 +18,7 @@ describe("resolveLocalRunBackend", () => {
 	});
 
 	test("k8s topology resolves a provider with no preview seam and a no-op close", async () => {
-		const backend = resolveLocalRunBackend({ WARREN_RUNTIME: "k8s" });
+		const backend = resolveLocalRunBackend({ WARREN_RUNTIME: "docker" });
 		expect(backend.runtimeProvider.capabilities.previewPorts).toBe(false);
 		expect(backend.previewSidecars).toBeUndefined();
 		// No sidecar registry work happens under k8s, so close() is a no-op.

@@ -17,8 +17,6 @@ import {
 	PULL_REQUEST_LIFECYCLES,
 	type PullRequestLifecycle,
 } from "../core/wire.ts";
-import { AdoForge } from "./ado/provider.ts";
-import { stubAdoServer } from "./ado/stub-server.ts";
 import {
 	AUTO_MERGE_REFUSAL_REASONS,
 	type AutoMergeRefusalReason,
@@ -301,15 +299,6 @@ describe("GitHubAppForge conforms to the Forge contract", () => {
 			shortLivedCredential: true,
 		},
 	);
-});
-
-describe("AdoForge conforms to the Forge contract", () => {
-	forgeConformanceSuite(() => new AdoForge({ token: "test-pat", fetch: stubAdoServer().fetch }), {
-		cloneUrl: "https://dev.azure.com/octo/Widgets/_git/widget",
-		forgeKind: "ado",
-		foreignUrls: ["fake://projects/widget", "https://github.com/o/r.git", "git@github.com:o/r.git"],
-		botIdentity: false,
-	});
 });
 
 describe("GitLabForge conforms to the Forge contract", () => {

@@ -107,8 +107,6 @@ function costValue(costCap: string): string {
 
 function isolationRow(runtime: InstanceFactsResponse["runtime"] | undefined): AdmissionRow {
 	switch (runtime) {
-		case "k8s":
-			return { label: "Workspace isolation", value: "POD BOUNDARY", status: "ok" };
 		case "docker":
 			return { label: "Workspace isolation", value: "CONTAINER BOUNDARY", status: "ok" };
 		case "local":

@@ -256,7 +256,7 @@ describe("reapRun provider-error safety net (warren-edc3)", () => {
 			commitsAhead: 0,
 			emptyPush: true,
 			dirty: true,
-			dirtyPaths: ["src/runtime/k8s/finalize-entrypoint.salvage.test.ts"],
+			dirtyPaths: ["src/runtime/container/finalize-entrypoint.salvage.test.ts"],
 			workspacePlansBody: null,
 			events: [],
 			artifacts: {},

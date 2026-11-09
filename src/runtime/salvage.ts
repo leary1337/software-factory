@@ -26,7 +26,7 @@
  *     lives in `src/runs/reap/salvage.ts` and runs between finalize and
  *     `runWorkspaceDestroy`.
  *   - K8sProvider: only the pod can see its workspace, so the salvage runs
- *     INSIDE the pod (`src/runtime/k8s/salvage.ts`, driven by
+ *     INSIDE the pod (`src/runtime/container/salvage.ts`, driven by
  *     `finalize-entrypoint.ts`) before the container exits, and the bundle
  *     rides `POST /runs/:id/salvage` to warren-side durable storage.
  *

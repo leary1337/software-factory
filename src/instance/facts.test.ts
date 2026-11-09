@@ -40,34 +40,8 @@ describe("buildInstanceFacts", () => {
 		});
 	});
 
-	test("surfaces K8s admission caps only under WARREN_RUNTIME=k8s", () => {
-		const facts = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "k8s" }));
-		expect(facts.runtime).toBe("k8s");
-		expect(facts.admission).toEqual({
-			maxQueueDepth: 7,
-			maxPendingPods: 3,
-			maxProjectConcurrency: 2,
-		});
-	});
-
-	test("k8s admission caps fall back to the documented defaults", () => {
-		const facts = buildInstanceFacts(
-			baseInput({
-				WARREN_RUNTIME: "k8s",
-				WARREN_K8S_MAX_QUEUE_DEPTH: undefined,
-				WARREN_K8S_MAX_PENDING_PODS: undefined,
-				WARREN_K8S_MAX_PROJECT_CONCURRENCY: undefined,
-			}),
-		);
-		expect(facts.admission).toEqual({
-			maxQueueDepth: 50,
-			maxPendingPods: 20,
-			maxProjectConcurrency: null,
-		});
-	});
-
 	test("never emits secrets from the input env", () => {
-		const facts: unknown = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "k8s" }));
+		const facts: unknown = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "docker" }));
 		const text = JSON.stringify(facts);
 		for (const marker of [
 			"super-secret-token",
@@ -95,7 +69,7 @@ describe("buildInstanceFacts", () => {
 
 describe("publicInstanceFacts", () => {
 	test("keeps only the three static facts", () => {
-		const facts: InstanceFacts = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "k8s" }));
+		const facts: InstanceFacts = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "docker" }));
 		const pub = publicInstanceFacts(facts);
 		expect(Object.keys(pub).sort()).toEqual(["authMode", "runtime", "version"]);
 		expect(pub.version).toBe(VERSION);

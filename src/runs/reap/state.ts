@@ -1,6 +1,6 @@
 import type { Repos } from "../../db/repos/index.ts";
 import type { RunFailureReason, RunTerminalState } from "../../db/schema.ts";
-import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../../runtime/k8s/agent-uid-drop.ts";
+import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../../runtime/container/agent-uid-drop.ts";
 import { backfillTerminalUsage } from "../usage-hydrate.ts";
 
 export function isTerminal(state: string): boolean {
@@ -54,7 +54,7 @@ const SANDBOX_ERROR_LINE = /^(?:bwrap|sandbox-exec): /m;
  * The K8s agent-entrypoint idle-watchdog witness (warren-7f0b): the kind the
  * in-pod stdin-hold controller emits on `stream=system` just before it closes
  * stdin and hard-kills a stdin-held runtime that produced no output past the
- * idle budget (`src/runtime/k8s/agent-stdin-hold.ts`). Its presence on the
+ * idle budget (`src/runtime/container/agent-stdin-hold.ts`). Its presence on the
  * persisted event log is the durable record that the harness was killed by
  * warren's own liveness guard — the discriminator `inferFailureReason` and the
  * watchdog terminal-reconcile net both key off (general infra-death salvage
@@ -99,7 +99,7 @@ function isSpawnExecErrorEvent(ev: EventRowLike): boolean {
 /**
  * True for the K8s entrypoint's uid-drop preflight refusal (warren-950d).
  * The in-pod entrypoint emits it on `stream=system` before ever spawning the
- * agent (`src/runtime/k8s/agent-uid-drop.ts`), so the run has zero model
+ * agent (`src/runtime/container/agent-uid-drop.ts`), so the run has zero model
  * turns and — without this arm — collapsed into `no_model_response`, which
  * reads as a credential/provider fault. It is a spawn-class infrastructure
  * failure: the agent process was never started. Anchored to the system

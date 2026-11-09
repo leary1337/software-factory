@@ -15,7 +15,6 @@
  */
 
 import { VERSION } from "../index.ts";
-import { resolveAdmissionCaps } from "../runtime/k8s/admission.ts";
 import { type RuntimeKind, resolveRuntimeKind } from "../runtime/registry.ts";
 
 /** Auth mode as resolved at boot by `resolveAuthKind` (src/server/auth.ts). */
@@ -69,7 +68,7 @@ export function buildInstanceFacts(input: InstanceFactsInput): InstanceFacts {
 		authMode: input.authMode,
 		dbBackend: input.dbBackend,
 		uptimeSeconds: Math.max(0, Math.floor(input.uptimeSeconds)),
-		admission: runtime === "k8s" ? resolveAdmissionCaps(input.env) : null,
+		admission: null,
 	};
 }
 

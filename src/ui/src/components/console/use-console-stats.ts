@@ -42,7 +42,7 @@ export interface ConsoleStats {
 	 */
 	readonly burnUsdPerHour: number | null;
 	/** Boot-resolved runtime kind off `GET /instance`; null while loading. */
-	runtime: "local" | "docker" | "k8s" | null;
+	runtime: "local" | "docker" | null;
 }
 
 /**

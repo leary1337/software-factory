@@ -48,7 +48,7 @@ function makeRecordingProvider(handle: Partial<RunHandle> = {}): {
 	const specs: RunSpec[] = [];
 	const provider: RuntimeProvider = {
 		capabilities: K8S_CAPABILITIES,
-		kind: "k8s",
+		kind: "docker",
 		async create(spec) {
 			specs.push(spec);
 			return {
@@ -80,7 +80,7 @@ function makeRecordingProvider(handle: Partial<RunHandle> = {}): {
 	return { provider, specs };
 }
 
-describe("spawnRun: provider-neutral dispatch (k8s-shaped backend)", () => {
+describe("spawnRun: provider-neutral dispatch (container backend)", () => {
 	let db: WarrenDb;
 	let repos: Repos;
 
@@ -158,7 +158,7 @@ describe("spawnRun: provider-neutral dispatch (k8s-shaped backend)", () => {
 	test("a provider.create failure rolls the warren row back to failed/never_started", async () => {
 		const provider: RuntimeProvider = {
 			capabilities: K8S_CAPABILITIES,
-			kind: "k8s",
+			kind: "docker",
 			async create() {
 				throw new Error("pod admission rejected");
 			},

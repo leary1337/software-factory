@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { ValidationError } from "../core/errors.ts";
-import { AdoForge } from "../forge/ado/provider.ts";
 import type { Forge } from "../forge/contract.ts";
 import { FakeForge } from "../forge/fake/fake-forge.ts";
 import { GitHubForge } from "../forge/github/provider.ts";
 import { GitLabForge } from "../forge/gitlab/provider.ts";
 import { parseGitLabInstance } from "../forge/gitlab/repo-ref.ts";
+import { gitLabDotCom } from "../forge/gitlab/test-helpers.ts";
 import {
 	assertNoUserinfo,
 	normalizeGitHubUrl,
@@ -161,8 +161,8 @@ describe("parseForgeOwnedUrl (warren-2600)", () => {
 	});
 
 	test("a forge that names its own layout wins over the last-two-segments rule", () => {
-		const ado = new AdoForge({ token: "t" });
-		expect(parseForgeOwnedUrl("https://dev.azure.com/org/Proj/_git/repo", ado)).toEqual({
+		const ado = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
+		expect(parseForgeOwnedUrl("https://gitlab.com/org/Proj/repo.git", ado)).toEqual({
 			owner: "org-Proj",
 			name: "repo",
 		});
@@ -188,8 +188,8 @@ describe("parseProjectUrl", () => {
 	});
 
 	test("falls back to the forge-owned layout for a URL github grammar rejects", () => {
-		const ado = new AdoForge({ token: "t" });
-		expect(parseProjectUrl("https://dev.azure.com/org/Proj/_git/repo", ado)).toEqual({
+		const ado = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
+		expect(parseProjectUrl("https://gitlab.com/org/Proj/repo.git", ado)).toEqual({
 			owner: "org-Proj",
 			name: "repo",
 		});
@@ -216,8 +216,8 @@ describe("parseProjectUrl", () => {
 	});
 
 	test("tolerates userinfo — registration rejects it, the heal path must still parse the row", () => {
-		const ado = new AdoForge({ token: "t" });
-		expect(parseProjectUrl("https://org@dev.azure.com/org/Proj/_git/repo", ado)).toEqual({
+		const ado = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
+		expect(parseProjectUrl("https://org@gitlab.com/org/Proj/repo.git", ado)).toEqual({
 			owner: "org-Proj",
 			name: "repo",
 		});
@@ -225,12 +225,6 @@ describe("parseProjectUrl", () => {
 			owner: "o",
 			name: "r",
 		});
-	});
-
-	test("lays a punctuated project name out under a sanitized, disambiguated owner", () => {
-		const ado = new AdoForge({ token: "t" });
-		const url = "https://dev.azure.com/acme/Team%20(EU)/_git/widget";
-		expect(parseProjectUrl(url, ado)).toEqual({ owner: "acme-Team-EU-912e3508", name: "widget" });
 	});
 
 	test("leaves the ssh user alone — it is not a credential", () => {
@@ -243,7 +237,7 @@ describe("parseProjectUrl", () => {
 
 describe("assertNoUserinfo", () => {
 	test("refuses https URLs carrying a username or credentials", () => {
-		expect(() => assertNoUserinfo("https://org@dev.azure.com/org/Proj/_git/repo")).toThrow(
+		expect(() => assertNoUserinfo("https://org@gitlab.com/org/Proj/repo.git")).toThrow(
 			/must not carry credentials or a username/,
 		);
 		expect(() => assertNoUserinfo("https://x:secret@github.com/o/r.git")).toThrow(

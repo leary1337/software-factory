@@ -158,7 +158,7 @@ export interface AgentRuntimeAdapter {
 /**
  * The minimal steering-message shape the encoders read (burrow's `Message`
  * carried a full row; the encoders only ever consult `body` + `priority`,
- * per `src/runtime/k8s/agent-io.ts`'s mapping note). The seam's
+ * per `src/runtime/container/agent-io.ts`'s mapping note). The seam's
  * `Message` (`src/runtime/contract.ts`) satisfies this structurally.
  */
 export interface SteeringMessage {
@@ -243,7 +243,7 @@ export interface AgentFrontmatter {
 /**
  * Input to `buildSpawnContext`-style rendering — burrow's `SpawnContext`
  * narrowed to the fields the lifted harnesses actually read (the k8s
- * in-pod driver stubbed the rest, see `src/runtime/k8s/agent-io.ts`).
+ * in-pod driver stubbed the rest, see `src/runtime/container/agent-io.ts`).
  */
 export interface AdapterSpawnContext {
 	readonly runId: string;

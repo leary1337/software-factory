@@ -53,7 +53,6 @@ import { bindReapWithBootDeps, bootBridgesAndProviderRetry } from "./bridges-wir
 import { buildServerDeps } from "./deps.ts";
 import { bootBackgroundDetectors } from "./detector-wiring.ts";
 import { bootGitHubAppActivation } from "./github-app-activation-wiring.ts";
-import { makePodWarningRunEventSink } from "./k8s-pod-warning-sink.ts";
 import { bootLifecycleBus } from "./lifecycle-bus-wiring.ts";
 import {
 	bridgeLoggerFromPino,
@@ -64,7 +63,7 @@ import { bootObservability, captureBootFailure } from "./observability-wiring.ts
 import { bootPlanRunCoordinatorWiring } from "./plan-run-wiring.ts";
 import { bootPreviewSurface } from "./preview-wiring.ts";
 import { wireInfraLostRetry } from "./retry-wiring.ts";
-import { bootK8sRuntime, resolveBootRuntimeProvider } from "./runtime-wiring.ts";
+import { resolveBootRuntimeProvider } from "./runtime-wiring.ts";
 import { bootstrapOperatorToken } from "./token-bootstrap.ts";
 import { bootToolCallsBackfill } from "./tool-calls-backfill-wiring.ts";
 import { closeDatabase, defaultSpawn, redactDbUrl, resolvePgPoolMax } from "./utils.ts";
@@ -194,19 +193,10 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 	// K8s runtime background loops (pl-829f step 25 / warren-7c30); undefined under the
 	// default `local` backend; booted HERE (before `bootBridges`, warren-c531).
 	// warren-32f8: onPodWarning surfaces pod-level stalls onto the run's event stream.
-	const onPodWarning = makePodWarningRunEventSink({ repos, broker, logger });
 	// warren-7116: runtime → domain edge for the workspace_ready_at stamp.
 	const onWorkspaceReady = (runId: string, at: Date): void => {
 		void repos.runs.markWorkspaceReady(runId, at).catch(() => {});
 	};
-	const k8sRuntime = bootK8sRuntime({
-		env,
-		metrics: metricsRegistry,
-		logger,
-		onPodWarning,
-		onWorkspaceReady,
-	});
-	if (k8sRuntime !== undefined) logger.info({}, "k8s runtime: pod-watcher + pod-GC started");
 
 	// Resolve the runtime provider ONCE (warren-c531) — the SAME instance flows into the
 	// bridge registry, poller, watchdog, and `ServerDeps` (warren-f796: local vs k8s seams).
@@ -218,11 +208,6 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		localBackend?.runtimeProvider ??
 		resolveBootRuntimeProvider({
 			env,
-			runInbox: () => repos.runInbox,
-			logger,
-			...(metricsRegistry !== undefined ? { admissionMetrics: metricsRegistry } : {}),
-			...(k8sRuntime !== undefined ? { k8sRuntime } : {}),
-			forge,
 			onWorkspaceReady,
 		});
 	// warren-3f8a/820e: path mode boots a dedicated preview listener; previewPorts gates it.
@@ -337,7 +322,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 
 	// Background detectors: run heartbeat watchdog (warren-285d), periodic
 	// ops-stats worker, forge credential heartbeat (warren-1295). See detector-wiring.ts.
-	const { watchdog, opsStatsWorker, forgeHeartbeat, finalizeRecovery } = bootBackgroundDetectors({
+	const { watchdog, opsStatsWorker, forgeHeartbeat } = bootBackgroundDetectors({
 		env,
 		adapter,
 		repos,
@@ -415,9 +400,6 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		metricsRegistry,
 		// warren-cd3b: durable salvage-bundle intake dir (the persistent volume).
 		salvageDir,
-		// `/metrics` pod-phase gauges read from the pod-watcher at scrape (warren-7c30).
-		...(k8sRuntime !== undefined ? { k8sPodWatcher: k8sRuntime.podWatcher } : {}),
-		...(finalizeRecovery !== undefined ? { finalizeRecovery } : {}),
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
 
@@ -471,7 +453,6 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 			await workspaceGcWorker.stop();
 			await opsStatsWorker.stop();
 			forgeHeartbeat?.stop();
-			await k8sRuntime?.stop();
 			await bridgesBoot.registry.stopAll();
 			// Detach the lifecycle-bus consumers + uninstall the singleton so a
 			// teardown leaves no global emit target behind (warren-4e74).

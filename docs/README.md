@@ -7,8 +7,6 @@ This directory holds operator, API, architecture, and contributor documentation.
 - [`quickstart.md`](quickstart.md) — the casual path end to end: install script, `warren up`, credential wizard, GitHub App connect, first run.
 - [`credentials.md`](credentials.md) — the two model paths and the two GitHub paths, including machine-account guidance.
 - [`self-host/docker.md`](self-host/docker.md) — local and sibling-container Docker topologies, agent images, persistence, and macOS Docker Desktop requirements.
-- [`RUNBOOK-K8S.md`](RUNBOOK-K8S.md) — Kubernetes deployment, secrets, RBAC, garbage collection, admission, and incident response.
-- [`../deploy/k8s/README.md`](../deploy/k8s/README.md) — Kubernetes manifest and overlay commands.
 - [`operations.md`](operations.md) — probes, structured logs, metrics, run events, cost, backups, and common triage.
 - [`../.env.example`](../.env.example) — annotated deployment environment reference.
 - [`project-setup.md`](project-setup.md) — repository permissions, CI, auto-merge, and branch cleanup.
@@ -51,8 +49,6 @@ Design approval does not imply roadmap commitment. [`../ROADMAP.md`](../ROADMAP.
 
 Docs paths are a public surface (warren-d602). When maintainers delete or move a document, its old path stays here as a pointer.
 
-- `deploy/gke-deploy-prep.md` — retired, see [`RUNBOOK-K8S.md`](RUNBOOK-K8S.md) §1.5 (warren-c69e)
-- `design/k8s-migration-plan.md` — retired, see [`design/k8s-migration.md`](design/k8s-migration.md) (warren-c69e)
 - `design/data-plane-trajectory.md` — retired because its feature no longer exists (warren-c69e)
 
 ## History

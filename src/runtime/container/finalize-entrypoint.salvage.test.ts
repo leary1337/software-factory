@@ -298,7 +298,7 @@ describe("runFinalizeEntrypoint salvage (warren-cd3b)", () => {
 		// — the run died mid-work (provider_error) before its first commit.
 		const { git, calls } = fakeGit({
 			"rev-list": { stdout: "0" },
-			status: { stdout: " M src/runtime/k8s/finalize-entrypoint.salvage.test.ts\n" },
+			status: { stdout: " M src/runtime/container/finalize-entrypoint.salvage.test.ts\n" },
 		});
 		const did = await runFinalizeEntrypoint(env, { ...salvageDeps, http, git, fs: fakeFs() });
 		expect(did).toBe(true);

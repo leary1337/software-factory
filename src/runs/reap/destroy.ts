@@ -30,7 +30,7 @@ export interface RunWorkspaceDestroyInput {
 	 * the GC/eviction path can reclaim the workspace later once operators
 	 * have recovered the branch. Note the K8s caveat: the skip preserves
 	 * nothing by itself there (the pod's emptyDir dies with the container) —
-	 * the in-pod salvage (`src/runtime/k8s/salvage.ts`) is the k8s capture.
+	 * the in-pod salvage (`src/runtime/container/salvage.ts`) is the k8s capture.
 	 */
 	readonly branchPushFailed?: boolean;
 	/**

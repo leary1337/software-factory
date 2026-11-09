@@ -18,8 +18,7 @@ an adapter before the runtime can drive it. The current distribution
 ships Pi and Claude Code adapters.
 
 Runtime providers place each run in a local `bwrap` sandbox on Linux or
-`sandbox-exec` sandbox on macOS, a sibling Docker container, or a
-Kubernetes pod.
+`sandbox-exec` sandbox on macOS or a sibling Docker container.
 
 The kernel guarantees a pushed workspace branch. Project settings can
 add PR creation and tracker reactions around that boundary.
@@ -77,14 +76,6 @@ backends exist.
   runs each agent as a sibling container over the docker socket. The
   container boundary is the sandbox. See
   [docs/design/runtime-docker-provider.md](docs/design/runtime-docker-provider.md).
-- `K8sProvider` (`src/runtime/k8s/`, `WARREN_RUNTIME=k8s`) runs each
-  agent as a Kubernetes pod. The pod boundary is the sandbox, so no
-  bwrap runs there.
-
-For the K8s topology see
-[docs/RUNBOOK-K8S.md](docs/RUNBOOK-K8S.md) and the design records
-[docs/design/runtime-provider-contract.md](docs/design/runtime-provider-contract.md)
-and [docs/design/k8s-migration.md](docs/design/k8s-migration.md).
 
 ### The burrow absorption (plan pl-3007)
 
@@ -141,16 +132,6 @@ and `loadWarrenConfig()` surfaces it. Notable knobs:
   Absent means off and silent. Full contract and operator guide:
   [docs/design/forge-auto-merge.md](docs/design/forge-auto-merge.md),
   [docs/project-setup.md](docs/project-setup.md).
-- `admission.maxConcurrentRuns` — per-project cap on simultaneous
-  non-terminal runs, enforced by the K8s admission gate. Over the cap
-  the gate rejects the dispatch with HTTP 429 and reason
-  `project_concurrency_exceeded`. Cluster-wide env knobs pair with it.
-  See [docs/design/k8s-migration.md](docs/design/k8s-migration.md) §3.3
-  (warren-b6f2).
-- `WARREN_K8S_MAX_PROJECT_CONCURRENCY` — the global default for the
-  per-project cap. `WARREN_K8S_MAX_QUEUE_DEPTH` (default 50) caps total
-  non-terminal pods. `WARREN_K8S_MAX_PENDING_PODS` (default 20) caps
-  Pending pods. `0` disables a cap. LocalProvider ignores all of these.
 
 ## Agent session bootstrap (warren CLI)
 
@@ -209,7 +190,6 @@ precedence everywhere: flags > env > config file > built-in default.
   `src/ui/` as the `@os-eco/warren-ui` package, built into `src/ui/dist/`
 - **Sandbox primitive:** a `RuntimeProvider` (`src/runtime/`), not a
   direct dependency. `LocalProvider` runs the in-process engine.
-  `K8sProvider` runs pods.
 
 ## Build & test commands
 
@@ -769,12 +749,7 @@ events, normalizes them into an append-only audit log, and exports it
 over `GET /audit-log.jsonl`. Beside it sits `extensions/judge/`
 (plan pl-17ca), which reads finished runs, judges them against the
 15-class rubric v1, stores verdicts append-only, and exports them
-over `GET /verdicts.jsonl`. `extensions/tracker-jira/` (warren-27d9)
-speaks the warren-tracker/v1 protocol against Jira Cloud and holds
-its own Jira credential. Its README carries the friction list for
-that build. `extensions/tracker-ado/` does the same against Azure
-DevOps Boards, holding its own PAT, and its README carries the second
-friction list. `extensions/tracker-conformance/` (warren-53ea) is the
+over `GET /verdicts.jsonl`. `extensions/tracker-conformance/` (warren-53ea) is the
 warren-tracker/v1 conformance suite plus FakeTracker, the reference
 in-memory server. `extensions/campaign-controller/` (plan pl-91b6) is
 the first controller extension: it owns durable campaign state and

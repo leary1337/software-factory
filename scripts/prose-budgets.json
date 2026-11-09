@@ -13,13 +13,10 @@
 		"docs/README.md",
 		"docs/CONSTITUTION.md",
 		"docs/PHILOSOPHY.md",
-		"docs/RUNBOOK-K8S.md",
 		"docs/labels.md",
 		"docs/local-models.md",
 		"docs/project-setup.md",
-		"docs/design/k8s-migration.md",
 		"docs/design/runtime-provider-contract.md",
-		"deploy/k8s/README.md",
 		".devcontainer/README.md",
 		"src/ui/README.md"
 	],
@@ -32,12 +29,9 @@
 		"docs/README.md": 30,
 		"docs/CONSTITUTION.md": 28,
 		"docs/PHILOSOPHY.md": 23,
-		"docs/RUNBOOK-K8S.md": 84,
 		"docs/labels.md": 10,
 		"docs/project-setup.md": 0,
-		"docs/design/k8s-migration.md": 170,
 		"docs/design/runtime-provider-contract.md": 51,
-		"deploy/k8s/README.md": 55,
 		".devcontainer/README.md": 4,
 		"src/ui/README.md": 17
 	}

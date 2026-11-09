@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ProjectRow } from "../db/schema.ts";
-import { AdoForge } from "../forge/ado/provider.ts";
+import { GitLabForge } from "../forge/gitlab/provider.ts";
+import { gitLabDotCom } from "../forge/gitlab/test-helpers.ts";
 import type { ProjectsConfig } from "../projects/config.ts";
 import {
 	createProjectCloneHealer,
@@ -109,10 +110,10 @@ describe("recloneMissingProject", () => {
 	test("lays a forge-owned URL out under the owner/name addProject chose", async () => {
 		const calls: Record<string, unknown>[] = [];
 		await recloneMissingProject({
-			project: makeProject({ gitUrl: "https://dev.azure.com/acme/Widgets/_git/widget" }),
+			project: makeProject({ gitUrl: "https://gitlab.com/acme/Widgets/widget.git" }),
 			config: CONFIG,
 			spawn: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
-			forge: new AdoForge({ token: "t" }),
+			forge: new GitLabForge({ instance: gitLabDotCom(), token: "t" }),
 			clone: async (input) => {
 				calls.push({ ...input, spawn: undefined });
 				return { localPath: input.config.root, defaultBranch: input.defaultBranch ?? "" };
@@ -124,7 +125,7 @@ describe("recloneMissingProject", () => {
 	test("throws on a forge-owned URL when no forge is in reach", async () => {
 		await expect(
 			recloneMissingProject({
-				project: makeProject({ gitUrl: "https://dev.azure.com/acme/Widgets/_git/widget" }),
+				project: makeProject({ gitUrl: "https://gitlab.com/acme/Widgets/widget.git" }),
 				config: CONFIG,
 				spawn: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
 				clone: async (input) => ({ localPath: input.config.root, defaultBranch: "" }),
@@ -175,7 +176,7 @@ describe("createProjectCloneHealer", () => {
 
 	test("forwards the boot-resolved forge to the re-clone, so non-GitHub rows heal", async () => {
 		const tracker = new ProjectHealTracker();
-		const forge = new AdoForge({ token: "t" });
+		const forge = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
 		let seenForge: unknown = "unset";
 		const heal = createProjectCloneHealer({
 			tracker,
@@ -194,7 +195,7 @@ describe("createProjectCloneHealer", () => {
 
 	test("forwards the minted credential as gitCredential, so private re-clones authenticate", async () => {
 		const tracker = new ProjectHealTracker();
-		const minted = { username: "x-access-token", secret: "s3cret", host: "dev.azure.com" };
+		const minted = { username: "x-access-token", secret: "s3cret", host: "gitlab.com" };
 		let seenCredential: unknown = "unset";
 		const heal = createProjectCloneHealer({
 			tracker,

@@ -58,8 +58,6 @@ import { scenario as scenario26 } from "./scenarios/26-plan-run-roundtrip.ts";
 import { scenario as scenario30 } from "./scenarios/30-pi-multi-provider-env.ts";
 import { scenario as scenario35 } from "./scenarios/35-ci-fixer-roundtrip.ts";
 import { scenario as scenario36 } from "./scenarios/36-ready-to-dispatch-plans.ts";
-import { scenario as scenario37 } from "./scenarios/37-k8s-oom-fast-fail.ts";
-import { scenario as scenario38 } from "./scenarios/38-k8s-steer-delivery.ts";
 import { scenario as scenario39 } from "./scenarios/39-public-exposure.ts";
 import { scenario as scenario40 } from "./scenarios/40-fake-forge-roundtrip.ts";
 import { scenario as scenario41 } from "./scenarios/41-local-topology-self-host.ts";
@@ -95,8 +93,6 @@ const SCENARIOS: readonly Scenario[] = [
 	scenario30,
 	scenario35,
 	scenario36,
-	scenario37,
-	scenario38,
 	scenario39,
 	scenario40,
 	scenario41,

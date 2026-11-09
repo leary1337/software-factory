@@ -45,7 +45,7 @@ import type { StreamEventView } from "./types.ts";
  * refused outright — otherwise an agent printing a crafted
  * `state_change`/`system` line reaps its own run as `succeeded` and
  * short-circuits real outcome detection. The K8s parse boundary already
- * downgrades such a line's stream (`src/runtime/k8s/log-parse.ts`); the
+ * downgrades such a line's stream (`src/runtime/container/log-parse.ts`); the
  * provenance gate now lives in the shared extractor
  * (`src/core/event-envelope.ts`, warren-27b5), the domain-side lock on
  * the same door.

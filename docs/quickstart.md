@@ -92,6 +92,6 @@ warren doctor
 - [Credentials](credentials.md) — the two model paths and the two GitHub paths in one page.
 - [Configure a project](project-setup.md).
 - [Operate the service](operations.md).
-- [Use Docker or Kubernetes](self-host/docker.md).
+- [Use Docker](self-host/docker.md).
 - [Configure previews](previews.md).
 - [Read the CLI reference](cli-reference.md).

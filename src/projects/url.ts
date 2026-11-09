@@ -157,8 +157,7 @@ export function parseProjectUrl(gitUrl: string, forge: Forge | undefined): Parse
 /**
  * Refuse a registration URL that carries userinfo, whatever the forge.
  * Warren authenticates every git spawn itself, by rewriting
- * `https://<host>/`, and an authority that already names a user (Azure
- * DevOps hands out `https://<org>@dev.azure.com/…`) defeats that rewrite:
+ * `https://<host>/`, and an authority that already names a user defeats that rewrite:
  * the push would run without the credential and fail late.
  */
 export function assertNoUserinfo(gitUrl: string): void {

@@ -29,7 +29,10 @@
 
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { ValidationError } from "../../../core/errors.ts";
-import { parseSalvageEnvelope, type SalvageEnvelope } from "../../../runtime/k8s/finalize-wire.ts";
+import {
+	parseSalvageEnvelope,
+	type SalvageEnvelope,
+} from "../../../runtime/container/finalize-wire.ts";
 import { MAX_SALVAGE_BUNDLE_BYTES, salvageBundlePath } from "../../../runtime/salvage.ts";
 import { jsonResponse } from "../../response.ts";
 import { EventStreamLimiter } from "../../stream-limits.ts";

@@ -1,8 +1,7 @@
 /**
  * GitLab REST transport (API v4) — request execution.
  *
- * The single `fetch` boundary for a GitLab instance. Mirrors the Azure
- * DevOps transport (`../ado/http.ts`) and shares the GitHub arm's
+ * The single `fetch` boundary for a GitLab instance. Shares the GitHub arm's
  * fail-soft readers, retry policy and status classifier, which carry no
  * GitHub knowledge: GitLab answers 401, 403, 404, 409, 422 and 429 with the
  * same meanings, and sends `Retry-After` on a rate limit.

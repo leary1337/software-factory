@@ -17,9 +17,6 @@ import type { ProjectsConfig } from "../../projects/config.ts";
 import type { PublicAllowlist } from "../../projects/public-allowlist.ts";
 import type { loadAutoOpenPrConfigFromEnv, RunEventBroker } from "../../runs/index.ts";
 import type { RuntimeProvider } from "../../runtime/contract.ts";
-import type { PodAdmissionSource } from "../../runtime/k8s/admission.ts";
-import type { PodMetricsSource } from "../../runtime/k8s/pod-metrics.ts";
-import type { PodCacheReader, PodSyncSource } from "../../runtime/k8s/pod-watcher.ts";
 import { SeedsTracker } from "../../tracker/seeds-tracker.ts";
 import type { createWarrenConfigCache } from "../../warren-config/index.ts";
 import { createDbSeams } from "../db-seams.ts";
@@ -108,25 +105,11 @@ export interface BuildServerDepsInput {
 	readonly issueTracker?: import("../../tracker/contract.ts").IssueTracker;
 	readonly metricsRegistry?: MetricsRegistry;
 	/**
-	 * The started K8s pod-watcher (src/server/main/runtime-wiring.ts), present
-	 * only under `WARREN_RUNTIME=k8s`. One instance satisfies three seams: the
-	 * `K8sProvider`'s status cache + admission source (threaded onto the provider
-	 * below) and the `/metrics` pod-gauge source (`ServerDeps.podMetrics`).
-	 * Absent under `local` — no pod plumbing is wired.
-	 */
-	readonly k8sPodWatcher?: PodCacheReader & PodAdmissionSource & PodMetricsSource & PodSyncSource;
-	/**
 	 * Durable salvage-bundle directory (warren-cd3b), resolved by the
 	 * orchestrator to `<dataDir>/salvage`. Threaded onto `ServerDeps` for the
 	 * `POST /runs/:id/salvage` intake.
 	 */
 	readonly salvageDir: string;
-	/**
-	 * K8s finalize-intent recovery hook (warren-5202), built by the
-	 * orchestrator only under `WARREN_RUNTIME=k8s`. Threaded onto `ServerDeps`
-	 * for the `GET /runs/:id/finalize-intent` intent-miss signal.
-	 */
-	readonly finalizeRecovery?: import("../../runs/finalize-recovery.ts").FinalizeRecoveryHook;
 	readonly now?: () => Date;
 }
 
@@ -166,9 +149,7 @@ export function buildServerDeps(input: BuildServerDepsInput): ServerDeps {
 		 * `deps.seedsCli`'s configured-ness.
 		 */
 		issueTracker,
-		k8sPodWatcher,
 		salvageDir,
-		finalizeRecovery,
 		now,
 	} = input;
 
@@ -222,11 +203,8 @@ export function buildServerDeps(input: BuildServerDepsInput): ServerDeps {
 		...(metricsRegistry !== undefined ? { metricsRegistry } : {}),
 		// `/metrics` pod-phase gauges read live from the same pod-watcher at scrape
 		// (pl-829f step 25 / warren-7c30); absent under LocalProvider.
-		...(k8sPodWatcher !== undefined ? { podMetrics: k8sPodWatcher } : {}),
 		// `/readyz` `k8s_api_reachable` check reads the same watcher's informer
 		// sync state (warren-39e1); absent under LocalProvider.
-		...(k8sPodWatcher !== undefined ? { k8sPodSync: k8sPodWatcher } : {}),
-		...(finalizeRecovery !== undefined ? { finalizeRecovery } : {}),
 		...(now !== undefined ? { now } : {}),
 	};
 }

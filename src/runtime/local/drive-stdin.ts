@@ -3,7 +3,7 @@
  * (`./drive.ts`, warren-413d) — split for the file-size budget. Source-lifted
  * in spirit from burrow's dispatcher (burrow-5db3 stdin-hold, SPEC §13.5
  * mid-run steering); the k8s analog lives in
- * `src/runtime/k8s/agent-stdin-hold.ts` (warren-0efe).
+ * `src/runtime/container/agent-stdin-hold.ts` (warren-0efe).
  */
 
 import type { SpawnResult } from "../../sandbox/types.ts";

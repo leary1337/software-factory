@@ -70,7 +70,7 @@ import { WorkspaceMaterializationError } from "../../workspace/errors.ts";
 import { authenticatedCloneUrl, bareTokenCredential } from "../../workspace/git/clone-url.ts";
 import { mergeExcludeBlock, workspaceCommitExcludes } from "../../workspace/git/exclude.ts";
 import { runGit } from "../../workspace/git/exec.ts";
-import { parseSeedManifest } from "./seed-configmap.ts";
+import { parseSeedManifest } from "./seed-manifest.ts";
 
 /** Parsed, validated view of the init container's env. */
 export interface InitEnv {

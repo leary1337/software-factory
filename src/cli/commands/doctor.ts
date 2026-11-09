@@ -104,7 +104,7 @@ export async function runDoctor(
 	const checks: DoctorCheck[] = [];
 	// The local-sandbox probes (bwrap, stale workspaces, the local-runtime line)
 	// only make sense for the LOCAL backend, where warren runs sandboxes
-	// in-process on the host. Under `WARREN_RUNTIME=k8s` agents run in pods, so
+	// in-process on the host. Under `WARREN_RUNTIME=docker` agents run in containers, so
 	// we skip them cleanly and emit a single informational line saying so —
 	// mirroring the `/readyz` behavior (warren-c128,
 	// src/server/handlers/diagnostics.ts).
@@ -170,7 +170,8 @@ export async function runDoctor(
 		checks.push({
 			name: "runtime_backend",
 			ok: true,
-			message: "k8s: bwrap / stale-workspace / local-runtime probes skipped (agents run in pods)",
+			message:
+				"docker: bwrap / stale-workspace / local-runtime probes skipped (agents run in containers)",
 		});
 	}
 

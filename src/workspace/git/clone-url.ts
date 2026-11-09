@@ -1,7 +1,7 @@
 /**
  * Clone-URL credential helper, shared across the workspace git primitives.
  *
- * Extracted from `src/runtime/k8s/workspace-init.ts` (warren-9574): the helper
+ * Extracted from `src/runtime/container/workspace-init.ts` (warren-9574): the helper
  * is not k8s-specific — the reap path (`src/runs/reap/pr-open.ts`,
  * `finalize-collect.ts`) also authenticates clone/fetch URLs — so hosting it in
  * an init-container module created a k8s↔reap coupling. It now lives beside the

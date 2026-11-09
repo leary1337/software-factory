@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AdoForge } from "./ado/provider.ts";
 import type { Forge } from "./contract.ts";
 import { ForgeConfigError, UnknownForgeError } from "./errors.ts";
 import { FakeForge } from "./fake/fake-forge.ts";
@@ -54,10 +53,9 @@ describe("resolveForgeKind", () => {
 	});
 
 	test("accepts all registered kinds", () => {
-		expect(FORGE_KINDS).toEqual(["github", "app", "ado", "gitlab", "fake"]);
+		expect(FORGE_KINDS).toEqual(["github", "app", "gitlab", "fake"]);
 		expect(resolveForgeKind({ WARREN_FORGE: "github" })).toBe("github");
 		expect(resolveForgeKind({ WARREN_FORGE: "app" })).toBe("app");
-		expect(resolveForgeKind({ WARREN_FORGE: "ado" })).toBe("ado");
 		expect(resolveForgeKind({ WARREN_FORGE: "gitlab" })).toBe("gitlab");
 		expect(resolveForgeKind({ WARREN_FORGE: "fake" })).toBe("fake");
 	});
@@ -263,70 +261,6 @@ describe("resolveForge app arm (warren-f8df)", () => {
 	});
 });
 
-describe("resolveForge ado arm", () => {
-	const adoArmDeps: ForgeDeps = {
-		githubToken: (): string => {
-			throw new Error("githubToken factory must not be called when WARREN_FORGE=ado");
-		},
-		githubApp: (): GitHubAppCredentials => {
-			throw new Error("githubApp factory must not be called when WARREN_FORGE=ado");
-		},
-		fakeStore: (): FakeForgeStore => {
-			throw new Error("fakeStore factory must not be called when WARREN_FORGE=ado");
-		},
-		adoToken: () => "ado-pat",
-	};
-
-	test("resolves AdoForge for WARREN_FORGE=ado from the injected factory", () => {
-		const forge = resolveForge(adoArmDeps, { WARREN_FORGE: "ado" });
-		expect(forge).toBeInstanceOf(AdoForge);
-		expect(forge.capabilities.credentialLifetime).toBe("static");
-		expect(forge.capabilities.checkRuns).toBe(true);
-	});
-
-	test("constructs only the ado arm — the github, app and fake factories are never touched", () => {
-		expect(() => resolveForge(adoArmDeps, { WARREN_FORGE: "ado" })).not.toThrow();
-	});
-
-	test("the default ado token factory reads WARREN_GIT_TOKEN from the selection env", async () => {
-		const forge = resolveForge({}, { WARREN_FORGE: "ado", WARREN_GIT_TOKEN: "env-pat" });
-		expect(forge).toBeInstanceOf(AdoForge);
-		const ref = forge.parseRepoRef("https://dev.azure.com/org/proj/_git/repo");
-		if (ref === null) throw new Error("unreachable");
-		const credential = await forge.gitCredential(ref);
-		expect(credential.ok).toBe(true);
-		if (credential.ok) {
-			expect(credential.value.secret).toBe("env-pat");
-			expect(credential.value.expiresAt).toBeNull();
-		}
-	});
-
-	test("GITHUB_TOKEN never feeds the ado arm", async () => {
-		const forge = resolveForge({}, { WARREN_FORGE: "ado", GITHUB_TOKEN: "gh-token" });
-		const ref = forge.parseRepoRef("https://dev.azure.com/org/proj/_git/repo");
-		if (ref === null) throw new Error("unreachable");
-		const credential = await forge.gitCredential(ref);
-		expect(credential.ok).toBe(false);
-		if (!credential.ok) expect(credential.error.kind).toBe("no_credential");
-	});
-
-	test("the other arms never touch the ado arm's inputs", () => {
-		const throwingAdo: ForgeDeps = {
-			...githubArmDeps,
-			adoToken: (): string => {
-				throw new Error("adoToken factory must not be called for other arms");
-			},
-		};
-		expect(() => resolveForge(throwingAdo, { WARREN_FORGE: "github" })).not.toThrow();
-		expect(() =>
-			resolveForge(
-				{ ...throwingAdo, githubToken: undefined, fakeStore: undefined },
-				{ WARREN_FORGE: "fake" },
-			),
-		).not.toThrow();
-	});
-});
-
 describe("the github arm's static secret", () => {
 	test("reads WARREN_GIT_TOKEN before GITHUB_TOKEN", async () => {
 		const forge = resolveForge({}, { WARREN_GIT_TOKEN: "neutral", GITHUB_TOKEN: "legacy" });
@@ -360,9 +294,6 @@ describe("resolveForge gitlab arm", () => {
 		},
 		githubApp: (): GitHubAppCredentials => {
 			throw new Error("githubApp factory must not be called when WARREN_FORGE=gitlab");
-		},
-		adoToken: (): string => {
-			throw new Error("adoToken factory must not be called when WARREN_FORGE=gitlab");
 		},
 		fakeStore: (): FakeForgeStore => {
 			throw new Error("fakeStore factory must not be called when WARREN_FORGE=gitlab");
@@ -421,7 +352,7 @@ describe("resolveForge gitlab arm", () => {
 				throw new Error("gitlabToken factory must not be called for other arms");
 			},
 		};
-		for (const kind of ["github", "ado", "fake"]) {
+		for (const kind of ["github", "fake"]) {
 			expect(() =>
 				resolveForge(throwingGitLab, { WARREN_FORGE: kind, WARREN_GITLAB_URL: "not a url" }),
 			).not.toThrow();

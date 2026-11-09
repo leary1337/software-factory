@@ -86,7 +86,7 @@ describe("resolveSpec", () => {
 	});
 
 	test("bare package specifiers pass through untouched", () => {
-		expect(resolveSpec("src/runtime/k8s/agent.ts", "@os-eco/burrow-cli")).toBe(
+		expect(resolveSpec("src/runtime/container/agent.ts", "@os-eco/burrow-cli")).toBe(
 			"@os-eco/burrow-cli",
 		);
 	});

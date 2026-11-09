@@ -46,8 +46,8 @@ describe("detectUpRuntime", () => {
 	});
 
 	test("never overrides an explicit WARREN_RUNTIME", () => {
-		const d = detectUpRuntime({ WARREN_RUNTIME: "k8s" }, probe({ platform: "linux" }));
-		expect(d).toMatchObject({ choice: "boot", runtime: "k8s" });
+		const d = detectUpRuntime({ WARREN_RUNTIME: "docker" }, probe({ platform: "linux" }));
+		expect(d).toMatchObject({ choice: "boot", runtime: "docker" });
 	});
 
 	test("falls to docker guidance when no native sandbox but a daemon answers", () => {

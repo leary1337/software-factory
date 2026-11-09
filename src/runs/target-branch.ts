@@ -2,7 +2,7 @@
  * `targetBranch` push-target policy (warren-3a75).
  *
  * A run dispatched with `targetBranch` pushes its workspace straight to that
- * ref at finalize (`src/runtime/k8s/finalize-collect.ts` builds the refspec
+ * ref at finalize (`src/runtime/container/finalize-collect.ts` builds the refspec
  * `HEAD:<branch>` from the intent). No PR is opened for that push, so the
  * Article IX auto-merge gate — a PR-time check — never runs. Before this
  * module the field was accepted on `POST /runs` as any non-empty string, which

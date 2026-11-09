@@ -7,9 +7,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { fakeExec, fakeFs } from "../runs/reap/test-helpers.ts";
+import { collectFinalizeResult, type FinalizeGitRunner } from "./container/finalize-collect.ts";
+import { IN_POD_FINALIZE_WIRE_VERSION } from "./container/finalize-wire.ts";
 import type { FinalizeIntent } from "./contract.ts";
-import { collectFinalizeResult, type FinalizeGitRunner } from "./k8s/finalize-collect.ts";
-import { IN_POD_FINALIZE_WIRE_VERSION } from "./k8s/finalize-wire.ts";
 import { finalizeLocalWorkspace } from "./local/finalize.ts";
 import { MULCH_USAGE_EVENT } from "./mulch-usage.ts";
 

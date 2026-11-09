@@ -441,7 +441,7 @@ export interface FinalizeStageOutcome {
  * bridge the filesystem gap under pod-per-run).
  */
 /** `WARREN_RUNTIME` backend id on a live provider (warren-e1f1). */
-export type RuntimeProviderKind = "local" | "docker" | "k8s";
+export type RuntimeProviderKind = "local" | "docker";
 
 export interface RuntimeProvider {
 	readonly capabilities: RuntimeCapabilities;

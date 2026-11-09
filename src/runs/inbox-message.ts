@@ -2,12 +2,12 @@
  * `RunInboxRow` → seam `Message` mapper — the neutral home for the run_inbox
  * row projection.
  *
- * Extracted from `src/runtime/k8s/send-message.ts` (warren-5af5, same pattern as
+ * Extracted from `src/runtime/container/send-message.ts` (warren-5af5, same pattern as
  * warren-9574's `authenticatedCloneUrl`): the mapping is not k8s-specific. Both
  * the K8s provider's `sendMessage` (which enqueues into `run_inbox`) and the
  * provider-neutral poll endpoint `pollRunInbox` (`src/runs/inbox.ts`) project a
  * `run_inbox` row onto the contract's `Message`. Hosting it under
- * `src/runtime/k8s/` forced the local/shared poll path to import from the k8s
+ * `src/runtime/container/` forced the local/shared poll path to import from the k8s
  * tree, so a k8s refactor could break local dispatch. `run_inbox` is a
  * warren-domain steering table, so the mapper now lives beside the domain poll.
  * Behavior is unchanged.

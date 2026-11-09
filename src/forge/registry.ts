@@ -18,8 +18,6 @@
  *     `WARREN_GITHUB_APP_ID` / `WARREN_GITHUB_APP_INSTALLATION_ID` /
  *     `WARREN_GITHUB_APP_PRIVATE_KEY` triple; a missing or unparseable
  *     input throws `ForgeConfigError` at boot (fail loud, §4).
- *   - `ado`    → `AdoForge` (Azure DevOps Repos) over the personal access
- *     token in `WARREN_GIT_TOKEN`.
  *   - `gitlab` → `GitLabForge` (GH#1028) over the access token in
  *     `WARREN_GIT_TOKEN`, bound to the instance in `WARREN_GITLAB_URL`
  *     (blank → `https://gitlab.com`); an unparseable URL throws
@@ -35,7 +33,6 @@
  * has length one.
  */
 
-import { AdoForge } from "./ado/provider.ts";
 import type { Forge } from "./contract.ts";
 import { ForgeConfigError, UnknownForgeError } from "./errors.ts";
 import { FakeForge, type FakeForgeOptions } from "./fake/fake-forge.ts";
@@ -54,13 +51,13 @@ import { GitLabForge } from "./gitlab/provider.ts";
 import { DEFAULT_GITLAB_URL, parseGitLabInstance } from "./gitlab/repo-ref.ts";
 
 /** Forge backends the selector understands. */
-export type ForgeKind = "github" | "app" | "ado" | "gitlab" | "fake";
+export type ForgeKind = "github" | "app" | "gitlab" | "fake";
 
 /** Selector default when `WARREN_FORGE` is unset — the real forge. */
 export const DEFAULT_FORGE_KIND: ForgeKind = "github";
 
 /** Every recognized `WARREN_FORGE` value (used for validation + error hints). */
-export const FORGE_KINDS: readonly ForgeKind[] = ["github", "app", "ado", "gitlab", "fake"];
+export const FORGE_KINDS: readonly ForgeKind[] = ["github", "app", "gitlab", "fake"];
 
 /** Minimal env surface the selector reads. */
 export type ForgeEnv = Readonly<Record<string, string | undefined>>;
@@ -106,18 +103,6 @@ export interface ForgeDeps {
 	 * constructed `GitHubAppForge` never reaches the network.
 	 */
 	readonly githubAppFetch?: typeof fetch;
-	/**
-	 * Lazy static-secret factory for the `ado` arm. Optional — when omitted
-	 * the selector reads `WARREN_GIT_TOKEN` from the same env the selection
-	 * came from. A test injects a throwing factory here to prove the other
-	 * arms never touch the ado arm's inputs.
-	 */
-	readonly adoToken?: () => string;
-	/**
-	 * OPTIONAL fetch seam for the `ado` arm — a test injects a stub so the
-	 * constructed `AdoForge` never reaches the network.
-	 */
-	readonly adoFetch?: typeof fetch;
 	/**
 	 * Lazy static-secret factory for the `gitlab` arm. Optional — when
 	 * omitted the selector reads `WARREN_GIT_TOKEN` from the same env the
@@ -167,7 +152,7 @@ export function resolveForgeKind(env: ForgeEnv = process.env): ForgeKind {
  * An operator who exports `WARREN_GIT_TOKEN=""` has not chosen a neutral
  * token, so an empty or blank value must not shadow a valid `GITHUB_TOKEN`
  * behind it. Same rule as `normalizeToken` in
- * `src/runtime/k8s/git-tokens.ts`, which the comment below claims parity with.
+ * `src/runtime/container/git-tokens.ts`, which the comment below claims parity with.
  */
 function firstToken(...raw: readonly (string | undefined)[]): string {
 	for (const value of raw) {
@@ -182,7 +167,7 @@ export function resolveForge(deps: ForgeDeps = {}, env: ForgeEnv = process.env):
 	switch (kind) {
 		case "github": {
 			// warren-1b6f: the forge-neutral name wins, and GITHUB_TOKEN stays as
-			// the fallback, matching `src/runtime/k8s/git-tokens.ts`.
+			// the fallback, matching `src/runtime/container/git-tokens.ts`.
 			const tokenFactory =
 				deps.githubToken ?? (() => firstToken(env.WARREN_GIT_TOKEN, env.GITHUB_TOKEN));
 			return new GitHubForge({
@@ -198,21 +183,11 @@ export function resolveForge(deps: ForgeDeps = {}, env: ForgeEnv = process.env):
 				...(deps.githubAppFetch !== undefined ? { fetch: deps.githubAppFetch } : {}),
 			});
 		}
-		case "ado":
-			return buildAdoForge(deps, env);
 		case "gitlab":
 			return buildGitLabForge(deps, env);
 		case "fake":
 			return buildFakeForge(deps, env);
 	}
-}
-
-function buildAdoForge(deps: ForgeDeps, env: ForgeEnv): Forge {
-	const tokenFactory = deps.adoToken ?? (() => firstToken(env.WARREN_GIT_TOKEN));
-	return new AdoForge({
-		token: tokenFactory(),
-		...(deps.adoFetch !== undefined ? { fetch: deps.adoFetch } : {}),
-	});
 }
 
 function buildGitLabForge(deps: ForgeDeps, env: ForgeEnv): Forge {

@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils.ts";
 const RUNTIME_LABELS: Record<InstanceFactsResponse["runtime"], string> = {
 	local: "local · bwrap",
 	docker: "docker · sibling container",
-	k8s: "kubernetes · pod",
 };
 
 function formatUptime(seconds: number): string {

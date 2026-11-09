@@ -167,11 +167,11 @@ describe("runDoctor", () => {
 		]);
 	});
 
-	test("under WARREN_RUNTIME=k8s, skips burrow/bwrap/stale probes and says so", async () => {
+	test("under WARREN_RUNTIME=docker, skips burrow/bwrap/stale probes and says so", async () => {
 		const { context } = captureContext({
 			WARREN_API_TOKEN: "tok",
 			CANOPY_REPO_URL: "https://example.com/agents.git",
-			WARREN_RUNTIME: "k8s",
+			WARREN_RUNTIME: "docker",
 		});
 		const result = await runDoctor(
 			context,
@@ -191,7 +191,7 @@ describe("runDoctor", () => {
 		expect(names).not.toContain("local_runtime");
 		const runtime = result.checks.find((c: DoctorCheck) => c.name === "runtime_backend");
 		expect(runtime?.ok).toBe(true);
-		expect(runtime?.message).toContain("k8s");
+		expect(runtime?.message).toContain("docker");
 		expect(result.exitCode).toBe(0);
 	});
 

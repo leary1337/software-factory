@@ -10,9 +10,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { ValidationError } from "../core/errors.ts";
-import { AdoForge } from "../forge/ado/provider.ts";
 import { GitLabForge } from "../forge/gitlab/provider.ts";
 import { parseGitLabInstance } from "../forge/gitlab/repo-ref.ts";
+import { gitLabDotCom } from "../forge/gitlab/test-helpers.ts";
 import {
 	assertGitUrlAllowlisted,
 	assertRegisteredProjectsAllowlisted,
@@ -306,7 +306,7 @@ describe("forge-owned URLs (GH#1336)", () => {
 	const instance = parseGitLabInstance("https://gitlab.com");
 	if (instance === null) throw new Error("the gitlab.com instance must parse");
 	const gitlab = new GitLabForge({ instance, token: "t" });
-	const ado = new AdoForge({ token: "t" });
+	const ado = new GitLabForge({ instance: gitLabDotCom(), token: "t" });
 	const LIST = loadPublicAllowlistFromEnv({
 		[ENV]: "acme-platform/widget,org-Proj/repo",
 	});
@@ -324,7 +324,7 @@ describe("forge-owned URLs (GH#1336)", () => {
 		);
 	});
 
-	test("the boot check accepts allowlisted GitLab and Azure DevOps rows", () => {
+	test("the boot check accepts allowlisted GitLab rows", () => {
 		expect(() =>
 			assertRegisteredProjectsAllowlisted(
 				LIST,
@@ -335,7 +335,7 @@ describe("forge-owned URLs (GH#1336)", () => {
 		expect(() =>
 			assertRegisteredProjectsAllowlisted(
 				LIST,
-				[{ id: "p2", gitUrl: "https://dev.azure.com/org/Proj/_git/repo" }],
+				[{ id: "p2", gitUrl: "https://gitlab.com/org/Proj/repo.git" }],
 				ado,
 			),
 		).not.toThrow();

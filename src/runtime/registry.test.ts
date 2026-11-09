@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { CoreV1Api, V1Pod } from "@kubernetes/client-node";
 import type { ReapExec, ReapFs } from "../runs/reap/types.ts";
 import { DockerProvider } from "./docker/provider.ts";
 import { UnknownRuntimeError } from "./errors.ts";
-import { K8sProvider } from "./k8s/provider.ts";
 import { LocalProvider } from "./local/provider.ts";
 import {
 	DEFAULT_RUNTIME_KIND,
@@ -12,16 +10,7 @@ import {
 	resolveRuntimeProvider,
 } from "./registry.ts";
 
-/**
- * Hermetic deps: the K8s client factory throws if invoked. No shell method
- * calls it, so building a K8sProvider off WARREN_RUNTIME=k8s never touches a
- * cluster — and the local backend needs nothing at all (warren-ea0a).
- */
-const deps: RuntimeProviderDeps = {
-	k8sCoreApi: (): CoreV1Api => {
-		throw new Error("k8sCoreApi factory must not be called by the K8sProvider shell");
-	},
-};
+const deps: RuntimeProviderDeps = {};
 
 describe("resolveRuntimeKind", () => {
 	test("defaults to local when WARREN_RUNTIME is unset", () => {
@@ -36,10 +25,6 @@ describe("resolveRuntimeKind", () => {
 
 	test("accepts the explicit local selector", () => {
 		expect(resolveRuntimeKind({ WARREN_RUNTIME: "local" })).toBe("local");
-	});
-
-	test("accepts the k8s selector (kind parses; provider build is what defers)", () => {
-		expect(resolveRuntimeKind({ WARREN_RUNTIME: "k8s" })).toBe("k8s");
 	});
 
 	test("accepts the docker selector (warren-3732, sibling containers)", () => {
@@ -93,30 +78,6 @@ describe("resolveRuntimeProvider", () => {
 		});
 	});
 
-	test("resolves K8sProvider for WARREN_RUNTIME=k8s (skeleton, phase K8S)", () => {
-		const provider = resolveRuntimeProvider(deps, { WARREN_RUNTIME: "k8s" });
-		expect(provider).toBeInstanceOf(K8sProvider);
-	});
-
-	test("builds K8sProvider without a cluster — the coreApi factory is not invoked at construction", () => {
-		// The fake k8sCoreApi throws if called; construction succeeding proves the
-		// shell never touches the cluster (mirrors the LocalProvider pool posture).
-		expect(() => resolveRuntimeProvider(deps, { WARREN_RUNTIME: "k8s" })).not.toThrow();
-	});
-
-	test("K8sProvider advertises the degraded K8s v1 capability set", () => {
-		const provider = resolveRuntimeProvider(deps, { WARREN_RUNTIME: "k8s" });
-		expect(provider.capabilities).toEqual({
-			previewPorts: false,
-			networkPolicy: "coarse",
-			longLived: false,
-			midRunSteering: false,
-			enforcedResourceLimits: true,
-			workspaceArchive: false,
-			workspaceGc: false,
-		});
-	});
-
 	test("resolves DockerProvider for WARREN_RUNTIME=docker (warren-3732)", () => {
 		const provider = resolveRuntimeProvider(deps, { WARREN_RUNTIME: "docker" });
 		expect(provider).toBeInstanceOf(DockerProvider);
@@ -140,42 +101,5 @@ describe("resolveRuntimeProvider", () => {
 			UnknownRuntimeError,
 		);
 		expect(() => resolveRuntimeProvider(deps, { WARREN_RUNTIME: "nomad" })).toThrow(/nomad/);
-	});
-
-	test("threads k8sPodCache onto the K8sProvider — status() reads the cache, no cluster call", async () => {
-		// The shared coreApi factory throws if invoked; a status() that resolves off
-		// the injected cache proves the pod-watcher was wired through as podCache
-		// (pl-829f step 25 / warren-7c30).
-		const pod: V1Pod = {
-			metadata: { name: "run-x", labels: { "warren.io/run-id": "x" } },
-			status: { phase: "Running" },
-		};
-		const provider = resolveRuntimeProvider(
-			{ ...deps, k8sPodCache: { getByRunId: (id) => (id === "x" ? pod : undefined) } },
-			{ WARREN_RUNTIME: "k8s" },
-		);
-		const status = await provider.status({ runId: "x", sandboxId: "run-x", providerRunId: "" });
-		expect(status.exists).toBe(true);
-		expect(status.phase).toBe("running");
-	});
-
-	test("threads k8sPodAdmission onto the K8sProvider without touching a cluster", () => {
-		// Construction accepting the admission source is enough here — the create()
-		// admission path is covered by the provider + admission unit suites.
-		expect(() =>
-			resolveRuntimeProvider(
-				{
-					...deps,
-					k8sPodAdmission: {
-						admissionSnapshot: () => ({
-							nonTerminalPods: 0,
-							pendingPods: 0,
-							projectNonTerminalPods: 0,
-						}),
-					},
-				},
-				{ WARREN_RUNTIME: "k8s" },
-			),
-		).not.toThrow();
 	});
 });

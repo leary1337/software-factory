@@ -16,7 +16,7 @@ export interface InstanceAdmissionFacts {
 
 export interface InstanceFactsResponse {
 	version: string;
-	runtime: "local" | "docker" | "k8s";
+	runtime: "local" | "docker";
 	authMode: "token" | "public";
 	dbBackend?: "sqlite" | "postgres" | null;
 	uptimeSeconds?: number;

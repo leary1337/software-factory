@@ -94,7 +94,7 @@ describe("discoverExtensions", () => {
 
 	test("sees every shipped extension's typecheck script and its dependencies", () => {
 		const plans = discoverExtensions();
-		expect(plans.length).toBeGreaterThanOrEqual(6);
+		expect(plans.length).toBeGreaterThanOrEqual(4);
 		for (const plan of plans) {
 			expect(plan.gates).toContain("typecheck");
 			expect(plan.hasDependencies).toBe(true);

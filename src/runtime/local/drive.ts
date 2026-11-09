@@ -2,7 +2,7 @@
  * The host-side drive loop (warren-413d, plan pl-3007 phase 3) — the
  * in-process replacement for `burrow serve`'s run dispatcher (burrow
  * `src/runner/dispatch.ts`), shaped on the k8s in-pod entrypoint
- * (`src/runtime/k8s/agent-entrypoint.ts`, warren-0efe): the same adapter
+ * (`src/runtime/container/agent-entrypoint.ts`, warren-0efe): the same adapter
  * hooks (`buildSpawnCommand` / `parseEvents` / steering encoders), the same
  * stdin-hold contract, the same synthesized-terminal fallback — but spawned
  * through warren's own sandbox (`src/sandbox/`, warren-5af7) and persisted

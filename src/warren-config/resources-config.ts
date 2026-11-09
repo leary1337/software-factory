@@ -10,7 +10,7 @@
  * Under pod-per-run the `RunSpec`'s `resources`/`network` intent maps to a K8s
  * pod `resources.requests/limits` + a coarse network policy; this block is where
  * a project pins those defaults, consumed by the K8sProvider's pod-spec builder
- * (`src/runtime/k8s/pod-spec.ts`). Nested into ONE `resources` block (not
+ * (`src/runtime/container/pod-spec.ts`). Nested into ONE `resources` block (not
  * scattered fields) per plan §7 Q-config-schema — the `.strict()`
  * `DefaultsConfigSchema` tolerates exactly one new key. Values mirror the
  * design-doc per-run defaults: requests govern scheduling (1 CPU / 2 GiB),
@@ -81,7 +81,7 @@ const ResourceQuantitiesSchema = z
 // warren-9bd3: a sandboxed K8s RuntimeClass for this project's run pods (for
 // example `gvisor` for GKE Sandbox). The value is a RuntimeClass object name,
 // so it must be a DNS-1123 subdomain. The pod-spec builder switches the agent
-// container to the sandbox-compatible posture (`src/runtime/k8s/pod-runtime-class.ts`).
+// container to the sandbox-compatible posture (`src/runtime/container/pod-runtime-class.ts`).
 const RuntimeClassNameSchema = z
 	.string()
 	.max(253, "runtimeClass must be at most 253 characters")

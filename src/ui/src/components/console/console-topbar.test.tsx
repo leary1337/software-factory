@@ -63,7 +63,6 @@ describe("runtimeValue", () => {
 	test("renders the boot-resolved provider upper-cased", () => {
 		expect(runtimeValue("local")).toBe("LOCAL");
 		expect(runtimeValue("docker")).toBe("DOCKER");
-		expect(runtimeValue("k8s")).toBe("K8S");
 	});
 
 	test("renders null while the instance facts are loading", () => {

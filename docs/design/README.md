@@ -54,7 +54,6 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 | [Tier-1 observation bus](./tier1-observation-bus.md) | `contract` | `approved` | `shipped` | 2026-07-28 |
 | [Warren-armed auto-merge](./forge-auto-merge.md) | `contract` | `approved` | `shipped` | 2026-09-17 |
 | [`.warren/` configuration](./warren-config.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
-| [Kubernetes migration](./k8s-migration.md) | `architecture-decision` | `approved` | `shipped` | 2026-07-07 |
 | [2026-07-29 planning-session record](./2026-07-29-planning-session-record.md) | `historical-evidence` | `approved` | `not-applicable` | 2026-07-31 |
 <!-- design-catalog:end -->
 

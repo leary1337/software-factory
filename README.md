@@ -87,7 +87,7 @@ A **harness** is the coding-agent process warren drives. A **runtime** is the pl
 
 Warren's run model supports any harness with a Warren runtime adapter. The current distribution includes adapters for Pi and Claude Code. Agent roles such as planner, healer, and PR fixer compose prompts and policy on top of those harnesses.
 
-Three runtime providers implement the same lifecycle. A casual install never picks one. `warren up` detects the machine and picks for you. Operators choose explicitly. See [Operators](#operators) for the topology table.
+Two runtime providers implement the same lifecycle. A casual install never picks one. `warren up` detects the machine and picks for you. Operators choose explicitly. See [Operators](#operators) for the topology table.
 
 ## Who it fits today
 
@@ -98,7 +98,7 @@ The current boundary is explicit:
 - One deployment serves one operator or trusted team.
 - One bearer credential guards the operator surface.
 - Warren has no named users, RBAC, or per-user attribution.
-- The default forge speaks GitHub through a GitHub App or a static token for operator and CI paths. Azure DevOps Repos and GitLab forges ship behind `WARREN_FORGE`.
+- The default forge speaks GitHub through a GitHub App or a static token for operator and CI paths. The GitLab forge ships behind `WARREN_FORGE`.
 - Warren is self-hosted software, not a hosted SaaS.
 
 See [Security](SECURITY.md) for the full threat model and [Roadmap](ROADMAP.md) for future work.
@@ -128,7 +128,6 @@ Casual installs stop at the Quickstart. Deployments that serve a team, run in Do
 |---|---|---|
 | `local` | `bwrap` on Linux, `sandbox-exec` on macOS | One host |
 | `docker` | Sibling container | Docker hosts and custom agent images |
-| `k8s` | Pod per run | Cluster scheduling and admission control |
 
 All three providers implement the same run lifecycle.
 
@@ -150,7 +149,6 @@ Open <http://localhost:8080>, paste the minted token, add a GitHub repository, a
 ### Operator references
 
 - [Docker self-host guide](docs/self-host/docker.md): sibling-container topology, custom agent images, persistence, macOS Docker Desktop requirements.
-- [Kubernetes runbook](docs/RUNBOOK-K8S.md): cluster deployment, secrets, RBAC, admission, incident response.
 - [Credentials](docs/credentials.md): model and GitHub credential paths, including the static-token and machine-account guidance.
 - [Operations](docs/operations.md): probes, logs, metrics, cost, backups, triage.
 - [Environment reference](.env.example): every deployment knob, annotated.
@@ -164,7 +162,6 @@ The extensions are optional, out-of-process packages built on the HTTP surface. 
 - [`extensions/audit-log/`](extensions/audit-log/) exports append-only JSONL run activity.
 - [`extensions/judge/`](extensions/judge/) scores finished runs against a versioned rubric and stores verdicts separately.
 - [`extensions/campaign-controller/`](extensions/campaign-controller/) runs long-lived upstream contribution campaigns under an operator-approved policy.
-- [`extensions/tracker-jira/`](extensions/tracker-jira/) and [`extensions/tracker-ado/`](extensions/tracker-ado/) connect Jira Cloud and Azure DevOps Boards through the `warren-tracker/v1` protocol.
 
 See [Extensions](docs/design/extensions.md) for their contracts and current packaging limits.
 
@@ -173,7 +170,6 @@ See [Extensions](docs/design/extensions.md) for their contracts and current pack
 - [First run](docs/quickstart.md)
 - [Credentials](docs/credentials.md)
 - [Docker self-hosting](docs/self-host/docker.md)
-- [Kubernetes operations](docs/RUNBOOK-K8S.md)
 - [Operations and observability](docs/operations.md)
 - [Architecture](docs/architecture.md)
 - [Project configuration](docs/design/warren-config.md)
@@ -190,7 +186,7 @@ See [Extensions](docs/design/extensions.md) for their contracts and current pack
 
 ## Status
 
-Stable (`0.19.3`). The run lifecycle is in continuous use on GKE. It operates against real repositories, including this one. [app.warren.run](https://app.warren.run) exposes the read-only run history and event streams without a login.
+Stable (`0.19.3`). This fork runs locally on one operator's Mac. [app.warren.run](https://app.warren.run) exposes the read-only run history and event streams without a login.
 
 Warren is pre-1.0. Unit, integration, and scenario tests exercise the run lifecycle. The current shared-token trust model remains a deliberate limit.
 
