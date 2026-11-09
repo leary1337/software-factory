@@ -10,7 +10,8 @@
 			"!scripts/ui-visual/out",
 			"!**/__golden__",
 			"!.claude",
-			"!extensions"
+			"!extensions",
+			"!!factory"
 		]
 	},
 	"assist": { "actions": { "source": { "organizeImports": "on" } } },
