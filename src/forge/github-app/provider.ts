@@ -203,6 +203,10 @@ export class GitHubAppForge implements Forge {
 		return this.transport.armAutoMerge(ref, pr, options);
 	}
 
+	mergePullRequest(ref: RepoRef, pr: Parameters<Forge["mergePullRequest"]>[1]) {
+		return this.transport.mergePullRequest(ref, pr);
+	}
+
 	commentOnPullRequest(
 		ref: RepoRef,
 		pr: Parameters<Forge["commentOnPullRequest"]>[1],

@@ -24,11 +24,12 @@ flowchart TD
         verdict{"Вердикт"}
         rework["<b>rework</b> · Sonnet 5.5<br/>Правит только названное ревьюером"]
         comment["Warren публикует итог<br/>комментарием в PR"]
+        merge["Warren публикует итог<br/>и сливает PR"]
 
         impl --> pr --> review --> verdict
         verdict -- "CHANGES, доработок меньше 2" --> rework
         rework -- "та же ветка" --> review
-        verdict -- "PASS" --> comment
+        verdict -- "PASS" --> merge
         verdict -- "CHANGES после 2 доработок<br/>или сбой ревью" --> comment
     end
 
@@ -36,12 +37,13 @@ flowchart TD
     comment --> human{"Ты читаешь PR"}
     human -- "слить" --> close["Warren закрывает тикет"]
     human -- "закрыть без слияния" --> stop(["План останавливается"])
+    merge --> close
     close --> next{"Есть ещё тикеты?"}
     next -- "да" --> impl
     next -- "нет" --> done(["План завершён"])
 ```
 
-Следующий тикет стартует только после слияния предыдущего PR. Автослияния нет.
+Следующий тикет стартует только после слияния предыдущего PR. После вердикта `PASS` Warren сливает PR сам (`WARREN_PLAN_RUN_MERGE_ON_PASS=1`). Если замечания остались или ревью сорвалось, PR ждёт тебя.
 
 ## Агенты цепочки
 
@@ -87,7 +89,7 @@ bun src/cli/main.ts up
 bun src/cli/main.ts plan run --project <prj_id> --agent implementer --issues <id1,id2> --max-cost-usd 5
 ```
 
-5. Читай PR и сливай их.
+5. Разбирай PR, которые ревью не пропустило. Остальные сольются сами.
 
 ## Новые проекты
 

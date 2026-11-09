@@ -249,6 +249,10 @@ export class GitLabForge implements Forge {
 		});
 	}
 
+	async mergePullRequest(): Promise<ForgeResult<void>> {
+		return err({ kind: "unsupported", detail: "PR merging is implemented for GitHub only" });
+	}
+
 	async commentOnPullRequest(): Promise<ForgeResult<void>> {
 		return err({ kind: "unsupported", detail: "PR comments are implemented for GitHub only" });
 	}

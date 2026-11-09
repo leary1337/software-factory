@@ -42,7 +42,7 @@
 | Трекер | Seeds |
 | Git-хостинг | GitHub, токен только на подключённые репозитории |
 | Проверки | Локальный `qualityGate`, GitHub Actions не используем |
-| Автослияние | выключено, каждый PR читает владелец |
+| Автослияние | после вердикта `PASS`, `WARREN_PLAN_RUN_MERGE_ON_PASS=1` |
 | `WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS` | `1` |
 | `WARREN_PLAN_RUN_MERGE_TIMEOUT_MS` | `0` |
 | `maxCostUsd` на запуск | `10` (оценка по ценам API, страховка от зацикливания) |

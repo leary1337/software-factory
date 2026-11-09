@@ -341,6 +341,9 @@ export interface Forge {
 		options: ArmAutoMergeOptions,
 	): Promise<ArmAutoMergeResult>;
 
+	/** Squash-merge a PR. Providers without support return `unsupported`. */
+	mergePullRequest(ref: RepoRef, pr: PullRequestRef): Promise<ForgeResult<void>>;
+
 	/** Post a comment on a PR. Providers without support return `unsupported`. */
 	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string): Promise<ForgeResult<void>>;
 

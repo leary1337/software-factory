@@ -37,6 +37,8 @@ export const DEFAULT_PLAN_RUN_MERGE_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_PLAN_RUN_MERGE_STALLED_WARNING_MS = 5 * 60 * 1000;
 
 export interface PlanRunCoordinatorConfig {
+	/** Squash-merge a child's PR as soon as its review ends in PASS. */
+	readonly mergeOnPass: boolean;
 	readonly tickMs: number;
 	readonly disabled: boolean;
 	/** Wall-clock merge-wait budget in ms; 0 disables the timeout. */
@@ -53,6 +55,7 @@ export function loadPlanRunCoordinatorConfigFromEnv(
 	return {
 		tickMs: parseTickMs(env.WARREN_PLAN_RUN_TICK_MS),
 		disabled: parseBoolFlag(env.WARREN_PLAN_RUN_DISABLED),
+		mergeOnPass: parseBoolFlag(env.WARREN_PLAN_RUN_MERGE_ON_PASS),
 		mergeTimeoutMs: parseMergeTimeoutMs(env.WARREN_PLAN_RUN_MERGE_TIMEOUT_MS),
 		mergeStallWarningMs: parseMergeStallWarningMs(env.WARREN_PLAN_RUN_MERGE_STALLED_WARNING_MS),
 	};

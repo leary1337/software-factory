@@ -78,6 +78,24 @@ function buildReopenPrContent(
 	return { title: content.title, body: content.body };
 }
 
+/** Squash-merge a PR that passed review, then delete its branch. */
+export function createMergePassedPr(deps: {
+	readonly forge: Forge;
+	readonly logger: { warn: (obj: object, msg: string) => void };
+}): (prUrl: string, branch: string) => Promise<boolean> {
+	return async (prUrl, branch) => {
+		const target = resolvePollTarget(deps.forge, prUrl);
+		if (target.kind === "unparseable") return false;
+		const merged = await deps.forge.mergePullRequest(target.ref, target.pr);
+		if (!merged.ok) {
+			deps.logger.warn({ prUrl, reason: merged.error.kind }, "plan_run.review_merge_failed");
+			return false;
+		}
+		await deps.forge.deleteBranch(target.ref, branch);
+		return true;
+	};
+}
+
 /** Post the finished review on the PR. Best-effort: a failed comment is only logged. */
 export function createCommentOnPr(deps: {
 	readonly forge: Forge;
@@ -383,6 +401,9 @@ export function bootPlanRunCoordinatorWiring(input: PlanRunWiringInput): PlanRun
 		probeMergeStall: createMergeStallProbe({ forge }),
 		mergeStallWarningMs: planRunCoordinatorConfig.mergeStallWarningMs,
 		commentOnPr: createCommentOnPr({ forge, logger }),
+		...(planRunCoordinatorConfig.mergeOnPass
+			? { mergePassedPr: createMergePassedPr({ forge, logger }) }
+			: {}),
 		// warren-3806: deterministic host-side seed close when a child merges.
 		closeChildSeed: createCloseChildSeed({
 			forge,

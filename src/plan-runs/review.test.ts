@@ -122,6 +122,38 @@ describe("advanceReview", () => {
 		expect(emitted).toEqual(["plan_run.review_step"]);
 	});
 
+	test("a PASS merges the PR when merging is on, and says so", async () => {
+		const { input, comments } = harness();
+		const merges: string[] = [];
+		const withMerge = {
+			...input,
+			mergePassedPr: async (_: string, branch: string) => {
+				merges.push(branch);
+				return true;
+			},
+			repos: {
+				...input.repos,
+				events: {
+					...input.repos.events,
+					listByRun: async () => [
+						{
+							kind: "plan_run.review_step",
+							payloadJson: { step: "review", stepRunId: "run_r" },
+						},
+					],
+					listTail: async () => [{ payloadJson: { type: "result", result: "VERDICT: PASS" } }],
+				},
+				runs: {
+					require: async () => ({ state: "succeeded", endedAt: "t", failureReason: null }),
+				},
+			},
+		} as unknown as HandleInFlightInput;
+
+		expect(await advanceReview(withMerge, run as never, prUrl)).toBeNull();
+		expect(merges).toEqual(["factory/run_a"]);
+		expect(comments[0]).toContain("слит автоматически");
+	});
+
 	test("leaves plans of other agents alone", async () => {
 		const { input, spawned } = harness("claude-code");
 		expect(await advanceReview(input, run as never, prUrl)).toBeNull();

@@ -34,6 +34,7 @@ import {
 	type CoordinatorCommentFn,
 	type CoordinatorEmitFn,
 	type CoordinatorGetIssueFn,
+	type CoordinatorMergeFn,
 	type CoordinatorReopenPrFn,
 	type CoordinatorRepos,
 	type CoordinatorSpawnFn,
@@ -90,6 +91,8 @@ export interface PlanRunTickDeps {
 	readonly closeChildSeed?: CoordinatorCloseChildSeedFn;
 	/** Posts the finished review on the PR. */
 	readonly commentOnPr?: CoordinatorCommentFn;
+	/** Present only when merging on a PASS verdict is switched on. */
+	readonly mergePassedPr?: CoordinatorMergeFn;
 }
 
 export interface PlanRunAdvanceLog {
@@ -168,6 +171,7 @@ function buildAdvanceInput(
 		...(deps.reopenPr !== undefined ? { reopenPr: deps.reopenPr } : {}),
 		...(deps.closeChildSeed !== undefined ? { closeChildSeed: deps.closeChildSeed } : {}),
 		...(deps.commentOnPr !== undefined ? { commentOnPr: deps.commentOnPr } : {}),
+		...(deps.mergePassedPr !== undefined ? { mergePassedPr: deps.mergePassedPr } : {}),
 		...(deps.now !== undefined ? { now: deps.now } : {}),
 	};
 }

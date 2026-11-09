@@ -12,6 +12,8 @@
  * aligned now means phase 2's mapping is a rename, not a re-derivation.
  */
 
+import type { ForgeError } from "../contract.ts";
+
 /** Discriminator for a classified GitHub transport failure. */
 export type GitHubErrorKind =
 	/** fetch threw or returned no HTTP response (status 0). */
@@ -106,4 +108,16 @@ export function networkError(err: unknown, context: string): GitHubHttpError {
 		retryAfterMs: null,
 		message: `${context} failed: ${err instanceof Error ? err.message : String(err)}`,
 	};
+}
+
+/**
+ * Transport-kind vocabulary aligns with the seam kinds — the map is a
+ * rename. Exported for the App provider's installation-token mint.
+ */
+export function toForgeError(error: GitHubHttpError): ForgeError {
+	const forgeError: ForgeError = { kind: error.kind, status: error.status, detail: error.message };
+	if (error.kind === "rate_limited" && error.retryAfterMs !== null) {
+		return { ...forgeError, retryAfterMs: error.retryAfterMs };
+	}
+	return forgeError;
 }

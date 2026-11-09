@@ -48,10 +48,10 @@ import type {
 	RepoRef,
 } from "../contract.ts";
 import { armGitHubAutoMerge } from "./auto-merge.ts";
-import type { GitHubHttpError } from "./errors.ts";
+import { toForgeError } from "./errors.ts";
 import { GITHUB_API_BASE } from "./headers.ts";
 import { requestGitHub } from "./http.ts";
-import { sendPrText } from "./pr-text.ts";
+import { type PrWriteMethod, writePullRequest } from "./pr-text.ts";
 import { readAutoMergeState, readJson, readText } from "./readers.ts";
 import { GITHUB_FORGE_KIND, parseGitHubRepoRef } from "./repo-ref.ts";
 import {
@@ -101,17 +101,7 @@ function err<T>(error: ForgeError): ForgeResult<T> {
 	return { ok: false, error };
 }
 
-/**
- * Transport-kind vocabulary aligns with the seam kinds — the map is a
- * rename. Exported for the App provider's installation-token mint.
- */
-export function toForgeError(error: GitHubHttpError): ForgeError {
-	const forgeError: ForgeError = { kind: error.kind, status: error.status, detail: error.message };
-	if (error.kind === "rate_limited" && error.retryAfterMs !== null) {
-		return { ...forgeError, retryAfterMs: error.retryAfterMs };
-	}
-	return forgeError;
-}
+export { toForgeError };
 
 interface GitHubPrJson {
 	readonly number?: unknown;
@@ -277,21 +267,25 @@ export class GitHubForge implements Forge {
 	}
 
 	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string) {
-		return this.sendText(ref, `issues/${pr.number}/comments`, "POST", body);
+		return this.writePr(ref, `issues/${pr.number}/comments`, "POST", { body });
 	}
 
 	setPullRequestBody(ref: RepoRef, pr: PullRequestRef, body: string) {
-		return this.sendText(ref, `pulls/${pr.number}`, "PATCH", body);
+		return this.writePr(ref, `pulls/${pr.number}`, "PATCH", { body });
 	}
 
-	private sendText(ref: RepoRef, path: string, method: "PATCH" | "POST", text: string) {
-		return sendPrText({
+	mergePullRequest(ref: RepoRef, pr: PullRequestRef) {
+		return this.writePr(ref, `pulls/${pr.number}/merge`, "PUT", { merge_method: "squash" });
+	}
+
+	private writePr(ref: RepoRef, path: string, method: PrWriteMethod, body: object) {
+		return writePullRequest({
 			mint: () => this.mint(ref),
 			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/${path}`,
 			method,
 			userAgent: USER_AGENT,
 			context: `${method} /${path}`,
-			text,
+			body,
 			fetch: this.fetch,
 		});
 	}

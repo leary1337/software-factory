@@ -94,6 +94,17 @@ async function describeTicket(input: HandleInFlightInput): Promise<string> {
 	return `## Ticket ${issue.id}: ${issue.title ?? ""}\n\n${issue.description ?? ""}`;
 }
 
+async function mergeIfPassed(
+	input: HandleInFlightInput,
+	run: RunRow,
+	prUrl: string,
+	outcome: ReviewOutcome,
+): Promise<string> {
+	if (outcome !== "passed" || input.mergePassedPr === undefined || run.branch === null) return "";
+	const merged = await input.mergePassedPr(prUrl, run.branch);
+	return merged ? ", PR слит автоматически" : ", автоматически слить не удалось";
+}
+
 async function finish(
 	input: HandleInFlightInput,
 	run: RunRow,
@@ -106,7 +117,8 @@ async function finish(
 		seq: input.child.seq,
 		outcome,
 	});
-	await input.commentOnPr?.(prUrl, `## ${OUTCOME_HEADINGS[outcome]}\n\n${report}`);
+	const mergeLine = await mergeIfPassed(input, run, prUrl, outcome);
+	await input.commentOnPr?.(prUrl, `## ${OUTCOME_HEADINGS[outcome]}${mergeLine}\n\n${report}`);
 	return null;
 }
 

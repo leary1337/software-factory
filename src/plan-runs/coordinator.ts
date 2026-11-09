@@ -67,6 +67,9 @@ export interface CoordinatorSpawnResult {
 
 export type CoordinatorSpawnFn = (input: CoordinatorSpawnInput) => Promise<CoordinatorSpawnResult>;
 
+/** Merge a PR that passed review. Resolves to whether it merged; never throws. */
+export type CoordinatorMergeFn = (prUrl: string, branch: string) => Promise<boolean>;
+
 /** Best-effort PR comment; the implementation handles its own failures. */
 export type CoordinatorCommentFn = (prUrl: string, body: string) => Promise<void>;
 
@@ -132,6 +135,8 @@ export interface AdvancePlanRunInput {
 	readonly closeChildSeed?: CoordinatorCloseChildSeedFn;
 	/** Posts the finished review on the PR. */
 	readonly commentOnPr?: CoordinatorCommentFn;
+	/** Present only when merging on a PASS verdict is switched on. */
+	readonly mergePassedPr?: CoordinatorMergeFn;
 	/** warren-3937: merge-wait budget (ms); defaults to {@link DEFAULT_MERGE_TIMEOUT_MS}, 0 disables. */
 	readonly mergeTimeoutMs?: number;
 	/** pl-92a3 step 7: stall-warning grace period (ms); 0 disables the warning. */
@@ -200,6 +205,7 @@ export async function advancePlanRun(input: AdvancePlanRunInput): Promise<Advanc
 				spawn: input.spawn,
 				...(input.closeChildSeed !== undefined ? { closeChildSeed: input.closeChildSeed } : {}),
 				...(input.commentOnPr !== undefined ? { commentOnPr: input.commentOnPr } : {}),
+				...(input.mergePassedPr !== undefined ? { mergePassedPr: input.mergePassedPr } : {}),
 			});
 			if (decision.kind === "merged") {
 				mergedChildSeq = inFlight.seq;
