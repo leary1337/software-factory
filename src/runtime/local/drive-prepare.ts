@@ -17,6 +17,7 @@ import { type AgentRuntimeAdapter, allAdapters } from "../adapters/index.ts";
 import type { AgentFrontmatter } from "../adapters/types.ts";
 import type { RunSpec } from "../contract.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
+import { materializeSkillPack } from "./skill-pack.ts";
 
 /** Subset of DriveDeps this module needs — avoids a drive.ts circular import. */
 export interface PrepareDeps {
@@ -139,6 +140,12 @@ export async function prepareSpawn(
 	// claude OAuth blob into it so auth resolves via $HOME lookup.
 	if (spec.runtimeId === "claude-code") {
 		await forwardClaudeHostCredentials(record.homePath).catch(() => {});
+		try {
+			await materializeSkillPack(record.homePath);
+		} catch (err) {
+			failBeforeSpawn(store, record, `skill pack not delivered: ${String(err)}`, deps);
+			return null;
+		}
 	}
 
 	const useStdinHold = typeof runtime.shouldCloseStdinOnEvent === "function";
@@ -147,6 +154,7 @@ export async function prepareSpawn(
 		prompt: spec.prompt,
 		pendingMessages,
 		workspacePath: record.workspacePath,
+		homePath: record.homePath,
 		...(frontmatter !== undefined ? { frontmatter } : {}),
 	});
 	const holdCommand: SpawnCommand = useStdinHold

@@ -256,6 +256,8 @@ export interface AdapterSpawnContext {
 	 * that writes setup files operates on the host path.
 	 */
 	readonly workspacePath: string;
+	/** The run's own $HOME on the host, when the runtime has one (local provider). */
+	readonly homePath?: string;
 	/** Optional per-run frontmatter override (see {@link AgentFrontmatter}). */
 	readonly frontmatter?: AgentFrontmatter;
 }

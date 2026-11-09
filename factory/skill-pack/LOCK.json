@@ -1,0 +1,15 @@
+{
+  "pstack": {
+    "repository": "https://github.com/cursor/plugins",
+    "commit": "6b0300214a09fd6029cfb7077043125758cd1fd2",
+    "path": "harness/pstack/claude-code",
+    "license": "MIT"
+  },
+  "mattpocock": {
+    "repository": "https://github.com/mattpocock/skills",
+    "commit": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
+    "path": "skills/engineering",
+    "skills": ["tdd", "diagnosing-bugs", "codebase-design", "code-review"],
+    "license": "MIT"
+  }
+}

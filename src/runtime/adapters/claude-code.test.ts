@@ -38,6 +38,17 @@ function fakeSpawnContext(extra: Partial<AdapterSpawnContext> = {}): AdapterSpaw
 }
 
 describe("claudeCodeAdapter.buildSpawnCommand", () => {
+	test("loads pstack from the run's home when it has one", () => {
+		const cmd = claudeCodeAdapter.buildSpawnCommand?.({
+			runId: "run_1",
+			prompt: "go",
+			pendingMessages: [],
+			workspacePath: "/tmp/w",
+			homePath: "/tmp/h",
+		});
+		expect(cmd?.argv.slice(-2)).toEqual(["--plugin-dir", "/tmp/h/.claude/factory/pstack"]);
+	});
+
 	test("passes the frontmatter model to claude", () => {
 		const cmd = claudeCodeAdapter.buildSpawnCommand?.({
 			runId: "run_1",

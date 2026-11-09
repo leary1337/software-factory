@@ -5,7 +5,8 @@
 		"data/**",
 		"dist/**",
 		"src/ui/dist/**",
-		"src/db/migrations/**"
+		"src/db/migrations/**",
+		"factory/**"
 	],
 	"workspaces": {
 		".": {
