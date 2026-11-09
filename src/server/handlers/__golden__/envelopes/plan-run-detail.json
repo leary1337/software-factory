@@ -20,7 +20,8 @@
 			"createdAt": "2026-08-07T00:00:00.000Z",
 			"startedAt": null,
 			"endedAt": null,
-			"resumedAt": null
+			"resumedAt": null,
+			"planName": null
 		},
 		"children": [
 			{
@@ -35,7 +36,9 @@
 				"endedAt": null,
 				"prMergedAt": null,
 				"failureReason": null,
-				"retryCount": 0
+				"retryCount": 0,
+				"title": null,
+				"reviewStage": null
 			},
 			{
 				"planRunId": "planRun_golden7d84",
@@ -49,7 +52,9 @@
 				"endedAt": null,
 				"prMergedAt": null,
 				"failureReason": null,
-				"retryCount": 0
+				"retryCount": 0,
+				"title": null,
+				"reviewStage": null
 			}
 		],
 		"runs": []

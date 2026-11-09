@@ -144,8 +144,10 @@ function childStatusLine(
 	}
 	if (child.state === "pr_open") {
 		return {
-			text: `open ${relativeTime(child.updatedAt)} · waiting for merge`,
-			danger: false,
+			text: child.reviewStage
+				? REVIEW_STAGES[child.reviewStage].detail
+				: `open ${relativeTime(child.updatedAt)} · waiting for merge`,
+			danger: child.reviewStage === "needs_attention",
 		};
 	}
 	if (child.state === "pending" && gateSeq !== null && gateSeq < child.seq) {
@@ -154,9 +156,44 @@ function childStatusLine(
 	return null;
 }
 
+const REVIEW_STAGES: Record<
+	NonNullable<PlanRunChildRow["reviewStage"]>,
+	{ label: string; detail: string; tone: InventoryCardTone; color: string }
+> = {
+	reviewing: {
+		label: "in review",
+		detail: "automated review running",
+		tone: "info",
+		color: CHILD_SQUARE_COLOR.running,
+	},
+	reworking: {
+		label: "in rework",
+		detail: "fixing review findings",
+		tone: "info",
+		color: CHILD_SQUARE_COLOR.running,
+	},
+	ready_to_merge: {
+		label: "ready to merge",
+		detail: "review passed · ready to merge",
+		tone: "success",
+		color: CHILD_SQUARE_COLOR.merged,
+	},
+	needs_attention: {
+		label: "needs you",
+		detail: "review did not pass · see the PR comment",
+		tone: "warning",
+		color: CHILD_SQUARE_COLOR.pr_open,
+	},
+};
+
+function childStateLabel(child: PlanRunChildRow): string {
+	return child.reviewStage ? REVIEW_STAGES[child.reviewStage].label : child.state;
+}
+
 /** Child state → card tone (mirrors CHILD_SQUARE_COLOR). */
-function childTone(state: PlanRunChildRow["state"]): InventoryCardTone {
-	switch (state) {
+function childTone(child: PlanRunChildRow): InventoryCardTone {
+	if (child.reviewStage) return REVIEW_STAGES[child.reviewStage].tone;
+	switch (child.state) {
 		case "merged":
 			return "success";
 		case "failed":
@@ -220,9 +257,9 @@ function ChildCard({
 	const prUrl = run?.prUrl ?? null;
 	return (
 		<InventoryRowCard
-			tone={childTone(child.state)}
-			stateLabel={child.state}
-			title={`${String(child.seq).padStart(2, "0")} ${child.seedId}`}
+			tone={childTone(child)}
+			stateLabel={childStateLabel(child)}
+			title={`${String(child.seq).padStart(2, "0")} ${child.title ?? child.seedId}`}
 			titleTo={child.runId !== null ? `/runs/${encodeURIComponent(child.runId)}` : undefined}
 			subline={child.runId !== null ? child.runId : "not dispatched"}
 			figures={childCardFigures(child, prLabel, isGate)}
@@ -257,7 +294,9 @@ function ChildRow({
 	gateSeq: number | null;
 	isGate: boolean;
 }) {
-	const color = CHILD_SQUARE_COLOR[child.state];
+	const color = child.reviewStage
+		? REVIEW_STAGES[child.reviewStage].color
+		: CHILD_SQUARE_COLOR[child.state];
 	// The pending dot is an unfilled rail (border-strong); as text that fails
 	// WCAG contrast, so the label falls back to tertiary text (warren-b629).
 	const labelColor = child.state === "pending" ? "var(--color-text-3)" : color;
@@ -277,8 +316,10 @@ function ChildRow({
 			>
 				{String(child.seq).padStart(2, "0")}
 			</span>
-			<div className="flex w-[150px] shrink-0 flex-col gap-0.5">
-				<span className="font-mono text-(--color-text) text-[10px] leading-3">{child.seedId}</span>
+			<div className="flex w-[320px] min-w-0 shrink-0 flex-col gap-0.5">
+				<span className="truncate text-(--color-text) text-[12px] leading-4" title={child.seedId}>
+					{child.title ?? child.seedId}
+				</span>
 				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
 					{child.runId !== null ? (
 						<Link
@@ -299,7 +340,7 @@ function ChildRow({
 					aria-hidden
 				/>
 				<span className="font-mono text-[10px] leading-3" style={{ color: labelColor }}>
-					{child.state}
+					{childStateLabel(child)}
 				</span>
 			</span>
 			{prLabel !== null ? (

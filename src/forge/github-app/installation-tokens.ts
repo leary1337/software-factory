@@ -32,9 +32,9 @@
 
 import type { KeyObject } from "node:crypto";
 import type { ForgeResult } from "../contract.ts";
+import { toForgeError } from "../github/errors.ts";
 import { GITHUB_API_BASE } from "../github/headers.ts";
 import { requestGitHub } from "../github/http.ts";
-import { toForgeError } from "../github/provider.ts";
 import { readJson } from "../github/readers.ts";
 import type { GitHubCredentialSecret, GitHubForgeTokenSource } from "../github/token-source.ts";
 import { mintGitHubAppJwt } from "./jwt.ts";

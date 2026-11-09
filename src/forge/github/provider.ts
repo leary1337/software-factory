@@ -48,6 +48,7 @@ import type {
 	RepoRef,
 } from "../contract.ts";
 import { armGitHubAutoMerge } from "./auto-merge.ts";
+import { GitHubDeploys } from "./deploys.ts";
 import { toForgeError } from "./errors.ts";
 import { GITHUB_API_BASE } from "./headers.ts";
 import { requestGitHub } from "./http.ts";
@@ -101,8 +102,6 @@ function err<T>(error: ForgeError): ForgeResult<T> {
 	return { ok: false, error };
 }
 
-export { toForgeError };
-
 interface GitHubPrJson {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
@@ -143,6 +142,14 @@ export class GitHubForge implements Forge {
 			autoMergeArm: true,
 			credentialLifetime: "static",
 		};
+	}
+
+	get deploys() {
+		return new GitHubDeploys(
+			(r) => this.mint(r),
+			(r) => this.slug(r),
+			this.fetch,
+		);
 	}
 
 	parseRepoRef(cloneUrl: string): RepoRef | null {

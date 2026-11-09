@@ -68,6 +68,7 @@ export const REDACTED_WARREN_CONFIG_FIELDS = [
 	"repoContext",
 	"qualityGate",
 	"migrations",
+	"deploy",
 	"maxCostUsd",
 	"agentImage",
 	"preview",

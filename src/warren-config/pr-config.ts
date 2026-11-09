@@ -108,3 +108,11 @@ export const PrConfigSchema = z
 	.strict();
 
 export type PrConfig = z.infer<typeof PrConfigSchema>;
+
+/** The Production panel. Defaults: deploy.yml, production. */
+export const DeployConfigSchema = z
+	.object({
+		workflow: z.string().min(1).optional(),
+		environment: z.string().min(1).optional(),
+	})
+	.strict();

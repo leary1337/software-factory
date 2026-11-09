@@ -195,6 +195,8 @@ export async function reapRun(input: ReapRunInput): Promise<ReapRunResult> {
 	const noChangesFailure =
 		state.noChanges &&
 		(run.ref !== null || run.targetBranch !== null) &&
+		// A reviewer leaves the branch untouched by design.
+		run.agentName !== "reviewer" &&
 		input.outcome === "succeeded";
 	const effectiveOutcome: RunTerminalState =
 		state.droppedCommit || noChangesFailure || failedFromProviderError || finalizeFailed

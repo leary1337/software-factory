@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
+import { DeployPanel } from "@/pages/project-detail.deploy-panel.tsx";
 import {
 	DispatchDefaultsPanel,
 	ReadyPlansPanel,
@@ -78,6 +79,7 @@ export function ProjectDetailPage() {
 			) : (
 				<div className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row">
 					<div className={mainColumnClasses()}>
+						<DeployPanel projectId={id} />
 						<DispatchDefaultsPanel
 							query={warrenConfig.data}
 							isLoading={warrenConfig.isLoading}

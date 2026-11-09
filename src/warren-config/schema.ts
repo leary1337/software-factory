@@ -47,7 +47,7 @@ import { parseDurationMs } from "../preview/duration.ts";
 import { AGENT_NAME_PATTERN } from "../registry/agent-name.ts";
 import { CiFixerConfigSchema, HealerConfigSchema } from "./feature-loop-config.ts";
 import { MigrationsConfigSchema } from "./migrations-config.ts";
-import { PrConfigSchema } from "./pr-config.ts";
+import { DeployConfigSchema, PrConfigSchema } from "./pr-config.ts";
 import { AdmissionConfigSchema, ResourcesConfigSchema } from "./resources-config.ts";
 import { TrackerConfigSchema } from "./tracker-config.ts";
 
@@ -371,6 +371,7 @@ export const DefaultsConfigSchema = z
 		// Precedence: project default > WARREN_RUN_BRANCH_PREFIX env > built-in
 		// default ("warren"; warren-2de0 flipped the legacy "burrow" default).
 		runBranchPrefix: RunBranchPrefixSchema.optional(),
+		deploy: DeployConfigSchema.optional(),
 		// warren-fabb: per-project agent image override for the container
 		// runtimes (docker + k8s). Precedence: project override >
 		// WARREN_DOCKER_AGENT_IMAGE / WARREN_K8S_AGENT_IMAGE env > default.

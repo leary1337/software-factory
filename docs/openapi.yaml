@@ -678,6 +678,47 @@ paths:
           required: true
           schema:
             type: string
+  /projects/{id}/deploy:
+    get:
+      operationId: getProjectDeployHandler
+      tags:
+        - projects
+      summary: GET /projects/:id/deploy
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+    post:
+      operationId: startProjectDeployHandler
+      tags:
+        - projects
+      summary: POST /projects/:id/deploy
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
   /projects/{id}/init:
     post:
       operationId: initProjectHandler

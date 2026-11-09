@@ -6,6 +6,7 @@ import {
 	MAX_REWORKS,
 	parseVerdict,
 	type ReviewStepRecord,
+	reviewStageOf,
 } from "./review.ts";
 
 const passed: ReviewStepRecord = {
@@ -73,6 +74,24 @@ describe("decideReviewStep", () => {
 		expect(
 			decideReviewStep([{ step: "review", state: "succeeded", resultText: "looks fine" }]),
 		).toMatchObject({ kind: "finished", outcome: "broken" });
+	});
+});
+
+describe("reviewStageOf", () => {
+	test("names where the PR actually is", () => {
+		expect(reviewStageOf([])).toBe("reviewing");
+		expect(reviewStageOf([{ step: "review", state: "running", resultText: null }])).toBe(
+			"reviewing",
+		);
+		expect(reviewStageOf([changes])).toBe("reworking");
+		expect(reviewStageOf([changes, { step: "rework", state: "running", resultText: null }])).toBe(
+			"reworking",
+		);
+		expect(reviewStageOf([changes, reworked])).toBe("reviewing");
+		expect(reviewStageOf([passed])).toBe("ready_to_merge");
+		expect(reviewStageOf([{ step: "rework", state: "failed", resultText: null }])).toBe(
+			"needs_attention",
+		);
 	});
 });
 

@@ -9,6 +9,7 @@
 		"src/runs/reap/run.ts": 513,
 		"src/runs/reap/stage.test.ts": 526,
 		"src/runtime/contract.ts": 510,
+		"src/server/handlers/route-table.ts": 515,
 		"src/runtime/container/finalize-entrypoint.ts": 510,
 		"src/server/handlers/plan-runs.ts": 505,
 		"src/triggers/tick.test.ts": 539,

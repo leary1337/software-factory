@@ -6,6 +6,7 @@
  */
 
 import type { RunRow } from "../db/schema.ts";
+import type { CoordinatorRepos } from "./coordinator.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
 
@@ -53,35 +54,54 @@ export function decideReviewStep(steps: readonly ReviewStepRecord[]): ReviewDeci
 	return { kind: "spawn", step: "rework", findings: report };
 }
 
+/** Where a child with an open PR actually is, for the plan view. */
+export type ReviewStage = "reviewing" | "reworking" | "ready_to_merge" | "needs_attention";
+
+export function reviewStageOf(steps: readonly ReviewStepRecord[]): ReviewStage {
+	const decision = decideReviewStep(steps);
+	if (decision.kind === "spawn") return decision.step === "review" ? "reviewing" : "reworking";
+	if (decision.kind === "wait") return steps.at(-1)?.step === "rework" ? "reworking" : "reviewing";
+	return decision.outcome === "passed" ? "ready_to_merge" : "needs_attention";
+}
+
+/** The review stage of a child's run, or null for plans without the review step. */
+export async function loadReviewStage(
+	repos: ReviewRepos,
+	agentName: string,
+	runId: string,
+): Promise<ReviewStage | null> {
+	if (agentName !== REVIEWED_AGENT) return null;
+	return reviewStageOf(await loadSteps(repos, runId));
+}
+
 const OUTCOME_HEADINGS: Readonly<Record<ReviewOutcome, string>> = {
 	passed: "Ревью фабрики: замечаний нет",
 	changes_left: `Ревью фабрики: замечания остались после ${MAX_REWORKS} доработок`,
 	broken: "Ревью фабрики не завершилось",
 };
 
-async function loadSteps(
-	input: HandleInFlightInput,
-	run: RunRow,
-): Promise<readonly ReviewStepRecord[]> {
-	const events = await input.repos.events.listByRun(run.id);
+type ReviewRepos = Pick<CoordinatorRepos, "events" | "runs">;
+
+async function loadSteps(repos: ReviewRepos, runId: string): Promise<readonly ReviewStepRecord[]> {
+	const events = await repos.events.listByRun(runId);
 	const records: ReviewStepRecord[] = [];
 	for (const event of events) {
 		if (event.kind !== "plan_run.review_step") continue;
 		const payload = event.payloadJson as { step: ReviewStepKind; stepRunId: string };
-		const stepRun = await input.repos.runs.require(payload.stepRunId);
+		const stepRun = await repos.runs.require(payload.stepRunId);
 		// A step that leaves the branch untouched ends as no_changes; for a reviewer that is the job done.
 		const finishedCleanly = stepRun.state === "succeeded" || stepRun.failureReason === "no_changes";
 		records.push({
 			step: payload.step,
 			state: finishedCleanly ? "succeeded" : stepRun.endedAt === null ? "running" : "failed",
-			resultText: finishedCleanly ? await readResultText(input, stepRun.id) : null,
+			resultText: finishedCleanly ? await readResultText(repos, stepRun.id) : null,
 		});
 	}
 	return records;
 }
 
-async function readResultText(input: HandleInFlightInput, runId: string): Promise<string | null> {
-	const tail = await input.repos.events.listTail(runId, 40);
+async function readResultText(repos: ReviewRepos, runId: string): Promise<string | null> {
+	const tail = await repos.events.listTail(runId, 40);
 	for (const event of [...tail].reverse()) {
 		const payload = event.payloadJson as { type?: string; result?: unknown };
 		if (payload.type === "result" && typeof payload.result === "string") return payload.result;
@@ -134,7 +154,7 @@ export async function advanceReview(
 	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
 	if (await input.repos.events.hasKind(run.id, "plan_run.review_finished")) return null;
 
-	const decision = decideReviewStep(await loadSteps(input, run));
+	const decision = decideReviewStep(await loadSteps(input.repos, run.id));
 	if (decision.kind === "wait") {
 		return { kind: "result", result: { kind: "waiting_for_run" } };
 	}

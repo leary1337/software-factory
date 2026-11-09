@@ -120,6 +120,10 @@ export class HotForge implements Forge {
 		return this.delegate.armAutoMerge(ref, pr, options);
 	}
 
+	get deploys() {
+		return this.delegate.deploys;
+	}
+
 	mergePullRequest(
 		ref: Parameters<Forge["mergePullRequest"]>[0],
 		pr: Parameters<Forge["mergePullRequest"]>[1],

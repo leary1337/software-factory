@@ -54,7 +54,7 @@ function WalkCard({
 	const counts = children !== null ? formatChildStateCounts(children) : null;
 	const planLabel =
 		planRun.source === "plan"
-			? (planRun.planId ?? "—")
+			? (planRun.planName ?? planRun.planId ?? "—")
 			: `issues${children !== null ? ` × ${children.length}` : ""}`;
 
 	return (

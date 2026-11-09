@@ -88,7 +88,7 @@ export function PlanRunDetailPage() {
 			<header className="flex shrink-0 flex-wrap items-center gap-3 pb-5">
 				<h1 className="font-medium font-mono text-(--color-text) text-[16px] leading-5">{id}</h1>
 				<StateLabel state={planRun.state} />
-				{planRun.planId !== null ? <PlanChip planId={planRun.planId} /> : null}
+				{planRun.planId !== null ? <PlanChip planId={planRun.planName ?? planRun.planId} /> : null}
 				<span className="text-(--color-text-2) text-[11px] leading-[14px]">
 					{projectLabel} · {planRun.agentName} · {planRun.trigger}
 				</span>

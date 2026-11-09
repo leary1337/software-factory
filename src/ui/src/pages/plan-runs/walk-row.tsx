@@ -123,7 +123,7 @@ function StateCell({ state }: { state: PlanRunRow["state"] }) {
 }
 
 function PlanCell({ planRun, childCount }: { planRun: PlanRunRow; childCount: number | null }) {
-	if (planRun.source === "plan") return planRun.planId ?? "—";
+	if (planRun.source === "plan") return planRun.planName ?? planRun.planId ?? "—";
 	const count = childCount === null ? "" : ` × ${childCount}`;
 	return `issues${count}`;
 }

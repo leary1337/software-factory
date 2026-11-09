@@ -7,7 +7,7 @@ This page enumerates every HTTP route registered by warren's `Bun.serve` router.
 
 To refresh: `bun run gen:docs`. To check (CI mode): `bun run gen:docs:check`.
 
-Total routes: **55**.
+Total routes: **57**.
 
 ## /agents
 
@@ -109,6 +109,8 @@ Total routes: **55**.
 | `GET` | `/projects/:id/warren-config` | `getProjectWarrenConfigHandler` |  |
 | `GET` | `/projects/:id/triggers` | `getProjectTriggersHandler` |  |
 | `GET` | `/projects/:id/seeds/plans` | `listProjectSeedPlansHandler` | Static path — must precede the :seedId param route so "plans" isn't swallowed as a seed id. |
+| `GET` | `/projects/:id/deploy` | `getProjectDeployHandler` |  |
+| `POST` | `/projects/:id/deploy` | `startProjectDeployHandler` |  |
 | `GET` | `/projects/:id/ready-plans` | `listReadyPlansHandler` |  |
 | `GET` | `/projects/:id/seeds/:seedId` | `getProjectSeedHandler` |  |
 | `POST` | `/projects/:id/triggers/:triggerId/run` | `runProjectTriggerHandler` |  |

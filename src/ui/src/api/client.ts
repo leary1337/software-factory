@@ -4,6 +4,7 @@
 // router can redirect back to login on the next render pass.
 
 import { readNdjsonStream } from "../../../client/ndjson.ts";
+import type { ProjectDeployResponse } from "./deploy-types.ts";
 import type { InstanceFactsResponse } from "./instance-types.ts";
 import type { OpsOverviewResponse } from "./ops-types.ts";
 import type {
@@ -232,6 +233,15 @@ export const projectsApi = {
 	 * seed that have not yet been dispatched (warren-7937). Powers the
 	 * "Ready to dispatch" operator surface.
 	 */
+	deployOverview: (id: string, signal?: AbortSignal) =>
+		request<ProjectDeployResponse>(`/projects/${encodeURIComponent(id)}/deploy`, {
+			...(signal ? { signal } : {}),
+		}),
+	startDeploy: (id: string) =>
+		request<{ dispatched: boolean; branch: string }>(`/projects/${encodeURIComponent(id)}/deploy`, {
+			method: "POST",
+			body: {},
+		}),
 	readyPlans: (id: string, signal?: AbortSignal) =>
 		request<ReadyPlansResponse>(`/projects/${encodeURIComponent(id)}/ready-plans`, {
 			...(signal ? { signal } : {}),

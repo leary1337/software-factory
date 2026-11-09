@@ -35,6 +35,7 @@ import {
 	resumePlanRunHandler,
 	streamPlanRunEventsHandler,
 } from "./plan-runs.ts";
+import { getProjectDeployHandler, startProjectDeployHandler } from "./projects.deploy.ts";
 import { configMigrateProjectHandler, initProjectHandler } from "./projects.init.ts";
 import {
 	createProjectHandler,
@@ -204,6 +205,18 @@ const ROUTE_TABLE: readonly RouteEntry[] = [
 		pattern: "/projects/:id/seeds/plans",
 		policy: "readOperator",
 		build: listProjectSeedPlansHandler,
+	},
+	{
+		method: "GET",
+		pattern: "/projects/:id/deploy",
+		policy: "readOperator",
+		build: getProjectDeployHandler,
+	},
+	{
+		method: "POST",
+		pattern: "/projects/:id/deploy",
+		policy: "dispatch",
+		build: startProjectDeployHandler,
 	},
 	{
 		method: "GET",

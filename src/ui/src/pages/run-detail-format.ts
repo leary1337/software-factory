@@ -68,15 +68,11 @@ export function formatTokenBreakdown(r: RunRow): string | null {
 	return parts.length === 0 ? null : parts.join(" · ");
 }
 
-/**
- * Extract HH:MM:SS wall-clock from an ISO timestamp for compact display
- * in the events pane (warren-3ad4). Falls back to the raw string when
- * the timestamp doesn't match — events with a non-ISO `ts` are rare but
- * possible (forward-compat with future burrow shapes).
- */
+/** HH:MM:SS on the local clock, or the raw string when `ts` does not parse. */
 export function formatWallClock(ts: string): string {
-	const m = /T(\d{2}:\d{2}:\d{2})/.exec(ts);
-	return m?.[1] ?? ts;
+	const date = new Date(ts);
+	if (Number.isNaN(date.getTime())) return ts;
+	return date.toLocaleTimeString("en-GB", { hour12: false });
 }
 
 export function truncateSummary(s: string, max = 140): string {

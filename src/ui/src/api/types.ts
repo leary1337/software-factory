@@ -93,8 +93,7 @@ export interface RunRow {
 	projectId: string | null;
 	/** Internal runtime handles, named for burrow but populated by
 	 * whichever runtime dispatched the run (warren-0965): burrow
-	 * sandbox/run ids under the burrow runtime, the pod name and pod UID
-	 * under `WARREN_RUNTIME=k8s` — NOT null there. OPTIONAL on the wire:
+	 * sandbox/run ids under the burrow runtime. OPTIONAL on the wire:
 	 * the public projection drops both (warren-946f), so consumers must
 	 * test presence, not `!== null` (warren-f53e). */
 	sandboxId?: string | null;
@@ -630,6 +629,7 @@ export interface RunTriggerResponse {
 /* ----------------------------------------------------------------------- */
 
 export interface PlanRunRow {
+	planName?: string | null;
 	id: string;
 	/** Null on the warren-de42 `issues` form (source: 'plan' | 'issues'). */
 	planId: string | null;
@@ -665,6 +665,8 @@ export interface PlanRunChildRow {
 	prMergedAt: string | null;
 	/** Optional: redacted on the spectator projection (REDACTED_PLAN_RUN_CHILD_FIELDS). */
 	failureReason?: string | null;
+	title?: string | null;
+	reviewStage?: "reviewing" | "reworking" | "ready_to_merge" | "needs_attention" | null;
 	/** warren-6de9: automatic child re-dispatch budget consumed so far. */
 	retryCount: number;
 }

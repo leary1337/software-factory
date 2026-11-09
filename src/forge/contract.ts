@@ -97,6 +97,42 @@ export interface PullRequestQuery {
  */
 export type PullRequestAutoMergeState = "armed" | "unarmed" | "unknown";
 
+export interface DeployRecord {
+	readonly sha: string;
+	readonly createdAt: string;
+	readonly state: "success" | "failure" | "in_progress" | "unknown";
+}
+
+export interface DeployRun {
+	readonly id: number;
+	readonly status: string;
+	readonly conclusion: string | null;
+	readonly sha: string;
+	readonly createdAt: string;
+	readonly url: string;
+}
+
+export interface PendingChanges {
+	readonly aheadBy: number;
+	/** Newest first. */
+	readonly commits: ReadonlyArray<{ readonly sha: string; readonly title: string }>;
+}
+
+export interface ForgeDeploys {
+	listDeployments(
+		ref: RepoRef,
+		environment: string,
+		limit: number,
+	): Promise<ForgeResult<readonly DeployRecord[]>>;
+	compare(ref: RepoRef, base: string, head: string): Promise<ForgeResult<PendingChanges>>;
+	listRuns(
+		ref: RepoRef,
+		workflow: string,
+		limit: number,
+	): Promise<ForgeResult<readonly DeployRun[]>>;
+	dispatch(ref: RepoRef, workflow: string, branch: string): Promise<ForgeResult<void>>;
+}
+
 export interface PullRequestState {
 	lifecycle: PullRequestLifecycle;
 	/** epoch ms — required, not optional: the merge-watcher blocks on it (§7) */
@@ -340,6 +376,9 @@ export interface Forge {
 		pr: PullRequestRef,
 		options: ArmAutoMergeOptions,
 	): Promise<ArmAutoMergeResult>;
+
+	/** Deploy status and start; absent on forges without deployments. */
+	readonly deploys?: ForgeDeploys;
 
 	/** Squash-merge a PR. Providers without support return `unsupported`. */
 	mergePullRequest(ref: RepoRef, pr: PullRequestRef): Promise<ForgeResult<void>>;

@@ -26,6 +26,7 @@ import {
 	resumePlanRun,
 	tailPlanRunEvents,
 } from "../../plan-runs/index.ts";
+import { loadReviewStage } from "../../plan-runs/review.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
 import type { RouteHandler, ServerDeps } from "../types.ts";
@@ -37,6 +38,7 @@ import {
 	requireParam,
 	requireString,
 } from "./index.ts";
+import { planName, ticketTitle } from "./plan-run-labels.ts";
 import { projectPlanRun, projectPlanRunChild } from "./plan-runs-projection.ts";
 import {
 	asNdjsonStream,
@@ -122,6 +124,19 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
  * Options-bag shape mirrors `listRunsHandler` (mx-f1a881) so a UI rendering
  * either endpoint can share its query plumbing.
  */
+function withPlanNames(
+	deps: ServerDeps,
+	rows: ReadonlyArray<Parameters<typeof projectPlanRun>[0]>,
+	actor: Parameters<typeof projectPlanRun>[1],
+) {
+	return Promise.all(
+		rows.map(async (row) => ({
+			...projectPlanRun(row, actor),
+			planName: await planName(deps, row.projectId, row.planId),
+		})),
+	);
+}
+
 export function listPlanRunsHandler(deps: ServerDeps): RouteHandler {
 	return async (ctx) => {
 		const projectId = ctx.url.searchParams.get("project");
@@ -133,15 +148,11 @@ export function listPlanRunsHandler(deps: ServerDeps): RouteHandler {
 			);
 			const scoped =
 				state === "active" ? rows.filter((row) => !isTerminalPlanRunState(row.state)) : rows;
-			return jsonResponse(200, {
-				planRuns: scoped.map((row) => projectPlanRun(row, ctx.actor)),
-			});
+			return jsonResponse(200, { planRuns: await withPlanNames(deps, scoped, ctx.actor) });
 		}
 		if (state === "active") {
 			const active = await deps.repos.planRuns.listActive();
-			return jsonResponse(200, {
-				planRuns: active.map((row) => projectPlanRun(row, ctx.actor)),
-			});
+			return jsonResponse(200, { planRuns: await withPlanNames(deps, active, ctx.actor) });
 		}
 		// listByProjectAndState requires a project, so the unscoped view walks
 		// projects. Volume is tiny relative to runs (one plan-run per
@@ -153,9 +164,7 @@ export function listPlanRunsHandler(deps: ServerDeps): RouteHandler {
 					projects.map((p) => deps.repos.planRuns.listByProjectAndState(p.id, state)),
 				)
 			).flat();
-			return jsonResponse(200, {
-				planRuns: all.map((row) => projectPlanRun(row, ctx.actor)),
-			});
+			return jsonResponse(200, { planRuns: await withPlanNames(deps, all, ctx.actor) });
 		}
 	};
 }
@@ -181,8 +190,20 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 		const runIds = children.map((c) => c.runId).filter((v): v is string => v !== null);
 		const runs = await deps.repos.runs.listByIds(runIds);
 		return jsonResponse(200, {
-			planRun: projectPlanRun(planRun, ctx.actor),
-			children: children.map((child) => projectPlanRunChild(child, ctx.actor)),
+			planRun: {
+				...projectPlanRun(planRun, ctx.actor),
+				planName: await planName(deps, planRun.projectId, planRun.planId),
+			},
+			children: await Promise.all(
+				children.map(async (child) => ({
+					...projectPlanRunChild(child, ctx.actor),
+					title: await ticketTitle(deps, planRun.projectId, child.seedId),
+					reviewStage:
+						child.state === "pr_open" && child.runId !== null
+							? await loadReviewStage(deps.repos, planRun.agentName, child.runId)
+							: null,
+				})),
+			),
 			runs: runs.map((run) => projectRun(run, ctx.actor)),
 		});
 	};

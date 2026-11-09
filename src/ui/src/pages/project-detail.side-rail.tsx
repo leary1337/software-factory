@@ -180,5 +180,5 @@ function runDotColor(run: RunRow): string {
 function formatDate(iso: string | null): string {
 	if (iso === null) return "—";
 	const d = new Date(iso);
-	return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
+	return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("sv-SE");
 }

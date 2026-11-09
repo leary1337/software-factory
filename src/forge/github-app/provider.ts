@@ -44,9 +44,10 @@ import type {
 	RepoRef,
 } from "../contract.ts";
 import { ForgeConfigError } from "../errors.ts";
+import { toForgeError } from "../github/errors.ts";
 import { GITHUB_API_BASE } from "../github/headers.ts";
 import { requestGitHub } from "../github/http.ts";
-import { GitHubForge, toForgeError } from "../github/provider.ts";
+import { GitHubForge } from "../github/provider.ts";
 import { readJson } from "../github/readers.ts";
 import { GITHUB_FORGE_KIND, parseGitHubRepoRef } from "../github/repo-ref.ts";
 import { InstallationTokenSource } from "./installation-tokens.ts";
@@ -201,6 +202,10 @@ export class GitHubAppForge implements Forge {
 		options: Parameters<Forge["armAutoMerge"]>[2],
 	) {
 		return this.transport.armAutoMerge(ref, pr, options);
+	}
+
+	get deploys() {
+		return this.transport.deploys;
 	}
 
 	mergePullRequest(ref: RepoRef, pr: Parameters<Forge["mergePullRequest"]>[1]) {

@@ -67,8 +67,12 @@ describe("formatTokenBreakdown", () => {
 });
 
 describe("formatWallClock", () => {
-	test("extracts HH:MM:SS from ISO, else returns the raw string", () => {
-		expect(formatWallClock("2026-09-03T10:05:30.123Z")).toBe("10:05:30");
+	test("shows HH:MM:SS on the local clock, else returns the raw string", () => {
+		const local = new Date("2026-09-03T10:05:30.123Z");
+		const pad = (n: number) => String(n).padStart(2, "0");
+		expect(formatWallClock(local.toISOString())).toBe(
+			`${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`,
+		);
 		expect(formatWallClock("not-a-timestamp")).toBe("not-a-timestamp");
 	});
 });
