@@ -224,6 +224,7 @@ export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = [
 	"sum.golang.org",
 	"pypi.org",
 	"files.pythonhosted.org",
+	"binaries.prisma.sh",
 ];
 
 export interface LocalSandboxConfig {
