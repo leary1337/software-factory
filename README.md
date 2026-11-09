@@ -1,195 +1,116 @@
-> **Личный форк [Warren](https://github.com/jayminwest/warren).** Это не проект Warren и не сервис warren.run. План: [docs/PLAN.md](docs/PLAN.md).
->
-> Upstream note: **No longer maintained (Nov 2026).** MIT licensed: fork freely.
+# Software Factory
 
-<p align="center">
-  <a href="https://warren.run">
-    <img src="branding/logo.png" alt="Warren — coding agents into infrastructure" width="640">
-  </a>
-</p>
+Личная фабрика кода: тикеты превращаются в проверенные PR, а последнее слово всегда за человеком. Агенты работают на Mac владельца, на подписке Claude Code, каждый запуск изолирован в песочнице.
 
-<div align="center">
+Это форк [Warren](https://github.com/jayminwest/warren) 0.19.3 (MIT), автор которого прекратил поддержку. Это не проект Warren и не сервис warren.run. Навыки агентов взяты из [pstack](https://github.com/cursor/plugins/tree/main/pstack) и [skills Мэтта Пококка](https://github.com/mattpocock/skills). Решения и история сборки записаны в [docs/PLAN.md](docs/PLAN.md).
 
-[![CI](https://img.shields.io/github/actions/workflow/status/jayminwest/warren/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/jayminwest/warren/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/jayminwest/warren?style=for-the-badge&label=Release)](https://github.com/jayminwest/warren/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/4r6r5jUEFE)
+## Как идёт работа
 
-<a href="https://www.producthunt.com/products/warren-5?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-warren-5" target="_blank" rel="noopener noreferrer"><img alt="Warren - Infrastructure for coding-agent workloads | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1232085&amp;theme=light&amp;t=1787762729601"></a>
+```mermaid
+flowchart TD
+    idea(["Идея или задача"]) --> station
 
-**[Live runs](https://app.warren.run)** · **[Quickstart](#quickstart)** · **[Documentation](docs/README.md)** · **[Demo](https://youtu.be/daa7y8g9BkM)** · **[Roadmap](ROADMAP.md)**
+    subgraph session["Твоя сессия Claude Code"]
+        station["<b>Постановка</b><br/>Ты + модель на выбор<br/>grilling, to-spec, to-tickets"]
+    end
 
-</div>
+    station --> tickets[("Тикеты в Seeds")]
+    tickets --> start["Ты запускаешь план<br/>warren plan run --agent implementer"]
 
-# Warren
+    subgraph warren["Warren: один запуск за раз, песочница, сеть по списку доменов"]
+        impl["<b>implementer</b> · Sonnet 5.5<br/>Делает один тикет<br/>и проходит qualityGate"]
+        pr["Warren пушит ветку<br/>и открывает PR"]
+        review["<b>reviewer</b> · Opus 5.5<br/>Читает PR без контекста реализации"]
+        verdict{"Вердикт"}
+        rework["<b>rework</b> · Sonnet 5.5<br/>Правит только названное ревьюером"]
+        comment["Warren публикует итог<br/>комментарием в PR"]
 
-## Coding agents are tools. Warren turns them into infrastructure.
+        impl --> pr --> review --> verdict
+        verdict -- "CHANGES, доработок меньше 2" --> rework
+        rework -- "та же ветка" --> review
+        verdict -- "PASS" --> comment
+        verdict -- "CHANGES после 2 доработок<br/>или сбой ревью" --> comment
+    end
 
-Warren runs agent harnesses as isolated, observable workloads on infrastructure you control. It owns the workspace, run lifecycle, spend limits, live events, intervention, recovery, and Git delivery.
-
-<p align="center">
-  <a href="https://app.warren.run">
-    <img src="docs/screenshots/run-detail.png" alt="A warren run detail page: lifecycle pipeline from admission to Git delivery, live event stream, measured spend, and a merged pull request" width="900">
-  </a>
-  <br>
-  <em>One run, end to end: lifecycle pipeline, live event stream, measured spend, merged PR. From the <a href="https://app.warren.run">live public instance</a>.</em>
-</p>
-
-## When a run becomes a workload
-
-Warren becomes useful when an agent run stops being a terminal session and starts being a workload. The run may need to continue unattended, repeat on a schedule, survive failure, or become visible to someone besides the person who started it.
-
-You can run warren alone. A small, trusted engineering team can share one deployment and one trust boundary today.
-
-```text
-repository + task
-       │
-       ▼
-isolated agent workload
-       │
-       ├── live events
-       ├── spend and concurrency limits
-       ├── steering and cancellation
-       └── recovery and cleanup
-       │
-       ▼
-pushed branch ──► optional pull request
+    start --> impl
+    comment --> human{"Ты читаешь PR"}
+    human -- "слить" --> close["Warren закрывает тикет"]
+    human -- "закрыть без слияния" --> stop(["План останавливается"])
+    close --> next{"Есть ещё тикеты?"}
+    next -- "да" --> impl
+    next -- "нет" --> done(["План завершён"])
 ```
 
-## What warren owns
+Следующий тикет стартует только после слияния предыдущего PR. Автослияния нет.
 
-- **Workspace.** Each run starts from a fresh worktree or clone on its own branch.
-- **Isolation.** Each run stays inside a sandbox boundary the operator chooses for the deployment.
-- **Lifecycle.** Warren dispatches, monitors, cancels, finalizes, and cleans up each run.
-- **Control.** Streams stay live, steering reaches supported harnesses, and spend caps hold during execution.
-- **Recovery.** Watchdogs reconcile lost processes and pods. Finalization salvages work before teardown when possible.
-- **Git delivery.** Agents commit their changes. Warren manages Git credentials, branch construction, push, and configured PR creation.
-- **History.** Run state, events, cost, token use, and outcomes persist behind one HTTP API, CLI, and UI.
+## Агенты цепочки
 
-The core guarantee is a pushed workspace branch. Project settings can add PR creation, tracker updates, previews, and other reactions.
+| Агент | Где работает | Модель | Цель | Суть работы | Навыки |
+|---|---|---|---|---|---|
+| Постановка | Твоя сессия | На твой выбор | Превратить идею в понятные тикеты | Допрашивает тебя, фиксирует термины, пишет спецификацию и режет её на тикеты | `grilling`, `domain-modeling`, `to-spec`, `to-tickets`, `wayfinder`, `prototype` |
+| `implementer` | Песочница Warren | Sonnet 5.5 | Сделать один тикет | Следует подходящему сценарию pstack, пишет код и тесты, проходит `qualityGate`, коммитит | `poteto-mode`, `architect`, `typescript-best-practices`, `tdd`, `diagnosing-bugs`, `codebase-design`, `go-best-practices` |
+| `reviewer` | Песочница Warren | Opus 5.5 | Независимо проверить PR | Сверяет diff с тикетом и стандартами, пытается сломать код, ищет дефекты безопасности, ничего не меняет | `code-review`, `interrogate`, `blast-radius` |
+| `rework` | Песочница Warren | Sonnet 5.5 | Закрыть замечания ревью | Подтверждает каждое замечание и вносит минимальную правку в ту же ветку. Запускается не больше 2 раз на PR | `diagnosing-bugs`, `go-best-practices` |
 
-## See it running
+Остальные роли Warren (`claude-code`, `pi`, `planner`, `pr-fixer`, `healer`, `nightwatch`, `bugwatch`) есть в реестре, но в цепочке не участвуют. Большинство из них работает на Pi и подпиской Claude не пользуется.
 
-Every screenshot below is the live public instance at
-[app.warren.run](https://app.warren.run), running warren's own development:
-agents working the warren backlog, on warren.
+## Запуск
 
-| | |
+Нужны macOS, [Claude Code](https://code.claude.com) 2.1.280 или новее с подпиской, `gh`, Go 1.25, `golangci-lint` и:
+
+```bash
+npm i -g bun@1.3.14 @os-eco/seeds-cli@0.5.13 @os-eco/mulch-cli@0.10.7
+```
+
+Установка фабрики. Флаг `--ignore-scripts` не даёт включиться git-хукам Warren:
+
+```bash
+bun install --frozen-lockfile --ignore-scripts && bun run build:ui
+```
+
+Запуск сервера с интерфейсом на `localhost:8080`. При первом старте мастер спросит подписку и GitHub-токен. Выдавай токен только на нужные репозитории и не соглашайся использовать токен `gh`:
+
+```bash
+bun src/cli/main.ts up
+```
+
+Останавливай Warren только между запусками: при Ctrl-C во время работы агента его коммиты теряются.
+
+## Работа с проектом
+
+1. Открой сессию Claude Code в корне фабрики и выполни `/connect-project`, указав путь к репозиторию или описав новую идею.
+2. Добавь репозиторий в GitHub-токен Warren.
+3. В сессии проекта выполни `/to-spec` и `/to-tickets`.
+4. Запусти тикеты по порядку:
+
+```bash
+bun src/cli/main.ts plan run --project <prj_id> --agent implementer --issues <id1,id2> --max-cost-usd 5
+```
+
+5. Читай PR и сливай их.
+
+## Новые проекты
+
+Шаблон лежит в [`factory/template`](factory/template): Go 1.25, React, TypeScript, Vite, Tailwind и компоненты в стиле shadcn/ui. Проверка качества одна: `scripts/check.sh`.
+
+## Что где лежит
+
+| Путь | Что там |
 |---|---|
-| [![Operations dashboard](docs/screenshots/operations.png)](https://app.warren.run) | [![Runs list](docs/screenshots/runs.png)](https://app.warren.run/#/runs) |
-| *Operations: control-plane health, lifecycle snapshot, active workloads, structured event log* | *Runs: every workload with state, duration, cost, and Git delivery* |
-| [![Run detail](docs/screenshots/run-detail.png)](https://app.warren.run) | [![Agents](docs/screenshots/agents.png)](https://app.warren.run/#/agents) |
-| *Run detail: lifecycle pipeline, live event stream, budget, and the merged PR* | *Agents: the harness definitions this instance can dispatch* |
-
-## Harnesses and runtimes
-
-A **harness** is the coding-agent process warren drives. A **runtime** is the place where that workload runs.
-
-Warren's run model supports any harness with a Warren runtime adapter. The current distribution includes adapters for Pi and Claude Code. Agent roles such as planner, healer, and PR fixer compose prompts and policy on top of those harnesses.
-
-Two runtime providers implement the same lifecycle. A casual install never picks one. `warren up` detects the machine and picks for you. Operators choose explicitly. See [Operators](#operators) for the topology table.
-
-## Who it fits today
-
-Warren fits individual operators and small, trusted teams that already use coding agents and want the runs off a developer terminal. It is especially useful when code, model credentials, compute, and run history must remain on infrastructure the operator controls.
-
-The current boundary is explicit:
-
-- One deployment serves one operator or trusted team.
-- One bearer credential guards the operator surface.
-- Warren has no named users, RBAC, or per-user attribution.
-- The default forge speaks GitHub through a GitHub App or a static token for operator and CI paths. The GitLab forge ships behind `WARREN_FORGE`.
-- Warren is self-hosted software, not a hosted SaaS.
-
-See [Security](SECURITY.md) for the full threat model and [Roadmap](ROADMAP.md) for future work.
-
-## Quickstart
-
-Two commands take a fresh macOS or Linux machine to a running warren:
-
-```bash
-curl -fsSL https://warren.run/install | sh
-warren up
-```
-
-The install script puts Bun and the `warren` CLI on your PATH when they are missing. `warren up` detects the sandbox runtime for your machine, asks for the one credential it still needs, and boots the server. Your browser opens already logged in. From there the UI walks you through the rest: connect GitHub, pick a repository, and dispatch the prefilled starter run.
-
-Warren stores everything under `~/.warren/`. Stop the server with Ctrl-C and restart it with `warren up` again.
-
-Read the [first-run guide](docs/quickstart.md) for the full walkthrough, including the subscription-versus-API-key choice.
-
-## Operators
-
-Casual installs stop at the Quickstart. Deployments that serve a team, run in Docker or a cluster, or need explicit credentials start here.
-
-### Runtime topologies
-
-| Runtime | Isolation boundary | Best fit |
-|---|---|---|
-| `local` | `bwrap` on Linux, `sandbox-exec` on macOS | One host |
-| `docker` | Sibling container | Docker hosts and custom agent images |
-
-All three providers implement the same run lifecycle.
-
-### Full deployment via Compose
-
-The shortest operator path uses the shipped Compose file and the `local` runtime on a Linux Docker host. Compose includes the security flags that nested `bwrap` needs.
-
-```bash
-git clone https://github.com/jayminwest/warren
-cd warren
-cp .env.example .env
-$EDITOR .env                 # set two secrets plus WARREN_GIT_AUTHOR_NAME/EMAIL
-docker compose up -d
-docker compose logs warren | grep mintedOperatorToken
-```
-
-Open <http://localhost:8080>, paste the minted token, add a GitHub repository, and dispatch a run. Warren streams the events and pushes the result branch.
-
-### Operator references
-
-- [Docker self-host guide](docs/self-host/docker.md): sibling-container topology, custom agent images, persistence, macOS Docker Desktop requirements.
-- [Credentials](docs/credentials.md): model and GitHub credential paths, including the static-token and machine-account guidance.
-- [Operations](docs/operations.md): probes, logs, metrics, cost, backups, triage.
-- [Environment reference](.env.example): every deployment knob, annotated.
-
-## Optional integrations and extensions
-
-A fresh install needs no other os-eco tool. Projects can opt into persistent [Mulch](https://github.com/jayminwest/mulch) memory or the [Seeds](https://github.com/jayminwest/seeds) issue tracker by committing their data directories.
-
-The extensions are optional, out-of-process packages built on the HTTP surface. None of them runs in a base warren installation:
-
-- [`extensions/audit-log/`](extensions/audit-log/) exports append-only JSONL run activity.
-- [`extensions/judge/`](extensions/judge/) scores finished runs against a versioned rubric and stores verdicts separately.
-- [`extensions/campaign-controller/`](extensions/campaign-controller/) runs long-lived upstream contribution campaigns under an operator-approved policy.
-
-See [Extensions](docs/design/extensions.md) for their contracts and current packaging limits.
-
-## Documentation
-
-- [First run](docs/quickstart.md)
-- [Credentials](docs/credentials.md)
-- [Docker self-hosting](docs/self-host/docker.md)
-- [Operations and observability](docs/operations.md)
-- [Architecture](docs/architecture.md)
-- [Project configuration](docs/design/warren-config.md)
-- [Preview environments](docs/previews.md)
-- [PR templates](docs/pr-templates.md)
-- [CLI reference](docs/cli-reference.md)
-- [HTTP API](docs/http-api.md) and [OpenAPI](docs/openapi.yaml)
-- [TypeScript SDK](docs/sdk.md)
-- [Contributing](CONTRIBUTING.md)
-
-## Roadmap
-
-[ROADMAP.md](ROADMAP.md) owns warren's direction and sequencing. It tracks what is in flight, what comes next, what has shipped, and what stays out of core.
+| [`factory/skill-pack`](factory/skill-pack) | Закреплённые копии навыков, версии в `LOCK.json` |
+| [`factory/template`](factory/template) | Шаблон новых проектов |
+| [`scripts/connect-project.ts`](scripts/connect-project.ts) | Механика подключения проектов |
+| [`src/registry/builtins/factory-roles.ts`](src/registry/builtins/factory-roles.ts) | Промпты и модели агентов |
+| [`src/plan-runs/review.ts`](src/plan-runs/review.ts) | Шаг ревью и доработки |
 
 ## Status
 
-Stable (`0.19.3`). This fork runs locally on one operator's Mac. [app.warren.run](https://app.warren.run) exposes the read-only run history and event streams without a login.
+Stable (`0.19.3`): версия Warren, на которой основан форк. Ограничения:
 
-Warren is pre-1.0. Unit, integration, and scenario tests exercise the run lifecycle. The current shared-token trust model remains a deliberate limit.
+- Условия подписки для автоматического запуска надо проверить самостоятельно: прямого запрета не найдено, явного разрешения тоже.
+- Запуск через Docker после удаления Kubernetes не проверялся, навыки туда не доставляются.
+- Рабочий режим проверен только на macOS.
 
-## License
+## Лицензия
 
-MIT. See [LICENSE](LICENSE).
+MIT, см. [LICENSE](LICENSE).
