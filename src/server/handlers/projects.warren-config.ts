@@ -67,6 +67,8 @@ export const REDACTED_WARREN_CONFIG_FIELDS = [
 	"defaultPrompt",
 	"repoContext",
 	"qualityGate",
+	"acceptance",
+	"planRunBudget",
 	"migrations",
 	"deploy",
 	"maxCostUsd",

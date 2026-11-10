@@ -2,6 +2,8 @@ import type { ReviewSummary } from "@/api/review-types.ts";
 import type { RunRow } from "@/api/types.ts";
 import { Alert } from "@/components/ui/alert.tsx";
 
+import { AcceptanceReport } from "./acceptance-report.tsx";
+
 const LABELS = {
 	passed: "Review passed",
 	changes_requested: "Changes requested",
@@ -44,6 +46,7 @@ export function ReviewReport({
 			{summary.reason ? (
 				<p className="wrap-anywhere mt-2 whitespace-pre-wrap text-sm">{summary.reason}</p>
 			) : null}
+			<AcceptanceReport acceptance={summary.acceptance} />
 		</Alert>
 	);
 }

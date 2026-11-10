@@ -41,5 +41,5 @@ export class PlanHasNoOpenChildrenError extends WarrenError {
  * noop, so the next tick tries the spawn again.
  */
 export class PlanRunSpawnDeferredError extends Error {
-	readonly code = "automatic_admission_denied";
+	readonly code: string = "automatic_admission_denied";
 }

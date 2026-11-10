@@ -1,3 +1,4 @@
+import type { ReviewMergeResult } from "../core/review-merge.ts";
 import type { Repos } from "../db/repos/index.ts";
 import type { Forge, PullRequestRef, RepoRef } from "../forge/contract.ts";
 import { resolvePollTarget } from "../runs/pr-merge.ts";
@@ -5,6 +6,7 @@ import { decideAutoMerge } from "../runs/reap/auto-merge-policy.ts";
 import { type AutoMergeSnapshot, readAutoMergeSnapshot } from "../runs/reap/auto-merge-snapshot.ts";
 import type { ReapExec } from "../runs/reap/types.ts";
 import type { CoordinatorMergeFn } from "./coordinator.ts";
+import { blockedMerge, mergeForgeProblem, policyMergeProblem } from "./review-merge-problems.ts";
 
 export function createReviewHeadReader(forge: Forge) {
 	return async (url: string): Promise<string | null> => {
@@ -26,11 +28,22 @@ interface ReviewSnapshotDeps {
 export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeFn {
 	return async (prUrl, branch, reviewedCommit, projectId) => {
 		const target = resolvePollTarget(deps.forge, prUrl);
-		if (target.kind === "unparseable") return false;
+		if (target.kind === "unparseable")
+			return blockedMerge(
+				"unsupported_forge",
+				"The pull request URL cannot be resolved.",
+				"Open the pull request and merge manually.",
+			);
 		const pr = await deps.forge.getPullRequest(target.ref, target.pr);
-		if (!pr.ok || pr.value.headCommit !== reviewedCommit) return false;
-		if (pr.value.lifecycle === "merged") return true;
-		if (pr.value.lifecycle !== "open") return false;
+		if (!pr.ok) return mergeForgeProblem(pr.error);
+		if (pr.value.headCommit !== reviewedCommit) return staleHead();
+		if (pr.value.lifecycle === "merged") return { kind: "merged" };
+		if (pr.value.lifecycle !== "open")
+			return blockedMerge(
+				"not_open",
+				"The pull request is closed without merging.",
+				"Inspect the closed pull request before resuming the plan.",
+			);
 		const snapshot = await loadSnapshot(deps, {
 			prUrl,
 			branch,
@@ -39,8 +52,21 @@ export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeF
 			ref: target.ref,
 			pr: target.pr,
 		});
-		if (!snapshot) return false;
-		return mergeSnapshot(deps.forge, target.ref, target.pr, snapshot, reviewedCommit, branch);
+		if (!snapshot)
+			return blockedMerge(
+				"snapshot_unavailable",
+				"The project has no local checkout for merge verification.",
+				"Restore the project checkout and retry verification.",
+			);
+		return mergeSnapshot(
+			deps.forge,
+			target.ref,
+			target.pr,
+			snapshot,
+			reviewedCommit,
+			branch,
+			pr.value.baseBranch,
+		);
 	};
 }
 
@@ -51,21 +77,78 @@ async function mergeSnapshot(
 	snapshot: AutoMergeSnapshot,
 	reviewedCommit: string,
 	branch: string,
-): Promise<boolean> {
-	if (snapshot.headCommit !== reviewedCommit) return false;
+	baseBranch: string,
+): Promise<ReviewMergeResult> {
+	if (!snapshot.headCommit)
+		return blockedMerge(
+			"diff_unreadable",
+			"The current remote merge snapshot could not be read.",
+			"Check repository access and retry verification before merging.",
+		);
+	if (snapshot.headCommit !== reviewedCommit) return staleHead();
 	const policy = decideAutoMerge({
 		...snapshot,
 		forgeCanArm: forge.capabilities.autoMergeArm,
 		ciFixerRun: false,
 	});
-	if (policy.decision !== "arm") return false;
+	if (policy.decision !== "arm") return policyMergeProblem(policy);
+	const safety = await verifyBase(forge, ref, baseBranch, snapshot);
+	if (safety) return safety;
 	const merged = await forge.mergePullRequest(ref, pr, {
 		expectedHead: reviewedCommit,
 		method: policy.method,
 	});
-	if (!merged.ok) return false;
+	if (!merged.ok) return mergeForgeProblem(merged.error);
 	await forge.deleteBranch(ref, branch);
-	return true;
+	return { kind: "merged" };
+}
+
+function staleHead(): ReviewMergeResult {
+	return blockedMerge(
+		"stale_head",
+		"The pull request head changed after review.",
+		"Wait for a fresh review and independent gate on the new commit.",
+	);
+}
+
+async function verifyBase(
+	forge: Forge,
+	ref: RepoRef,
+	branch: string,
+	snapshot: AutoMergeSnapshot,
+): Promise<ReviewMergeResult | null> {
+	if (
+		!snapshot.baseCommit ||
+		!/^[a-f0-9]{40}$/.test(snapshot.baseCommit) ||
+		snapshot.baseIsAncestor !== true
+	)
+		return blockedMerge(
+			"stale_base",
+			"The reviewed commit does not contain the current target branch.",
+			"Update the pull request branch from its target, then rerun review and the independent gate.",
+		);
+	if (!forge.readMergeProtection) return protectionRequired();
+	const protection = await forge.readMergeProtection(ref, branch);
+	if (!protection.ok)
+		return protection.error.kind === "not_found" || protection.error.kind === "forbidden"
+			? protectionRequired()
+			: mergeForgeProblem(protection.error);
+	if (!protection.value.requiresUpToDate) return protectionRequired();
+	if (protection.value.baseCommit !== snapshot.baseCommit)
+		return blockedMerge(
+			"stale_base",
+			"The target branch advanced during merge verification.",
+			"Update the pull request branch, then rerun review and the independent gate.",
+		);
+	return null;
+}
+
+function protectionRequired(): ReviewMergeResult {
+	return blockedMerge(
+		"protection_required",
+		"The forge cannot prove an enforced up-to-date merge rule.",
+		"Configure strict required branch checks with administrator bypass disabled and grant protection read access, or merge manually.",
+	);
 }
 
 async function loadSnapshot(

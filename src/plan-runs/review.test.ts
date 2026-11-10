@@ -161,7 +161,7 @@ describe("advanceReview", () => {
 			},
 			mergePassedPr: async (_: string, branch: string) => {
 				merges.push(branch);
-				return true;
+				return { kind: "merged" as const };
 			},
 			repos: {
 				...input.repos,

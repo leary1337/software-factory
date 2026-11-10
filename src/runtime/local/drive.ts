@@ -56,6 +56,7 @@ import {
 } from "./drive-prepare.ts";
 import { createStdinController, type StdinController, startMidRunSteering } from "./drive-stdin.ts";
 import { runIndependentQualityGate } from "./quality-gate.ts";
+import { recordFailedGateReview } from "./quality-gate-failure.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 
 /** Mid-run steering poll cadence — burrow's MID_RUN_INBOX_POLL_MS verbatim. */
@@ -152,6 +153,18 @@ export async function driveLocalRun(
 		if (store.isTerminal(record)) return;
 		const message = err instanceof Error ? err.message : String(err);
 		store.appendEvent(record, { kind: "error", stream: "system", payload: { message } });
+		// The durable bridge requires a terminal envelope even when post-agent verification throws.
+		store.appendEvent(record, {
+			kind: "state_change",
+			stream: "system",
+			payload: {
+				type: "result",
+				is_error: true,
+				synthesized: true,
+				source_type: "runtime_failed",
+				error: message,
+			},
+		});
 		store.terminalize(record, {
 			phase: "failed",
 			exitCode: null,
@@ -296,7 +309,8 @@ async function pumpToExit(
 	const deferred: AdapterRuntimeEvent[] = [];
 	const persistEvent = (ev: AdapterRuntimeEvent): void => {
 		// Only the host runner may attest a quality gate. Harness stdout cannot.
-		if (ev.kind.startsWith("quality_gate.")) return;
+		if (["quality_gate.", "acceptance.", "review."].some((prefix) => ev.kind.startsWith(prefix)))
+			return;
 		if (beforeTerminal && isTerminalEnvelope(ev)) {
 			deferred.push(ev);
 			sawTerminalEnvelope = true;
@@ -330,7 +344,12 @@ async function pumpToExit(
 			streamError = streamError ?? err;
 		}),
 	]);
-	await beforeTerminal?.(exitCode);
+	try {
+		await beforeTerminal?.(exitCode);
+	} catch (error) {
+		recordFailedGateReview(store, record, error, exitCode, streamError, deferred);
+		throw error;
+	}
 	for (const ev of deferred) store.appendEvent(record, ev, now);
 	return { exitCode, sawTerminalEnvelope, streamError };
 }

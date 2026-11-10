@@ -52,6 +52,7 @@ import { GitHubDeploys } from "./deploys.ts";
 import { toForgeError } from "./errors.ts";
 import { GITHUB_API_BASE } from "./headers.ts";
 import { requestGitHub } from "./http.ts";
+import { readGitHubMergeProtection } from "./merge-protection.ts";
 import { type PrWriteMethod, writePullRequest } from "./pr-text.ts";
 import { parseCheckRun, readAutoMergeState, readJson, readText, rollUp } from "./readers.ts";
 import { GITHUB_FORGE_KIND, parseGitHubRepoRef } from "./repo-ref.ts";
@@ -299,6 +300,14 @@ export class GitHubForge implements Forge {
 			},
 			true,
 		);
+	}
+
+	readMergeProtection(ref: RepoRef, branch: string) {
+		return readGitHubMergeProtection({
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/branches/${encodeURIComponent(branch)}`,
+			fetch: this.fetch,
+		});
 	}
 
 	private writePr(

@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { MOBILE_BOTTOM_NAV_ITEMS } from "@/components/console/console-nav.ts";
+import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
 
 /**
@@ -27,35 +28,38 @@ function tabClass(isActive: boolean): string {
 }
 
 export function ConsoleBottomNav({ onOpenMore }: ConsoleBottomNavProps) {
+	const caps = useCapabilities();
 	return (
 		<nav
 			aria-label="Primary"
 			className="flex h-[54px] shrink-0 border-(--color-border) border-t bg-(--color-sidebar) pb-[env(safe-area-inset-bottom)] md:hidden"
 		>
-			{MOBILE_BOTTOM_NAV_ITEMS.map((item) => (
-				<NavLink key={item.to} to={item.to} className={({ isActive }) => tabClass(isActive)}>
-					{({ isActive }) => (
-						<>
-							<span
-								className={cn(
-									"font-mono text-[9px] leading-[11px]",
-									isActive ? "text-(--color-primary)" : "text-(--color-text-3)",
-								)}
-							>
-								{item.index}
-							</span>
-							<span
-								className={cn(
-									"text-[10px] leading-3",
-									isActive ? "font-medium text-(--color-text)" : "text-(--color-text-3)",
-								)}
-							>
-								{item.label}
-							</span>
-						</>
-					)}
-				</NavLink>
-			))}
+			{MOBILE_BOTTOM_NAV_ITEMS.filter((item) => !item.capability || caps.can(item.capability)).map(
+				(item) => (
+					<NavLink key={item.to} to={item.to} className={({ isActive }) => tabClass(isActive)}>
+						{({ isActive }) => (
+							<>
+								<span
+									className={cn(
+										"font-mono text-[9px] leading-[11px]",
+										isActive ? "text-(--color-primary)" : "text-(--color-text-3)",
+									)}
+								>
+									{item.index}
+								</span>
+								<span
+									className={cn(
+										"text-[10px] leading-3",
+										isActive ? "font-medium text-(--color-text)" : "text-(--color-text-3)",
+									)}
+								>
+									{item.label}
+								</span>
+							</>
+						)}
+					</NavLink>
+				),
+			)}
 			<button type="button" onClick={onOpenMore} className={tabClass(false)}>
 				<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px]">05</span>
 				<span className="text-(--color-text-3) text-[10px] leading-3">More</span>

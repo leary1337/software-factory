@@ -37,5 +37,8 @@ export function reportWithVerifiedGate(text: string, commit: string): string {
 	if (lines[1] !== `REVIEWED_COMMIT: ${commit}` || lines[2] !== "QUALITY_GATE: NOT_RUN")
 		return text;
 	lines[2] = "QUALITY_GATE: PASS";
+	for (let index = 3; index < lines.length; index++) {
+		if (lines[index] === "RUNTIME_GATE: DEFERRED") lines[index] = "RUNTIME_GATE: VERIFIED";
+	}
 	return lines.join("\n");
 }

@@ -1,3 +1,4 @@
+import { failedGateChangesReport } from "../core/review-check-failure.ts";
 import { includeUiReview, UI_REVIEW_PROMPT } from "./ui-review.ts";
 /**
  * The factory's review step: between a child's PR opening and the human merge,
@@ -133,10 +134,16 @@ async function loadStep(
 ): Promise<ReviewStepRecord> {
 	const stepRun = await repos.runs.require(payload.stepRunId);
 	// A step that leaves the branch untouched ends as no_changes; for a reviewer that is the job done.
-	const finishedCleanly = stepRun.state === "succeeded" || stepRun.failureReason === "no_changes";
 	const commit = payload.reviewedCommit ?? stepRun.baseCommit ?? "";
-	const gateVerified = hasQualityGateWitness(await repos.events.listByRun(stepRun.id), commit);
-	const report = finishedCleanly ? await readResultText(repos, stepRun.id) : null;
+	const events = await repos.events.listByRun(stepRun.id);
+	const findings =
+		stepRun.state === "failed" && stepRun.failureReason === "crashed" && payload.step !== "rework"
+			? failedGateChangesReport(events, commit)
+			: null;
+	const finishedCleanly =
+		stepRun.state === "succeeded" || stepRun.failureReason === "no_changes" || findings !== null;
+	const gateVerified = hasQualityGateWitness(events, commit);
+	const report = findings ?? (finishedCleanly ? await readResultText(repos, stepRun.id) : null);
 	return {
 		gateVerified,
 		step: payload.step,

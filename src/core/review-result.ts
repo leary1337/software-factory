@@ -1,3 +1,4 @@
+import type { AcceptanceSummary } from "./acceptance-evidence.ts";
 import {
 	isTerminalRunState,
 	type ReviewDisplayStatus,
@@ -27,6 +28,7 @@ export function passedReviewCommit(text: string): string | null {
 }
 
 export interface ReviewSummary {
+	readonly acceptance?: AcceptanceSummary;
 	readonly gateVerified?: boolean;
 	readonly status: ReviewDisplayStatus;
 	readonly verdict: ReviewVerdict | null;

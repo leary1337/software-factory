@@ -1,6 +1,17 @@
 import { summarizeReviewEvidence } from "../core/review-evidence.ts";
+import type { ReviewMergeResult } from "../core/review-merge.ts";
 import type { ReviewStepSummary } from "../core/review-result.ts";
 import { type ReviewRepos, readResultText } from "./review.ts";
+import { currentReviewEvents } from "./review-delivery.ts";
+import { latestMergeResult } from "./review-merge-delivery.ts";
+
+/** Operator-only latest merge decision for the current reviewed head. */
+export async function loadReviewMergeResult(
+	repos: ReviewRepos,
+	runId: string,
+): Promise<ReviewMergeResult | null> {
+	return latestMergeResult(currentReviewEvents(await repos.events.listByRun(runId)));
+}
 
 /** Operator-only task history, derived from persisted coordinator events. */
 export async function loadReviewSummaries(

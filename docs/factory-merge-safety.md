@@ -7,6 +7,36 @@ remote Git snapshot and merges only the reviewed head commit.
 
 ## Independent gate execution
 
+Review-driven merge also verifies the target branch. Its fresh remote snapshot
+pins both base and head, and proves that the base is an ancestor of the reviewed
+head. In that case the independently tested head tree is also the integration
+tree. If the base advanced without being incorporated, automatic merge stops
+with `stale_base`; update the PR branch and rerun review and the gate. A clean
+textual merge alone is not evidence of compatibility.
+
+GitHub's merge API accepts an expected head SHA but no expected base SHA. To
+close the base-advance race after the snapshot, Warren requires classic branch
+protection with at least one required status check, **Require branches to be up
+to date before merging**, and **Do not allow bypassing the above settings**
+(`enforce_admins`). The token must be able to read branch protection. Warren
+reads the current base again after protection, and GitHub enforces the rule at
+merge time. Missing, unreadable, loose or bypassable protection stops with
+`protection_required`. Ruleset-only protection and other forges are currently
+unverified and require manual merge.
+
+The factory does not create checks or change repository protections. A project
+using only local gates must either configure a real required check and these
+protections, or keep manual merging. This also applies when the repository's
+GitHub plan cannot enable the required protections. Operators must keep branch
+protection and the PR target stable during delivery; concurrent administrative
+policy removal or retargeting is outside this guarantee. See GitHub's
+[strict checks and bypass policy](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
+
+Merge refusals preserve a structured reason, next action and relevant paths in
+the operator-only plan child's `reviewMerge` result. Permanent refusals stop
+after the first attempt. Only classified transient forge failures retry, at most
+three times. Unknown exceptions stop without exposing raw transport errors.
+
 After review, the local runtime stops the reviewer process group and creates a
 second checkout from the pinned commit in Warren's trusted Git object store.
 It does not read the reviewer's Git configuration, index, worktree or dependency

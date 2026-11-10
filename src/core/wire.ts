@@ -566,6 +566,7 @@ export const PLAN_RUN_CHILD_STATES = [
 	"skipped",
 ] as const;
 export type PlanRunChildState = (typeof PLAN_RUN_CHILD_STATES)[number];
+export type ReviewMergeDisposition = "merged" | "blocked" | "retry";
 
 export const PLAN_RUN_CHILD_TERMINAL_STATES = [
 	"merged",

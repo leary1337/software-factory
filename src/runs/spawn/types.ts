@@ -71,6 +71,7 @@ export interface SpawnRunInput {
 	 */
 	readonly runtimeProvider: RuntimeProvider;
 	readonly agentName: string;
+	readonly reviewBaseBranch?: string;
 	readonly projectId: string;
 	readonly prompt: string;
 	readonly trigger?: string;
