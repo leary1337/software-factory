@@ -13,7 +13,7 @@ import type { RunRow } from "../db/schema.ts";
 import type { CoordinatorRepos } from "./coordinator.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
-import { finishReview, pendingReviewDelivery } from "./review-delivery.ts";
+import { currentReviewEvents, finishReview, pendingReviewDelivery } from "./review-delivery.ts";
 
 export const MAX_REWORKS = 2;
 export const REVIEWED_AGENT = "implementer";
@@ -83,7 +83,9 @@ export async function loadReviewStage(
 ): Promise<ReviewStage | null> {
 	if (agentName !== REVIEWED_AGENT) return null;
 	const events = await repos.events.listByRun(runId);
-	const finished = [...events].reverse().find((event) => event.kind === "plan_run.review_finished");
+	const finished = currentReviewEvents(events).find(
+		(event) => event.kind === "plan_run.review_finished",
+	);
 	if (finished && (finished.payloadJson as { outcome?: string }).outcome !== "passed")
 		return "needs_attention";
 	return reviewStageOf(await loadSteps(repos, runId));
@@ -141,17 +143,29 @@ export async function advanceReview(
 	prUrl: string,
 ): Promise<HandleInFlightDecision | null> {
 	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
-	if (await input.repos.events.hasKind(run.id, "plan_run.review_finished")) return null;
-
-	const pending = await pendingReviewDelivery(input, run.id);
-	let decision: ReviewDecision = pending
-		? { kind: "finished", ...pending }
-		: decideReviewStep(await loadSteps(input.repos, run.id));
-	if (decision.kind === "finished" && decision.outcome === "passed" && input.getReviewHead) {
+	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
+	const steps = await loadSteps(input.repos, run.id);
+	const last = steps.at(-1);
+	// GitHub may briefly report the pre-push head. Every verdict applies only to
+	// its pin, including CHANGES and a previously delivered terminal report.
+	if (
+		last?.step === "review" &&
+		last.state !== "running" &&
+		last.reviewedCommit &&
+		input.getReviewHead
+	) {
 		const head = await input.getReviewHead(prUrl);
 		if (head === null) return { kind: "result", result: { kind: "waiting_for_run" } };
-		if (head !== passedReviewCommit(decision.report)) decision = { kind: "spawn", step: "review" };
+		if (head !== last.reviewedCommit)
+			return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
 	}
+	if (events.some((event) => event.kind === "plan_run.review_finished")) return null;
+
+	const pending = await pendingReviewDelivery(input, run.id);
+	const decision: ReviewDecision = pending
+		? { kind: "finished", ...pending }
+		: decideReviewStep(steps);
+
 	if (decision.kind === "wait") {
 		return { kind: "result", result: { kind: "waiting_for_run" } };
 	}
@@ -221,7 +235,8 @@ export async function resumeReviewDelivery(
 	prUrl: string,
 ): Promise<HandleInFlightDecision | null> {
 	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
-	if (await input.repos.events.hasKind(run.id, "plan_run.review_finished")) return null;
+	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
+	if (events.some((event) => event.kind === "plan_run.review_finished")) return null;
 	const pending = await pendingReviewDelivery(input, run.id);
 	return pending ? finishReview(input, run, prUrl, pending.outcome, pending.report) : null;
 }

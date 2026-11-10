@@ -207,39 +207,68 @@ test("stops merge retries and exposes owner attention after three refusals", asy
 	expect(await loadReviewStage(h.repos, "implementer", h.run.id)).toBe("needs_attention");
 });
 
-test("pins a fresh review when the PR head moves after PASS", async () => {
-	const h = await harness();
-	await h.complete();
-	let merges = 0;
-	const nextSha = "b".repeat(40);
-	const spawned: CoordinatorSpawnInput[] = [];
-	const input = {
-		...h.input,
-		getReviewHead: async () => nextSha,
-		mergePassedPr: async () => {
-			merges++;
-			return true;
-		},
-		spawn: async (arg: CoordinatorSpawnInput) => {
-			spawned.push(arg);
-			const step = await h.repos.runs.create({
-				agentName: "reviewer",
-				projectId: h.planRun.projectId,
-				prompt: "new review",
-				trigger: "plan-run",
-				renderedAgentJson: {},
-				baseCommit: arg.baseCommit,
+test.each(["PASS", "CHANGES", "finished CHANGES"])(
+	"pins a fresh review when the PR head moves after %s",
+	async (scenario) => {
+		const h = await harness();
+		await h.complete(
+			scenario === "PASS" ? REPORT : REPORT.replace("VERDICT: PASS", "VERDICT: CHANGES"),
+		);
+		let merges = 0;
+		if (scenario === "finished CHANGES") {
+			await h.input.emit(h.run.id, "plan_run.review_decided", {
+				outcome: "changes_left",
+				report: "old findings",
 			});
-			await arg.onRunCreated?.(step.id);
-			return { runId: step.id };
-		},
-	};
-	await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
-	await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
-	expect(merges).toBe(0);
-	expect(spawned).toHaveLength(1);
-	expect(spawned[0]?.baseCommit).toBe(nextSha);
-});
+			await h.input.emit(h.run.id, "plan_run.review_finished", { outcome: "changes_left" });
+		}
+		const nextSha = "b".repeat(40);
+		const spawned: CoordinatorSpawnInput[] = [];
+		let freshRunId = "";
+		const input = {
+			...h.input,
+			getReviewHead: async () => nextSha,
+			mergePassedPr: async () => {
+				merges++;
+				return true;
+			},
+			spawn: async (arg: CoordinatorSpawnInput) => {
+				spawned.push(arg);
+				const step = await h.repos.runs.create({
+					agentName: "reviewer",
+					projectId: h.planRun.projectId,
+					prompt: "new review",
+					trigger: "plan-run",
+					renderedAgentJson: {},
+					baseCommit: arg.baseCommit,
+				});
+				freshRunId = step.id;
+				await arg.onRunCreated?.(step.id);
+				return { runId: step.id };
+			},
+		};
+		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
+		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
+		expect(merges).toBe(0);
+		expect(spawned).toHaveLength(1);
+		expect(spawned[0]?.baseCommit).toBe(nextSha);
+		expect(await loadReviewStage(h.repos, "implementer", h.run.id)).toBe("reviewing");
+		await h.repos.runs.markRunning(freshRunId);
+		await h.repos.runs.finalize(freshRunId, "succeeded");
+		await h.repos.events.append({
+			runId: freshRunId,
+			kind: "state_change",
+			stream: "system",
+			ts: new Date().toISOString(),
+			sandboxEventSeq: 1,
+			payload: { type: "result", result: REPORT.replace(SHA, nextSha) },
+		});
+		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
+		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
+		expect(merges).toBe(1);
+		expect(await loadReviewStage(h.repos, "implementer", h.run.id)).toBe("ready_to_merge");
+	},
+);
 
 test("serializes cancellation with a reviewer spawn and never starts the next step", async () => {
 	const h = await harness();

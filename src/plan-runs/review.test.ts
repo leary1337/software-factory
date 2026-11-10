@@ -112,7 +112,10 @@ describe("advanceReview", () => {
 			child: { seq: 1, seedId: "s-1" },
 			repos: {
 				events: {
-					listByRun: async () => [],
+					listByRun: async () =>
+						finished
+							? [{ kind: "plan_run.review_finished", payloadJson: { outcome: "changes_left" } }]
+							: [],
 					listTail: async () => [],
 					hasKind: async () => finished,
 				},

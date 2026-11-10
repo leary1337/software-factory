@@ -18,7 +18,7 @@ export interface ReviewDelivery {
 }
 
 /** A new pinned review starts a fresh delivery budget. */
-function currentEvents(events: Events): Events {
+export function currentReviewEvents(events: Events): Events {
 	const reversedIndex = [...events]
 		.reverse()
 		.findIndex((event) => event.kind === "plan_run.review_step");
@@ -29,7 +29,7 @@ export async function pendingReviewDelivery(
 	input: HandleInFlightInput,
 	runId: string,
 ): Promise<ReviewDelivery | null> {
-	const events = currentEvents(await input.repos.events.listByRun(runId));
+	const events = currentReviewEvents(await input.repos.events.listByRun(runId));
 	const event = events.find((event) => event.kind === "plan_run.review_decided");
 	return event ? (event.payloadJson as unknown as ReviewDelivery) : null;
 }
@@ -65,7 +65,7 @@ async function deliverComment(
 	prUrl: string,
 	delivery: ReviewDelivery,
 ): Promise<ReviewDelivery> {
-	const events = currentEvents(await input.repos.events.listByRun(run.id));
+	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
 	if (!input.commentOnPr || events.some((event) => event.kind === "plan_run.review_commented"))
 		return delivery;
 	if (
@@ -98,7 +98,7 @@ export async function finishReview(
 	outcome: ReviewOutcome,
 	report: string,
 ): Promise<HandleInFlightDecision | null> {
-	const events = currentEvents(await input.repos.events.listByRun(run.id));
+	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
 	if (!events.some((event) => event.kind === "plan_run.review_decided")) {
 		await input.emit(run.id, "plan_run.review_decided", { outcome, report });
 	}
