@@ -1,3 +1,4 @@
+import type { ReviewFinding } from "../core/review-findings.ts";
 /**
  * Per-PlanRun decision loop (pl-a258 step 5 / warren-2623).
  *
@@ -54,6 +55,8 @@ export type CoordinatorRepos = Pick<Repos, "planRuns" | "runs" | "events">;
 export type CoordinatorGetIssueFn = (projectId: string, issueId: string) => Promise<Issue>;
 
 export interface CoordinatorSpawnInput {
+	readonly reviewFindings?: readonly ReviewFinding[];
+	readonly reviewRemainingCostUsd?: number;
 	readonly planRun: PlanRunRow;
 	readonly child: PlanRunChildRow;
 	readonly prompt: string;

@@ -3,6 +3,7 @@ import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/ty
 import type { RunSpec } from "../contract.ts";
 import { stopAgentProcess } from "./git-pin.ts";
 import { prepareQualityGateWorkspace } from "./quality-gate-workspace.ts";
+import { prepareReviewChecks } from "./review-checks.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 
 interface GateDeps {
@@ -39,6 +40,7 @@ export async function runIndependentQualityGate(
 		throw new Error("Independent review requires a configured qualityGate and pinned commit");
 	await stopAgentProcess(record.proc);
 	if (record.cancelRequested) throw new Error("quality gate cancelled");
+	const checkFindings = await prepareReviewChecks(store, record, gate);
 	const workspace = await (deps.prepareWorkspace ?? prepareQualityGateWorkspace)(
 		profile,
 		gate.commit,
@@ -97,11 +99,13 @@ export async function runIndependentQualityGate(
 			},
 		});
 		if (exitCode !== 0) throw new Error(`Independent quality gate failed (exit ${exitCode})`);
+		clearTimeout(timer);
+		await checkFindings(workspace, deps.spawn, startedAt + (profile.timeoutMs ?? 1_200_000));
 	} finally {
 		clearTimeout(timer);
 		clearInterval(heartbeat);
 		// Preserve the disposable tree if teardown cannot prove that writers stopped.
-		await stopAgentProcess(proc);
+		await stopAgentProcess(record.proc);
 		await workspace.cleanup();
 	}
 }

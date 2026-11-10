@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { RunRow } from "../db/schema.ts";
 import type { HandleInFlightInput } from "./in-flight.ts";
-import { advanceReview, decideReviewStep, type ReviewStepRecord } from "./review.ts";
+import { advanceReview, decideReviewStep, MAX_REWORKS, type ReviewStepRecord } from "./review.ts";
 import { includeUiReview, touchesUi } from "./ui-review.ts";
 
 const SHA = "a".repeat(40);
@@ -55,6 +55,12 @@ describe("includeUiReview", () => {
 		expect(decideReviewStep([passed, changes]).kind).toBe("spawn");
 		const rework: ReviewStepRecord = { step: "rework", state: "succeeded", resultText: null };
 		expect(decideReviewStep([rework, rework, changes])).toMatchObject({
+			kind: "spawn",
+			step: "rework",
+		});
+		expect(
+			decideReviewStep([...Array.from({ length: MAX_REWORKS }, () => rework), changes]),
+		).toMatchObject({
 			kind: "finished",
 			outcome: "changes_left",
 		});

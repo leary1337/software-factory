@@ -334,6 +334,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 					qualityGate: {
 						command: projectDefaults?.qualityGate ?? "",
 						commit: input.baseCommit ?? "",
+						...(input.reviewFindings !== undefined ? { reviewFindings: input.reviewFindings } : {}),
 					},
 				}
 			: {}),

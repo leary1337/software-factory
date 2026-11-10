@@ -131,22 +131,9 @@ export async function runtimeChain(verdicts: string[]) {
 			let script: string;
 			if (role === "reviewer") {
 				const verdict = nextVerdict(verdicts);
-				const envelope = JSON.stringify({
-					kind: "state_change",
-					stream: "system",
-					payload: {
-						type: "result",
-						result: `VERDICT: ${verdict}\nREVIEWED_COMMIT: REVIEW_SHA\nQUALITY_GATE: NOT_RUN\n\nFixture report.`,
-					},
-				});
-				script =
-					verdict === "CRASH"
-						? "exit 1"
-						: verdict === "WAIT"
-							? "sleep 30"
-							: `sha=$(git rev-parse HEAD); printf '%s\\n' '${envelope.replace("REVIEW_SHA", "'\"$sha\"'")}'`;
+				script = reviewerScript(verdict, roles.length);
 			} else {
-				script = `set -e; echo ${role} > change-${roles.length}.txt; git add change-${roles.length}.txt; git commit -m ${role}; printf '%s\\n' '{"kind":"state_change","stream":"system","payload":{"type":"result","result":"Committed."}}'`;
+				script = `set -e; echo ${role} > change-${roles.length}.txt; git add change-${roles.length}.txt; git commit -m ${role}; printf '%s\\n' '{"kind":"state_change","stream":"system","payload":{"type":"result","result":"Committed.","total_cost_usd":0}}'`;
 			}
 			return { argv: ["/bin/sh", "-c", script] };
 		},
@@ -238,4 +225,35 @@ export async function runtimeChain(verdicts: string[]) {
 			await rm(root, { recursive: true, force: true });
 		},
 	};
+}
+
+function reviewerScript(verdict: string, step: number): string {
+	const manifest = JSON.stringify({
+		version: 1,
+		findings:
+			verdict === "CHANGES" || verdict === "STALLED"
+				? [
+						{
+							id: `fixture-${step}`,
+							title: "Missing expected change",
+							command: `sh "$WARREN_REPRO_DIR/repro.sh" change-${verdict === "STALLED" ? "never" : step + 1}.txt`,
+							files: [{ path: "repro.sh", contents: 'test -f "$1"\n' }],
+						},
+					]
+				: [],
+	});
+	const envelope = JSON.stringify({
+		kind: "state_change",
+		stream: "system",
+		payload: {
+			type: "result",
+			total_cost_usd: 0,
+			result: `VERDICT: ${verdict === "STALLED" ? "CHANGES" : verdict}\nREVIEWED_COMMIT: REVIEW_SHA\nQUALITY_GATE: NOT_RUN\n\nFixture report.`,
+		},
+	});
+	return verdict === "CRASH"
+		? "exit 1"
+		: verdict === "WAIT"
+			? "sleep 30"
+			: `printf '%s' '${manifest}' > "$HOME/warren-review.json"; sha=$(git rev-parse HEAD); printf '%s\\n' '${envelope.replace("REVIEW_SHA", "'\"$sha\"'")}'`;
 }

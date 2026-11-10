@@ -81,6 +81,8 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		agentName = planRun.agentName,
 		existingBranch,
 		baseCommit,
+		reviewFindings,
+		reviewRemainingCostUsd,
 		onRunCreated,
 	}) => {
 		const project = await input.repos.projects.require(planRun.projectId);
@@ -95,12 +97,14 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 			prompt,
 			trigger: "plan-run",
 			baseCommit,
+			reviewFindings,
 			onRunRowCreated: onRunCreated,
 			// warren-9ce3: underscore spelling matches the dispatch-origin
 			// vocabulary (distinct from the hyphenated trigger column).
 			dispatchOrigin: "plan_run",
 			...(existingBranch === undefined ? { seedId: child.seedId } : {}),
 			...planRunOverrides(planRun),
+			...reviewCostCap(planRun.maxCostUsd, reviewRemainingCostUsd),
 			...(existingBranch !== undefined ? { existingBranch } : { ref }),
 			metadata: {
 				planRunId: planRun.id,
@@ -122,4 +126,10 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		input.bridges.start(result.run.id, result.sandboxRun.id, result.sandbox.id);
 		return { runId: result.run.id };
 	};
+}
+
+function reviewCostCap(planCap: number | null, remaining: number | undefined) {
+	return remaining === undefined
+		? {}
+		: { maxCostUsdOverride: Math.min(planCap ?? Number.POSITIVE_INFINITY, remaining) };
 }

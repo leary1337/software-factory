@@ -1,3 +1,4 @@
+import type { ReviewFinding } from "../../core/review-findings.ts";
 /**
  * Shared types for the spawn flow. Kept in their own module so the
  * source files (`dispatch.ts`, `seed-extensions.ts`,
@@ -59,6 +60,8 @@ export const DISPATCH_ORIGINS = [
 export type DispatchOrigin = (typeof DISPATCH_ORIGINS)[number];
 
 export interface SpawnRunInput {
+	readonly reviewFindings?: readonly ReviewFinding[];
+	readonly reviewRemainingCostUsd?: number;
 	readonly repos: Repos;
 	/**
 	 * Runtime-provider seam (warren-c42c: burrow-client eviction, bucket 2).
