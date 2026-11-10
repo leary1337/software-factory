@@ -309,7 +309,11 @@ async function pumpToExit(
 	const deferred: AdapterRuntimeEvent[] = [];
 	const persistEvent = (ev: AdapterRuntimeEvent): void => {
 		// Only the host runner may attest a quality gate. Harness stdout cannot.
-		if (["quality_gate.", "review_check.", "review."].some((prefix) => ev.kind.startsWith(prefix)))
+		if (
+			["quality_gate.", "review_check.", "acceptance.", "review."].some((prefix) =>
+				ev.kind.startsWith(prefix),
+			)
+		)
 			return;
 		if (beforeTerminal && isTerminalEnvelope(ev)) {
 			deferred.push(ev);

@@ -90,11 +90,16 @@ export function resolveCapOverride(input: {
 	readonly overrideUsd?: number;
 	readonly frontmatter: Readonly<Record<string, unknown>>;
 	readonly projectDefaultUsd?: number;
+	/** Remaining review budget can tighten, but never raise, the resolved cap. */
+	readonly ceilingUsd?: number;
 }): number | undefined {
-	if (input.overrideUsd !== undefined) return input.overrideUsd;
 	const declared = input.frontmatter[MAX_COST_USD_KEY];
-	if (declared !== undefined && declared !== null) return undefined;
-	return input.projectDefaultUsd;
+	const override =
+		input.overrideUsd ??
+		(declared !== undefined && declared !== null ? undefined : input.projectDefaultUsd);
+	if (input.ceilingUsd === undefined) return override;
+	const effective = coerceCostCap(override) ?? readMaxCostUsd(input.frontmatter);
+	return Math.min(effective ?? Number.POSITIVE_INFINITY, input.ceilingUsd);
 }
 
 /**

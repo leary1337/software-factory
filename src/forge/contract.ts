@@ -154,6 +154,13 @@ export interface PullRequestState {
 	autoMerge: PullRequestAutoMergeState;
 }
 
+/** Enforcement that prevents a reviewed head merging over a newly advanced base. */
+export interface MergeProtection {
+	readonly baseCommit: string;
+	/** Strict required checks apply to every actor, including administrators. */
+	readonly requiresUpToDate: boolean;
+}
+
 /* --------------------------------------------------------------------- */
 /* Auto-merge (pl-92a3 — docs/design/forge-auto-merge.md)                 */
 /* --------------------------------------------------------------------- */
@@ -390,6 +397,9 @@ export interface Forge {
 
 	/** Deploy status and start; absent on forges without deployments. */
 	readonly deploys?: ForgeDeploys;
+
+	/** Absent or unverifiable protection blocks review-driven automatic merge. */
+	readMergeProtection?(ref: RepoRef, branch: string): Promise<ForgeResult<MergeProtection>>;
 
 	/** Merge only the expected head with the chosen method; unsupported providers refuse. */
 	mergePullRequest(

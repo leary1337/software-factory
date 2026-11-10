@@ -80,7 +80,7 @@ describe("includeUiReview", () => {
 			}),
 			mergePassedPr: async () => {
 				merged = true;
-				return true;
+				return { kind: "merged" as const };
 			},
 			emit: async () => {},
 			spawn: async (spec: { agentName: string; prompt: string; baseCommit: string }) => {

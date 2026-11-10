@@ -19,6 +19,7 @@ import {
 	type PlanRunStateFilter,
 } from "../../core/wire.ts";
 import { mintGitCredential } from "../../forge/credentials.ts";
+import { loadPlanRunBudgetView } from "../../plan-runs/budget-policy.ts";
 import {
 	buildDefaultPlanRunEmit,
 	cancelPlanRun,
@@ -27,7 +28,8 @@ import {
 	tailPlanRunEvents,
 } from "../../plan-runs/index.ts";
 import { loadReviewStage } from "../../plan-runs/review.ts";
-import { loadReviewSummaries } from "../../plan-runs/review-summary.ts";
+import { loadReviewMergeResult, loadReviewSummaries } from "../../plan-runs/review-summary.ts";
+import { loadTaskMetrics } from "../../plan-runs/task-metrics-load.ts";
 import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
@@ -191,6 +193,9 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 		const children = await deps.repos.planRuns.listChildren(id);
 		const runIds = children.map((c) => c.runId).filter((v): v is string => v !== null);
 		const runs = await deps.repos.runs.listByIds(runIds);
+		const budgets = isPublicOnly(ctx.actor)
+			? new Map()
+			: await loadPlanRunBudgetView(deps.repos, planRun);
 		return jsonResponse(200, {
 			planRun: {
 				...projectPlanRun(planRun, ctx.actor),
@@ -203,6 +208,17 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 					...(isPublicOnly(ctx.actor)
 						? {}
 						: {
+								reviewMerge:
+									child.runId !== null
+										? await loadReviewMergeResult(deps.repos, child.runId)
+										: null,
+								metrics: await loadTaskMetrics(
+									deps.repos,
+									planRun.projectId,
+									child,
+									(deps.now?.() ?? new Date()).getTime(),
+								),
+								budget: budgets.get(child.seq) ?? null,
 								reviewSteps:
 									child.runId !== null ? await loadReviewSummaries(deps.repos, child.runId) : [],
 							}),

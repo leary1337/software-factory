@@ -42,6 +42,7 @@ import {
 } from "./migration-preflight.ts";
 import { gateAgentPrompts, withMulchArm } from "./prompt-capabilities.ts";
 import { assertNoKnownProviderModelMismatch } from "./provider-model.ts";
+import { readReviewGate } from "./review-policy.ts";
 import {
 	bindRunLogger,
 	compensateCreatedRuntime,
@@ -155,6 +156,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// values still failing open) lives in resolveCapOverride — cost-cap.ts
 	// owns the semantics, this site only feeds it the three sources.
 	const capOverride = resolveCapOverride({
+		ceilingUsd: input.reviewRemainingCostUsd,
 		...(input.maxCostUsdOverride !== undefined ? { overrideUsd: input.maxCostUsdOverride } : {}),
 		frontmatter: baseAgent.frontmatter,
 		...(projectDefaults?.maxCostUsd !== undefined
@@ -189,6 +191,9 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// `RunSpawnError` with no half-spawned row to garbage-collect. Anything
 	// burrow rejects later still rolls back via the try/catch below.
 	const seedResult = buildSeedFiles(agent);
+	// Read remote policy before publishing a queued run or reserving its slot.
+	const qualityGate =
+		agent.name === "reviewer" ? await readReviewGate(input, projectAfterRefresh) : undefined;
 
 	// warren-76c5 / warren-3743: multi-worker placement is retired — the
 	// self-host backend is a single local burrow. `runs.worker_id` is no longer
@@ -329,15 +334,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 			projectDefaults?.repoContext,
 		),
 		metadata: composeBurrowMetadata(input.metadata, agent.frontmatter),
-		...(agent.name === "reviewer"
-			? {
-					qualityGate: {
-						command: projectDefaults?.qualityGate ?? "",
-						commit: input.baseCommit ?? "",
-						...(input.reviewFindings !== undefined ? { reviewFindings: input.reviewFindings } : {}),
-					},
-				}
-			: {}),
+		...(qualityGate ? { qualityGate } : {}),
 		mode: input.mode ?? "batch",
 		network: burrowConfig.network ?? "none",
 		seedFiles: seedResult.files,

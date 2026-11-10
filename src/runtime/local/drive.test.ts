@@ -16,7 +16,6 @@ const PROFILE: SandboxProfile = {
 	setEnv: {},
 	toolchainPaths: [],
 };
-
 interface FakeProcOptions {
 	readonly stdoutLines?: readonly string[];
 	readonly stderrLines?: readonly string[];
@@ -25,7 +24,6 @@ interface FakeProcOptions {
 	/** Hold stdout open until closeStdin/cancel (stdin-hold runtimes). */
 	readonly holdUntilClose?: boolean;
 }
-
 interface FakeProc {
 	readonly proc: SpawnResult;
 	readonly stdinWrites: string[];
@@ -194,6 +192,9 @@ describe("driveLocalRun", () => {
 		const record = makeRecord(store);
 		const fake = makeFakeProc({
 			stdoutLines: [
+				'{"kind":"quality_gate.completed","stream":"system","payload":{}}',
+				'{"kind":"acceptance.completed","stream":"system","payload":{}}',
+				'{"kind":"review.check_failed","stream":"system","payload":{}}',
 				JSON.stringify({ kind: "text", stream: "stdout", payload: { text: "hi" } }),
 				JSON.stringify({ kind: "state_change", stream: "system", payload: { type: "result" } }),
 			],
@@ -317,7 +318,6 @@ describe("driveLocalRun", () => {
 		const done = driveWith(store, record, makeSpec(), fake, adapter, {
 			midRunInboxPollMs: 10,
 		});
-		// Wait for the drive loop to spawn + start the steering poll.
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		store.sendMessage(record, { body: "hello", priority: "high" });
 		await new Promise((resolve) => setTimeout(resolve, 100));

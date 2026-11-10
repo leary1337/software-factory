@@ -1,4 +1,7 @@
+import type { PlanRunBudgetSummary } from "../core/plan-run-budget.ts";
+import type { ReviewMergeResult } from "../core/review-merge.ts";
 import type { ReviewStepSummary } from "../core/review-result.ts";
+import type { TaskMetrics } from "../core/task-metrics.ts";
 /**
  * Plan-run wire types (warren-8ffc), split out of `./types.ts`
  * (warren-fcc8) to keep that file under its line budget.
@@ -50,6 +53,9 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	reviewMerge?: ReviewMergeResult | null;
+	metrics?: TaskMetrics;
+	budget?: PlanRunBudgetSummary | null;
 	reviewSteps?: ReviewStepSummary[];
 	planRunId: string;
 	seq: number;

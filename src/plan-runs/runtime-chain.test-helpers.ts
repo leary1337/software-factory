@@ -40,6 +40,15 @@ class LocalForge extends FakeForge {
 			).stdout.trim();
 		return result;
 	}
+	async readMergeProtection(_ref: RepoRef, branch: string) {
+		return {
+			ok: true as const,
+			value: {
+				baseCommit: (await fixtureGitOrThrow(this.remote, ["rev-parse", branch])).stdout.trim(),
+				requiresUpToDate: true,
+			},
+		};
+	}
 	override async mergePullRequest(
 		ref?: RepoRef,
 		pr?: PullRequestRef,

@@ -215,6 +215,20 @@ describe("GET /plan-runs/:id", () => {
 				result: `VERDICT: CHANGES\nREVIEWED_COMMIT: ${commit}\nQUALITY_GATE: NOT_RUN\nDependencies missing.`,
 			},
 		});
+		await repos.events.append({
+			runId: runA.id,
+			sandboxEventSeq: 2,
+			ts: new Date().toISOString(),
+			kind: "plan_run.review_merge_result",
+			stream: "system",
+			payload: {
+				kind: "blocked",
+				reason: "protected_path",
+				detail: "Protected files require review.",
+				nextAction: "Review and merge manually.",
+				paths: ["scripts/check.sh"],
+			},
+		});
 
 		const deps = await depsFor({ repos, sdSpawn: makeSdSpawn([], []) });
 		handle = startServer(deps, {
@@ -229,7 +243,9 @@ describe("GET /plan-runs/:id", () => {
 			planRun: { id: string };
 			children: {
 				seq: number;
+				metrics: { runCount: number; reviewCount: number; costUnknownRuns: number };
 				runId: string | null;
+				reviewMerge: { kind: string; reason: string; nextAction: string; paths: string[] } | null;
 				reviewSteps: { executionState: string; summary: { status: string; reason: string } }[];
 			}[];
 			runs: { id: string }[];
@@ -237,6 +253,18 @@ describe("GET /plan-runs/:id", () => {
 		expect(body.planRun.id).toBe(created.planRun.id);
 		expect(body.children).toHaveLength(2);
 		expect(body.runs.map((r) => r.id)).toEqual([runA.id]);
+		expect(body.children[0]?.reviewMerge).toMatchObject({
+			kind: "blocked",
+			reason: "protected_path",
+			nextAction: "Review and merge manually.",
+			paths: ["scripts/check.sh"],
+		});
+		expect(body.children[1]?.reviewMerge).toBeNull();
+		expect(body.children[0]?.metrics).toMatchObject({
+			runCount: 2,
+			reviewCount: 1,
+			costUnknownRuns: 2,
+		});
 		expect(body.children[0]?.reviewSteps[0]).toMatchObject({
 			executionState: "succeeded",
 			summary: { status: "checks_not_run", reason: "Dependencies missing." },

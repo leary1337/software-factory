@@ -1,3 +1,4 @@
+import { readAcceptanceSummary } from "./acceptance-evidence.ts";
 import {
 	hasQualityGateWitness,
 	type QualityGateEvent,
@@ -22,7 +23,10 @@ export function summarizeReviewEvidence(
 			: null;
 	const report =
 		findings ?? (gateVerified && text !== null ? reportWithVerifiedGate(text, commit) : text);
-	const summary = summarizeReview(report, findings ? "succeeded" : state, failureReason, commit);
+	const summary = {
+		...summarizeReview(report, findings ? "succeeded" : state, failureReason, commit),
+		acceptance: readAcceptanceSummary(events, commit),
+	};
 	if (summary.status === "passed" && !gateVerified)
 		return {
 			...summary,

@@ -1,6 +1,7 @@
 /** Host-owned quality-gate execution. Repository commands run only in the sandbox. */
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
 import type { RunSpec } from "../contract.ts";
+import { runAcceptanceChecks } from "./acceptance-checks.ts";
 import { stopAgentProcess } from "./git-pin.ts";
 import { QualityGateFailure } from "./quality-gate-failure.ts";
 import { prepareQualityGateWorkspace } from "./quality-gate-workspace.ts";
@@ -52,6 +53,8 @@ export async function runIndependentQualityGate(
 	let heartbeat: ReturnType<typeof setInterval> | undefined;
 	let timedOut = false;
 	const startedAt = Date.now();
+	const timeoutMs = profile.timeoutMs ?? 1_200_000;
+	const deadline = startedAt + timeoutMs;
 	try {
 		if (record.cancelRequested) throw new Error("quality gate cancelled");
 		store.appendEvent(record, {
@@ -66,7 +69,7 @@ export async function runIndependentQualityGate(
 		timer = setTimeout(() => {
 			timedOut = true;
 			running.cancel();
-		}, profile.timeoutMs ?? 1_200_000);
+		}, timeoutMs);
 		heartbeat = setInterval(
 			() =>
 				store.appendEvent(record, {
@@ -100,8 +103,9 @@ export async function runIndependentQualityGate(
 			},
 		});
 		clearTimeout(timer);
-		await checkFindings(workspace, deps.spawn, startedAt + (profile.timeoutMs ?? 1_200_000));
+		await checkFindings(workspace, deps.spawn, deadline);
 		if (exitCode !== 0) throw new QualityGateFailure(gate.commit, exitCode);
+		await runAcceptanceChecks(store, record, gate, workspace, deps.spawn, deadline);
 	} finally {
 		clearTimeout(timer);
 		clearInterval(heartbeat);

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogIn, LogOut } from "lucide-react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { metaApi, setApiToken } from "@/api/client.ts";
 import {
 	ALL_NAV_SECTIONS,
@@ -237,6 +237,7 @@ export function ConsoleSidebarBody({
 	onNavigate?: () => void;
 }) {
 	const caps = useCapabilities();
+	const location = useLocation();
 	// Same rule the legacy nav carried (warren-f53e): an entry whose
 	// destination is readOperator never shows to a caller who would only
 	// ever see a 403 there. Every Direction C entry is public-projection
@@ -256,14 +257,32 @@ export function ConsoleSidebarBody({
 			<BrandRow onNavigate={onNavigate} />
 			<InstanceCard stats={stats} />
 			<nav className="flex flex-col px-[9px] pt-1.5">
-				{ALL_NAV_SECTIONS.map((section) => (
-					<div key={section.heading} className="flex flex-col">
-						<SectionHeading label={section.heading} />
-						{section.items.filter(visible).map((item) => (
+				{ALL_NAV_SECTIONS.map((section) => {
+					const rows = section.items
+						.filter(visible)
+						.map((item) => (
 							<NavRow key={item.to} item={item} count={counts[item.to]} onNavigate={onNavigate} />
-						))}
-					</div>
-				))}
+						));
+					return section.heading === "More" ? (
+						<details
+							key={section.heading}
+							open={
+								section.items.some((item) => location.pathname.startsWith(item.to)) || undefined
+							}
+							className="mt-4"
+						>
+							<summary className="cursor-pointer px-2 py-2 text-(--color-text-2) text-sm">
+								More
+							</summary>
+							{rows}
+						</details>
+					) : (
+						<div key={section.heading} className="flex flex-col">
+							<SectionHeading label={section.heading} />
+							{rows}
+						</div>
+					);
+				})}
 				{/* First-run setup (warren-a911): the manual entry point
 				    back to the checklist, shown only to a caller who can
 				    act on it and only while no run exists — once one
