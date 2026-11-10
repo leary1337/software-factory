@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import type { QualityGateResult } from "../core/quality-gate.ts";
 import type { HandleInFlightInput } from "./in-flight.ts";
 import {
 	advanceReview,
 	decideReviewStep,
+	describeGateForReviewer,
 	MAX_REWORKS,
 	parseVerdict,
 	type ReviewStepRecord,
@@ -34,7 +36,7 @@ describe("parseVerdict", () => {
 
 describe("decideReviewStep", () => {
 	test("starts with a review", () => {
-		expect(decideReviewStep([])).toEqual({ kind: "spawn", step: "review" });
+		expect(decideReviewStep([])).toEqual({ kind: "spawn", step: "review", gate: null });
 	});
 
 	test("waits for a running step", () => {
@@ -52,11 +54,16 @@ describe("decideReviewStep", () => {
 			kind: "spawn",
 			step: "rework",
 			findings: changes.resultText as string,
+			cause: "review",
 		});
 	});
 
 	test("a finished rework goes back to review", () => {
-		expect(decideReviewStep([changes, reworked])).toEqual({ kind: "spawn", step: "review" });
+		expect(decideReviewStep([changes, reworked])).toEqual({
+			kind: "spawn",
+			step: "review",
+			gate: null,
+		});
 	});
 
 	test("stops after the rework limit with the findings still open", () => {
@@ -74,6 +81,89 @@ describe("decideReviewStep", () => {
 		expect(
 			decideReviewStep([{ step: "review", state: "succeeded", resultText: "looks fine" }]),
 		).toMatchObject({ kind: "finished", outcome: "broken" });
+	});
+});
+
+const greenGate: QualityGateResult = {
+	command: "pnpm check",
+	exitCode: 0,
+	timedOut: false,
+	durationMs: 95_000,
+	sha: "abc123",
+	logTail: "ok\n",
+};
+const redGate: QualityGateResult = {
+	...greenGate,
+	exitCode: 1,
+	logTail: "Type error: x\n",
+};
+
+describe("decideReviewStep with the post-run gate", () => {
+	test("a red implementer gate goes straight to rework without a reviewer", () => {
+		const decision = decideReviewStep([], redGate);
+		expect(decision).toMatchObject({ kind: "spawn", step: "rework", cause: "gate" });
+		const findings = (decision as { findings: string }).findings;
+		expect(findings).toContain("`pnpm check` exited with code 1 on commit abc123");
+		expect(findings).toContain("Type error: x");
+	});
+
+	test("a green gate starts the review and hands the result to it", () => {
+		expect(decideReviewStep([], greenGate)).toEqual({
+			kind: "spawn",
+			step: "review",
+			gate: greenGate,
+		});
+	});
+
+	test("a timed-out gate is red", () => {
+		const decision = decideReviewStep([], { ...greenGate, exitCode: null, timedOut: true });
+		expect(decision).toMatchObject({ kind: "spawn", step: "rework", cause: "gate" });
+		expect((decision as { findings: string }).findings).toContain("was stopped after 1 min 35 s");
+	});
+
+	test("a gate warren could not start still goes to review", () => {
+		const broken = { ...greenGate, exitCode: null, error: "spawn failed" };
+		expect(decideReviewStep([], broken)).toMatchObject({ kind: "spawn", step: "review" });
+	});
+
+	test("judges a rework by its own gate, not the implementer's", () => {
+		const fixed = { ...reworked, gate: greenGate };
+		const stillRed = { ...reworked, gate: redGate };
+		expect(decideReviewStep([fixed], redGate)).toMatchObject({ step: "review", gate: greenGate });
+		expect(decideReviewStep([changes, stillRed], greenGate)).toMatchObject({
+			step: "rework",
+			cause: "gate",
+		});
+	});
+
+	test("stops with the gate still red once the reworks run out", () => {
+		const stillRed = { ...reworked, gate: redGate };
+		const steps = Array.from({ length: MAX_REWORKS }, () => stillRed);
+		expect(decideReviewStep(steps, redGate)).toMatchObject({
+			kind: "finished",
+			outcome: "changes_left",
+		});
+	});
+
+	test("a red gate shows as reworking in the plan view", () => {
+		expect(reviewStageOf([], redGate)).toBe("reworking");
+	});
+});
+
+describe("describeGateForReviewer", () => {
+	test("tells the reviewer not to rerun a green gate on unchanged code", () => {
+		const text = describeGateForReviewer(greenGate);
+		expect(text).toContain("on commit abc123, and it passed in 1 min 35 s");
+		expect(text).toContain("git diff --quiet abc123 HEAD");
+		expect(text).toContain("do not run the gate again");
+	});
+
+	test("asks the reviewer to run the gate when warren could not", () => {
+		expect(describeGateForReviewer({ ...greenGate, exitCode: null, error: "no sh" })).toContain(
+			"Run it yourself",
+		);
+		expect(describeGateForReviewer({ ...greenGate, sha: null })).toContain("Run it yourself");
+		expect(describeGateForReviewer(null)).toBe("");
 	});
 });
 
@@ -99,7 +189,11 @@ describe("advanceReview", () => {
 	const run = { id: "run_a", branch: "factory/run_a", baseCommit: "abc" };
 	const prUrl = "https://github.com/o/r/pull/1";
 
-	function harness(agentName = "implementer", finished = false) {
+	function harness(agentName = "implementer", finished = false, gate?: QualityGateResult) {
+		const gateRow =
+			gate === undefined
+				? undefined
+				: { payloadJson: { type: "quality_gate", phase: "finished", ...gate } };
 		const spawned: unknown[] = [];
 		const emitted: string[] = [];
 		const comments: string[] = [];
@@ -111,6 +205,7 @@ describe("advanceReview", () => {
 					listByRun: async () => [],
 					listTail: async () => [],
 					hasKind: async () => finished,
+					latestOfKind: async () => gateRow,
 				},
 				runs: { require: async () => ({}) },
 			},
@@ -139,6 +234,30 @@ describe("advanceReview", () => {
 		expect(spawned[0]).toMatchObject({ agentName: "reviewer", existingBranch: "factory/run_a" });
 		expect((spawned[0] as { prompt: string }).prompt).toContain("Ticket s-1: T");
 		expect(emitted).toEqual(["plan_run.review_step"]);
+	});
+
+	test("gives the reviewer the green gate warren already ran", async () => {
+		const { input, spawned } = harness("implementer", false, greenGate);
+		await advanceReview(input, run as never, prUrl);
+		expect(spawned[0]).toMatchObject({ agentName: "reviewer" });
+		expect((spawned[0] as { prompt: string }).prompt).toContain("do not run the gate again");
+	});
+
+	test("sends a red gate to rework and records why", async () => {
+		const { input, spawned } = harness("implementer", false, redGate);
+		const payloads: unknown[] = [];
+		const recording = {
+			...input,
+			emit: async (_: string, _kind: string, payload: unknown) => {
+				payloads.push(payload);
+			},
+		} as HandleInFlightInput;
+		await advanceReview(recording, run as never, prUrl);
+		expect(spawned[0]).toMatchObject({ agentName: "rework", existingBranch: "factory/run_a" });
+		const prompt = (spawned[0] as { prompt: string }).prompt;
+		expect(prompt).toContain("quality gate on the branch of");
+		expect(prompt).toContain("Type error: x");
+		expect(payloads[0]).toMatchObject({ step: "rework", cause: "gate" });
 	});
 
 	test("a PASS merges the PR when merging is on, and says so", async () => {

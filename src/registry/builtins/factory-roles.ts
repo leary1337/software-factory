@@ -19,6 +19,11 @@ import {
 
 const PSTACK = "$HOME/.claude/factory/pstack";
 
+// The post-run quality gate (docs/design/post-run-quality-gate.md): warren runs
+// the project's gate in the sandbox after the implementer and each rework, so
+// those roles stop running it themselves when it is configured.
+const WARREN_RUNS_GATE = `When \`$WARREN_QUALITY_GATE\` is set, warren runs that gate in this sandbox right after you finish, on the commit you leave, and sends a red result back for rework: do not run it yourself. Check your change with focused tests and the cheap static checks for the code you touched, then commit. When it is unset, the gate is yours: run the project's complete quality gate (${QUALITY_GATE_CHAIN}) and commit. ${GATE_FINAL_RUN_RULE}`;
+
 const UNATTENDED_RULES = `## Unattended rules
 
 - This run has no human in it. When something is unclear, take the most defensible reading, note it in your final message, and finish.
@@ -35,7 +40,7 @@ const IMPLEMENTER_SYSTEM = `You implement one ticket in this repository, unatten
 3. Reach for these as the work calls for them:
    - Skill tool: \`tdd\` for new behaviour, \`diagnosing-bugs\` for defects, \`codebase-design\` when a module's interface is in play, \`go-best-practices\` when you edit Go.
    - Read by path: \`${PSTACK}/skills/architect/SKILL.md\` before code that crosses a function boundary, \`${PSTACK}/skills/typescript-best-practices/SKILL.md\` when you edit TypeScript.
-4. Run the project's complete quality gate (${QUALITY_GATE_CHAIN}) and commit. ${GATE_FINAL_RUN_RULE}
+4. ${WARREN_RUNS_GATE}
 
 ${UNATTENDED_RULES}
 `;
@@ -45,7 +50,7 @@ const REVIEWER_SYSTEM = `You review one pull request cold, against the ticket it
 ## Procedure
 
 1. Read CLAUDE.md or AGENTS.md if present, then the ticket.
-2. Install the project's dependencies and run its complete quality gate (${QUALITY_GATE_CHAIN}). A step that fails because of the code is a blocking finding. List each step the sandbox cannot run, such as a blocked download or a local port, under \`Not run:\` with the reason.
+2. Your prompt says whether warren already ran the project's quality gate. When it reports a green run on a commit and its \`git diff\` check shows the code is unchanged since, the gate is green: do not run it. Otherwise install the project's dependencies and run its complete quality gate (${QUALITY_GATE_CHAIN}). A step that fails because of the code is a blocking finding. List each step the sandbox cannot run, such as a blocked download or a local port, under \`Not run:\` with the reason.
 3. Read \`$HOME/.claude/skills/code-review/SKILL.md\` and run both of its axes over the diff since the fixed point, with the ticket as the spec.
 4. Read \`${PSTACK}/skills/interrogate/SKILL.md\` and follow it, keeping only findings a run proves.
 5. When the diff changes something other code depends on, read \`${PSTACK}/skills/blast-radius/SKILL.md\` and follow it.
@@ -67,7 +72,7 @@ const REWORK_SYSTEM = `You fix what an automated review named on an existing pul
 1. Read CLAUDE.md or AGENTS.md if present, then every finding.
 2. For each finding, confirm it against the code. Use the Skill tool's \`diagnosing-bugs\` for defects and \`go-best-practices\` when you edit Go.
 3. Apply the smallest correct fix for each confirmed finding, and keep the diff to what the findings require.
-4. Run the project's complete quality gate (${QUALITY_GATE_CHAIN}) and commit, naming the findings you fixed. ${GATE_FINAL_RUN_RULE}
+4. Name the findings you fixed in your commit message. ${WARREN_RUNS_GATE}
 5. In your final message, list any finding you judged wrong, with your evidence.
 
 ${UNATTENDED_RULES}
@@ -89,7 +94,7 @@ export const IMPLEMENTER_BUILTIN: AgentDefinition = {
 	sections: { system: IMPLEMENTER_SYSTEM, burrow_config: SANDBOX },
 	gatedPrompts: GATED_PROMPTS,
 	resolvedFrom: ["builtin:implementer"],
-	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.sonnet },
+	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.sonnet, qualityGate: "warren" },
 };
 
 export const REVIEWER_BUILTIN: AgentDefinition = {
@@ -107,5 +112,5 @@ export const REWORK_BUILTIN: AgentDefinition = {
 	sections: { system: REWORK_SYSTEM, burrow_config: SANDBOX },
 	gatedPrompts: GATED_PROMPTS,
 	resolvedFrom: ["builtin:rework"],
-	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.sonnet },
+	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.sonnet, qualityGate: "warren" },
 };

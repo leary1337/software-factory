@@ -156,6 +156,33 @@ export class EventsRepo {
 	}
 
 	/**
+	 * The run's newest event of `kind` on `stream`, or undefined. The plan-run
+	 * review step reads the post-run quality gate's finished event this way
+	 * (docs/design/post-run-quality-gate.md): reap's bookkeeping events land
+	 * after it, so a fixed-size tail can miss it.
+	 */
+	async latestOfKind(
+		runId: string,
+		kind: string,
+		stream: EventStream,
+	): Promise<EventRow | undefined> {
+		return this.adapter.pickOne<EventRow>(
+			this.db
+				.select()
+				.from(this.events)
+				.where(
+					and(
+						eq(this.events.runId, runId),
+						eq(this.events.kind, kind),
+						eq(this.events.stream, stream),
+					),
+				)
+				.orderBy(desc(this.events.sandboxEventSeq))
+				.limit(1),
+		);
+	}
+
+	/**
 	 * Highest sandbox_event_seq we've persisted for a run, or null if none.
 	 * Used at warren startup to compute the resume offset for live runs
 	 * ("MAX(events.sandbox_event_seq) + 1", docs/design/runtime-and-supervisor.md).

@@ -238,6 +238,12 @@ export interface AgentFrontmatter {
 	pi?: PiFrontmatterOptions;
 	/** Mulch experiment arm (`./mulch-arm.ts`); absent = default behavior. */
 	mulch?: "on" | "off";
+	/**
+	 * `warren` arms the post-run quality gate: once the agent exits cleanly,
+	 * the drive loop runs the project's `qualityGate` in this run's sandbox
+	 * (`src/runtime/local/post-run-gate.ts`). Absent = the agent owns the gate.
+	 */
+	qualityGate?: "warren";
 }
 
 /**

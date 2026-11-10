@@ -59,6 +59,15 @@ and only spawns the next child when that slot transitions to `merged`
 or `skipped`. There is never more than one in-flight child per
 PlanRun.
 
+**Review step.** For a plan run of the `implementer` role, a child whose
+PR is open does not wait for the merge right away. `advanceReview`
+(`src/plan-runs/review.ts`) first chains `reviewer` and `rework` runs on
+the child's branch, recorded as `plan_run.review_step` events on the
+child's run. After the implementer and after each rework, warren runs the
+project's quality gate itself, in that run's sandbox. A red gate sends
+the branch straight to rework, and a green one rides into the reviewer's
+prompt. See [Post-run quality gate](./post-run-quality-gate.md).
+
 **Coordinator state machine.** `advancePlanRun` in
 `src/plan-runs/coordinator.ts` is a pure function over a stub-injected
 deps bag (repos, `showPlan`, `showSeed`, `checkPrMerged`, `spawn`,
