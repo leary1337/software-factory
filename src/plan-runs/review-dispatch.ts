@@ -5,7 +5,7 @@ import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts
 import { loadSteps, type ReviewDecision } from "./review.ts";
 import { finishReview } from "./review-delivery.ts";
 import { loadReviewBudget, reviewBudgetReason } from "./review-progress.ts";
-import { reviewEvidencePrompt } from "./review-prompt.ts";
+import { reviewHistoryPrompt } from "./review-prompt.ts";
 import { UI_REVIEW_PROMPT } from "./ui-review.ts";
 
 async function describeTicket(input: HandleInFlightInput): Promise<string> {
@@ -48,10 +48,10 @@ export async function spawnReviewStep(
 	const blocked = reviewBudgetReason(steps, budget);
 	if (blocked)
 		return finishReview(input, run, prUrl, "changes_left", `Review loop stopped: ${blocked}.`);
-	const prior = [...steps].reverse().find((step) => step.evidence)?.evidence?.findings ?? [];
+	const history = reviewHistoryPrompt(steps, decision.step === "rework");
 	const ticket = await describeTicket(input);
 	const basePrompt = describeReview(decision, reviewedCommit, prUrl, run.baseCommit, ticket);
-	const prompt = basePrompt + reviewEvidencePrompt(prior, decision.step === "rework");
+	const prompt = basePrompt + history.prompt;
 
 	try {
 		const spawned = await input.spawn({
@@ -60,7 +60,7 @@ export async function spawnReviewStep(
 			prompt,
 			reviewRemainingCostUsd:
 				budget.maxCostUsd - steps.reduce((sum, step) => sum + (step.costUsd ?? 0), 0),
-			...(decision.step !== "rework" ? { reviewFindings: prior } : {}),
+			...(decision.step !== "rework" ? { reviewFindings: history.prior } : {}),
 			agentName: decision.step === "rework" ? "rework" : "reviewer",
 			existingBranch: run.branch,
 			...(reviewedCommit ? { baseCommit: reviewedCommit } : {}),

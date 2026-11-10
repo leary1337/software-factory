@@ -1,4 +1,19 @@
 import type { ReviewFinding } from "../core/review-findings.ts";
+import type { ReviewStepRecord } from "./review.ts";
+import { parseVerdict } from "./review-result.ts";
+
+export function reviewHistoryPrompt(steps: readonly ReviewStepRecord[], rework: boolean) {
+	const prior = [...steps].reverse().find((step) => step.evidence)?.evidence?.findings ?? [];
+	const earlier = [...steps].reverse().find((step) => step.step !== "rework");
+	const legacy =
+		!rework && !earlier?.evidenceRequired ? legacyReviewPrompt(earlier?.resultText) : "";
+	return { prior, prompt: legacy + reviewEvidencePrompt(prior, rework) };
+}
+
+export function legacyReviewPrompt(report: string | null | undefined): string {
+	if (!report || parseVerdict(report) !== "CHANGES") return "";
+	return `\n\n## Unresolved prior review\nThe earlier review predates portable reproductions. Carry every finding below into this review. Create a portable regression for each, including already fixed cases (which should pass), and verify the current commit. Do not silently drop a finding because a cold review missed it. An unreproducible blocker must be explained explicitly and remains CHANGES. Include these regressions in the manifest even when they now pass.\n\n${report}`;
+}
 
 /** The actual sources travel in durable events and prompts, never ephemeral /tmp links. */
 export function reviewEvidencePrompt(prior: readonly ReviewFinding[], rework: boolean): string {

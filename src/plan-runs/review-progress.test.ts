@@ -6,6 +6,7 @@ import {
 	readResultText,
 } from "./review.ts";
 import { DEFAULT_REVIEW_BUDGET, loadReviewBudget } from "./review-progress.ts";
+import { legacyReviewPrompt } from "./review-prompt.ts";
 
 const SHA = "a".repeat(40);
 function reviewed(open: string[], closed: string[] = []): ReviewStepRecord {
@@ -36,6 +37,12 @@ function reviewed(open: string[], closed: string[] = []): ReviewStepRecord {
 const rework: ReviewStepRecord = { step: "rework", state: "succeeded", resultText: "fixed" };
 
 describe("review progress", () => {
+	test("carries unresolved legacy findings into the first portable review", () => {
+		const report = "VERDICT: CHANGES\nReloading a pending deletion corrupts positions.";
+		expect(legacyReviewPrompt(report)).toContain(report);
+		expect(legacyReviewPrompt(report)).toContain("including already fixed cases");
+		expect(legacyReviewPrompt("VERDICT: PASS")).toBe("");
+	});
 	test("retains the verdict when independent check events fill the event tail", async () => {
 		const checks = Array.from({ length: 70 }, () => ({
 			payloadJson: { commit: SHA, id: "finding", exitCode: 0 },
