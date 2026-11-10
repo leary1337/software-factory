@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { BUGWATCH_BUILTIN } from "../../registry/builtins/bugwatch.ts";
+import { NIGHTWATCH_BUILTIN } from "../../registry/builtins/nightwatch.ts";
 import type { SeedsCliDeps } from "../../seeds-cli/index.ts";
 import type { IssueTracker } from "../../tracker/contract.ts";
 import { SeedsTracker } from "../../tracker/seeds-tracker.ts";
@@ -129,35 +131,38 @@ describe("auto_plan_run (warren-a32a)", () => {
 		}
 	});
 
-	test("uses auto_plan_run_agent override instead of parent agent name (warren-65b2)", async () => {
-		const ctx = await setupAutoPlanRun({
-			frontmatter: { auto_plan_run: true, auto_plan_run_agent: "pi" },
-		});
-		try {
-			const f = fakeFs({
-				"/data/projects/x/y/.seeds/issues.jsonl": "",
-				"/data/projects/x/y/.seeds/plans.jsonl": "",
-				"/data/sandbox/ws/.seeds/plans.jsonl":
-					'{"id":"pl-new1","status":"approved","children":["warren-c1","warren-c2"]}\n',
+	test.each([BUGWATCH_BUILTIN, NIGHTWATCH_BUILTIN])(
+		"dispatches $name plans to the Codex implementer",
+		async (agent) => {
+			const ctx = await setupAutoPlanRun({
+				frontmatter: { ...agent.frontmatter },
 			});
-			const e = fakeExec({ stagedDelta: true });
+			try {
+				const f = fakeFs({
+					"/data/projects/x/y/.seeds/issues.jsonl": "",
+					"/data/projects/x/y/.seeds/plans.jsonl": "",
+					"/data/sandbox/ws/.seeds/plans.jsonl":
+						'{"id":"pl-new1","status":"approved","children":["warren-c1","warren-c2"]}\n',
+				});
+				const e = fakeExec({ stagedDelta: true });
 
-			const result = await reapRun({
-				runId: ctx.runId,
-				outcome: "succeeded",
-				repos: ctx.repos,
-				...reapDeps(fakeBurrowClient(makeBurrow()), { fs: f.fs, exec: e.exec }),
-				fs: f.fs,
-				exec: e.exec,
-			});
+				const result = await reapRun({
+					runId: ctx.runId,
+					outcome: "succeeded",
+					repos: ctx.repos,
+					...reapDeps(fakeBurrowClient(makeBurrow()), { fs: f.fs, exec: e.exec }),
+					fs: f.fs,
+					exec: e.exec,
+				});
 
-			expect(result.autoPlanRunCreated).toBe(true);
-			const planRun = await ctx.repos.planRuns.require(result.autoPlanRunId as string);
-			expect(planRun.agentName).toBe("pi");
-		} finally {
-			await ctx.db.close();
-		}
-	});
+				expect(result.autoPlanRunCreated).toBe(true);
+				const planRun = await ctx.repos.planRuns.require(result.autoPlanRunId as string);
+				expect(planRun.agentName).toBe("implementer");
+			} finally {
+				await ctx.db.close();
+			}
+		},
+	);
 
 	test("does not dispatch when agent lacks auto_plan_run frontmatter", async () => {
 		const ctx = await setupAutoPlanRun({ frontmatter: {} });

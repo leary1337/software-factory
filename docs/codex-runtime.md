@@ -1,8 +1,14 @@
 # Codex через подписку ChatGPT
 
-Роли `implementer`, `reviewer` и `rework` запускают `codex exec --json` в
+Роли `implementer`, `reviewer`, `rework`, `planner`, `nightwatch`,
+`bugwatch`, `pr-fixer` и `healer` запускают `codex exec --json` в
 песочнице Warren. Модель по умолчанию — `gpt-6.1-sol`. Pi и Claude Code
-остаются доступными для остальных встроенных агентов.
+остаются только отдельными явно выбираемыми профилями `pi` и `claude-code`.
+Служебные роли не используют их: планы патрулей передаются `implementer`,
+CI-fixer выбирает `pr-fixer`, обработчик алертов — `healer`.
+Явные переопределения ролей и моделей в конфигурации проекта сохраняются;
+при переходе проверь `triggers`, `ciFixer.role`, `healer.role`,
+`interactiveAgents.plannerRuntime`, `defaultProvider` и `defaultModel`.
 
 ## Настройка на macOS
 
