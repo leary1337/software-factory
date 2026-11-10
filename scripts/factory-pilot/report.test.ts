@@ -63,6 +63,18 @@ describe("factoryPilot", () => {
 		]);
 		expect(pilotStopped(summary)).toBe(true);
 	});
+	test("stops only after budget admission actually refuses a dispatch", () => {
+		const detail = (awaitingDispatch: boolean) => ({
+			planRun: { state: "running" },
+			children: [
+				{ budget: { blocked: true, awaitingDispatch, reason: "Task run budget reached (8/8)." } },
+			],
+		});
+		expect(pilotStopped(summarizePilot(detail(false)))).toBe(false);
+		const stopped = summarizePilot(detail(true));
+		expect(pilotStopped(stopped)).toBe(true);
+		expect(stopped.children[0]?.budgetReason).toBe("Task run budget reached (8/8).");
+	});
 	test("keeps incomplete live work pending", () => {
 		expect(
 			pilotStopped(

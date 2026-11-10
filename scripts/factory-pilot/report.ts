@@ -36,6 +36,7 @@ export function summarizePilot(value: unknown) {
 		children: array(detail.children).map((item) => {
 			const child = object(item);
 			const merge = object(child.reviewMerge);
+			const budget = object(child.budget);
 			return {
 				issueId: field(child.seedId),
 				runId: field(child.runId),
@@ -43,6 +44,8 @@ export function summarizePilot(value: unknown) {
 				reviewStage: field(child.reviewStage),
 				mergeKind: field(merge.kind),
 				mergeReason: field(merge.reason),
+				budgetBlocked: budget.awaitingDispatch === true,
+				budgetReason: field(budget.reason),
 				reviews: array(child.reviewSteps).map((item) => {
 					const step = object(item);
 					const summary = object(step.summary);
@@ -89,7 +92,10 @@ export function pilotStopped(summary: ReturnType<typeof summarizePilot>): boolea
 	return (
 		["succeeded", "failed", "cancelled"].includes(summary.state ?? "") ||
 		summary.children.some(
-			(child) => child.reviewStage === "needs_attention" || child.mergeKind === "blocked",
+			(child) =>
+				child.reviewStage === "needs_attention" ||
+				child.mergeKind === "blocked" ||
+				child.budgetBlocked,
 		)
 	);
 }
