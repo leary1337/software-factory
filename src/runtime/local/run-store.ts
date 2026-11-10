@@ -78,6 +78,8 @@ export interface LocalRunRecord {
 	nextSeq: number;
 	/** The live sandboxed child; null before spawn completes / after teardown. */
 	proc: SpawnResult | null;
+	/** Teardown waits for credential cleanup before deleting the run HOME. */
+	driveDone?: Promise<void>;
 	/**
 	 * The sandbox profile the agent spawned with (warren-4bf3). Preview
 	 * sidecars inherit it so a dev server runs inside the same sandbox

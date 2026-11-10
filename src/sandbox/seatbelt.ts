@@ -11,19 +11,23 @@
  *
  * Network policy:
  *   - "open"       — `(allow network*)`.
- *   - "none"       — no rule (default deny).
- *   - "restricted" — only loopback to `profile.proxyAddress` is permitted.
- *     A per-run userspace proxy runs host-side and enforces the
+ *   - "none"       — no IP rule (default deny).
+ *   - "restricted" — loopback only: bind, accept, and connect on
+ *     `localhost:*`. Off-host traffic goes through `profile.proxyAddress`,
+ *     a per-run userspace proxy that runs host-side and enforces the
  *     `allowedDomains` allowlist. DNS happens host-side in the proxy, so
  *     the sandbox never needs mDNSResponder access. The run dispatcher sets
  *     `proxyAddress` per-run before rendering — when it's missing,
  *     restricted mode falls back to deny-everything.
+ *
+ * Every policy allows unix sockets inside the workspace and the run HOME,
+ * the two per-run writable trees, so tool IPC (tsx, Turbopack) works.
  */
 
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { SandboxProfile, SpawnCommand } from "./types.ts";
 
 export const SYSTEM_READ_SUBPATHS: readonly string[] = [
@@ -64,7 +68,9 @@ export function buildSeatbeltProfile(
 
 	lines.push("(allow process-fork)");
 	lines.push("(allow process-exec)");
-	lines.push("(allow signal (target self))");
+	// The agent and test runners can stop children in their own sandbox,
+	// while host processes remain outside the signal boundary.
+	lines.push("(allow signal (target same-sandbox))");
 	lines.push("(allow sysctl-read)");
 	lines.push("(allow mach-lookup)");
 	lines.push("(allow ipc-posix-shm)");
@@ -74,6 +80,7 @@ export function buildSeatbeltProfile(
 	lines.push("(allow file-read-metadata)");
 	// dyld stats `/` early in process bringup; without this, every spawn aborts.
 	lines.push('(allow file-read* (literal "/"))');
+	lines.push(...ancestorReadRules(profile));
 
 	for (const path of SYSTEM_READ_SUBPATHS) {
 		lines.push(`(allow file-read* (subpath ${sbString(path)}))`);
@@ -144,9 +151,24 @@ export function buildSeatbeltProfile(
 	// the git denies below hold even when the clone sits under /private/tmp.
 	lines.push(...renderWorkspaceGitRules(profile));
 
+	lines.push(...renderUnixSocketRules(profile));
 	lines.push(...renderNetworkRules(profile));
 
 	return `${lines.join("\n")}\n`;
+}
+
+/** Bun opens parent directories while finding package scripts. Grant the
+ * directory itself, never its children: a subpath grant would expose secrets. */
+function ancestorReadRules(profile: SandboxProfile): string[] {
+	const ancestors = new Set<string>();
+	for (const root of [profile.workspace, profile.home]) {
+		let parent = dirname(realpathOrSelf(root));
+		while (parent !== dirname(parent)) {
+			ancestors.add(parent);
+			parent = dirname(parent);
+		}
+	}
+	return [...ancestors].map((path) => `(allow file-read* (literal ${sbString(path)}))`);
 }
 
 /**
@@ -188,24 +210,51 @@ export function buildSeatbeltArgv(
 	return [bin, "-f", profilePath, ...command.argv];
 }
 
+/**
+ * Unix-domain sockets under the run's own writable trees. Build tools open
+ * IPC sockets under $TMPDIR, which the sandbox env points into the
+ * workspace: tsx listens on `<TMPDIR>/tsx-<uid>/<pid>.pipe`, and without
+ * this grant it fails with `listen EPERM`. Never /private/tmp or
+ * /private/var/folders: host daemons (tmux, launchd listeners, editor IPC)
+ * keep their sockets there, and a connect to one is a sandbox escape.
+ */
+function renderUnixSocketRules(profile: SandboxProfile): string[] {
+	if (profile.network === "open") return [];
+	return [profile.workspace, profile.home].flatMap((root) => [
+		`(allow network-bind (local unix-socket (subpath ${sbString(root)})))`,
+		`(allow network-outbound (remote unix-socket (subpath ${sbString(root)})))`,
+	]);
+}
+
 function renderNetworkRules(profile: SandboxProfile): string[] {
 	if (profile.network === "open") return ["(allow network*)"];
 	if (profile.network === "none") return [];
 
 	// network=restricted. The host-side userspace proxy enforces the
-	// allowlist; sandbox-exec only needs to permit loopback to that endpoint.
-	// Without a proxyAddress we leave the rules empty — the legacy hostname
-	// regex was a no-op (sandbox-exec matches against the resolved IP, not
-	// the hostname) and silently denied everything; explicit deny is at
-	// least honest.
+	// allowlist for off-host traffic. Without a proxyAddress we leave the
+	// rules empty — the legacy hostname regex was a no-op (sandbox-exec
+	// matches against the resolved IP, not the hostname) and silently
+	// denied everything; explicit deny is at least honest.
+	if (!profile.proxyAddress) return [];
+
+	// Loopback is open in full, not just the proxy port. Quality gates bind
+	// local ports: Turbopack's `next build` workers listen on loopback, and a
+	// smoke test serves the app and curls it. With only the proxy port
+	// allowed, `next build` hung until the Bash timeout and then failed with
+	// `binding to a port - Operation not permitted`. sandbox-exec cannot tell
+	// the sandbox's own listeners from the host's, so the agent can also
+	// reach host loopback services. That matches bwrap, whose restricted
+	// mode shares the host net namespace (src/sandbox/bwrap.ts).
 	//
-	// `(remote tcp ...)` only accepts `localhost` or `*` as the host token in
-	// sandbox-exec's grammar (numeric IPs raise `host must be * or localhost
-	// in network address`). `localhost` covers both `127.0.0.1` and `::1`,
-	// which is what client connections to the loopback proxy will resolve to.
-	const proxy = profile.proxyAddress;
-	if (!proxy) return [];
-	return [`(allow network-outbound (remote tcp ${sbString(`localhost:${proxy.port}`)}))`];
+	// The `ip` host token only accepts `localhost` or `*` in sandbox-exec's
+	// grammar (numeric IPs raise `host must be * or localhost in network
+	// address`). `localhost` covers both `127.0.0.1` and `::1`.
+	const loopback = sbString("localhost:*");
+	return [
+		`(allow network-bind (local ip ${loopback}))`,
+		`(allow network-inbound (local ip ${loopback}))`,
+		`(allow network-outbound (remote ip ${loopback}))`,
+	];
 }
 
 /**

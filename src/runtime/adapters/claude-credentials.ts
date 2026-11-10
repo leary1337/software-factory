@@ -3,10 +3,12 @@
  * `src/runtime/claude-code.ts` (warren-7933, plan pl-3007). Split out of
  * `./claude-code.ts` for the file-size budget.
  *
- * When the host is logged in (burrow SPEC §17.4), `prepareWorkspace`
- * forwards credentials into the run's `.claude/` so the sandboxed agent
- * finds them via HOME-relative lookup without requiring a second
- * `/login`. Source is platform-specific:
+ * When the host is logged in (burrow SPEC §17.4), the local drive loop
+ * (`../local/drive-prepare.ts`) forwards credentials into the run's
+ * per-run HOME (warren-c865) so the sandboxed agent finds them via
+ * HOME-relative lookup without requiring a second `/login`. Never into the
+ * workspace: that tree is the agent's commit surface and warren pushes it.
+ * Source is platform-specific:
  *   - linux: copy `~/.claude/.credentials.json` if present.
  *   - darwin: extract from the macOS Keychain (service `Claude Code-
  *     credentials`) and materialize as `.credentials.json`. The sandbox
@@ -54,18 +56,19 @@ export const macKeychainReader: KeychainReader = async (service) => {
 };
 
 /**
- * Forward host credentials into the run's `.claude/`. Inside the sandbox
- * HOME is `/workspace`, so the agent reads `HOME/.claude/.credentials.json`
- * — materializing the file ahead of every spawn lets token refreshes pick
- * up on the next prompt. No-op when the host has never logged in.
+ * Forward host credentials into `<homePath>/.claude/`. The sandbox exports
+ * the run's HOME as `homePath`, so the agent reads
+ * `HOME/.claude/.credentials.json` — materializing the file ahead of every
+ * spawn lets token refreshes pick up on the next prompt. No-op when the host
+ * has never logged in.
  *
  * Linux: copy the host's `.credentials.json` byte-for-byte.
  * macOS: extract from the Keychain (service `Claude Code-credentials`) and
- * write the JSON blob into the workspace. The sandbox profile denies
+ * write the JSON blob into the run HOME. The sandbox profile denies
  * Keychain IPC, so claude-code's file fallback is the only path that works.
  */
 export async function forwardClaudeHostCredentials(
-	workspacePath: string,
+	homePath: string,
 	options: ForwardCredentialsOptions = {},
 ): Promise<void> {
 	const plat = options.plat ?? process.platform;
@@ -78,7 +81,7 @@ export async function forwardClaudeHostCredentials(
 	} else {
 		const hostCreds = join(home, ".claude", CLAUDE_CREDENTIALS_FILE);
 		if (existsSync(hostCreds)) {
-			const claudeDir = join(workspacePath, ".claude");
+			const claudeDir = join(homePath, ".claude");
 			mkdirSync(claudeDir, { recursive: true });
 			await copyFile(hostCreds, join(claudeDir, CLAUDE_CREDENTIALS_FILE));
 		}
@@ -86,7 +89,7 @@ export async function forwardClaudeHostCredentials(
 	}
 
 	if (body === null) return;
-	const claudeDir = join(workspacePath, ".claude");
+	const claudeDir = join(homePath, ".claude");
 	mkdirSync(claudeDir, { recursive: true });
 	writeFileSync(join(claudeDir, CLAUDE_CREDENTIALS_FILE), body, {
 		encoding: "utf8",

@@ -34,6 +34,7 @@ import { dirname, join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import type { EnvLike } from "../../client/config.ts";
 import { fetchGitHubUserLogin } from "../../forge/user-lookup.ts";
+import { CODEX_BIN } from "../../runtime/adapters/codex.ts";
 import type { CliContext } from "../output.ts";
 import { binaryOnPath } from "./up.ts";
 
@@ -270,6 +271,16 @@ async function promptModelCredential(
 	updates: Record<string, string>,
 ): Promise<void> {
 	const out = context.stdio.stdout;
+	if (deps.hasBinary(CODEX_BIN)) {
+		const login = await deps.runCommand([CODEX_BIN, "login", "status"]);
+		if (login.exitCode === 0) {
+			out.write("Using the existing Codex login. Factory runs require ChatGPT authentication.\n");
+			return;
+		}
+		out.write("Run codex login to sign in with ChatGPT before dispatching factory runs.\n");
+		return;
+	}
+
 	out.write(
 		"\nNo model credential found (neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN).\n",
 	);

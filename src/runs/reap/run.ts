@@ -7,6 +7,7 @@ import { isInfraLostRunFailure } from "../retry/infra-lost-retry.ts";
 import { bindBridgeLogger } from "../stream/index.ts";
 import { runWorkspaceDestroy } from "./destroy.ts";
 import { classifyInfraLoss, infraLossEventPayload, REAP_INFRA_LOSS_KIND } from "./infra-loss.ts";
+import { declaresNoCommits } from "./no-commits.ts";
 import { createPipelineState, runReapPipeline } from "./pipeline.ts";
 import { detectTerminalProviderError, providerErrorEventPayload } from "./provider-error.ts";
 import { salvageWorkspace, surfacePodSalvage, type WorkspaceSalvageOutcome } from "./salvage.ts";
@@ -195,8 +196,7 @@ export async function reapRun(input: ReapRunInput): Promise<ReapRunResult> {
 	const noChangesFailure =
 		state.noChanges &&
 		(run.ref !== null || run.targetBranch !== null) &&
-		// A reviewer leaves the branch untouched by design.
-		run.agentName !== "reviewer" &&
+		!declaresNoCommits(run) && // a reviewer leaves the branch untouched by design
 		input.outcome === "succeeded";
 	const effectiveOutcome: RunTerminalState =
 		state.droppedCommit || noChangesFailure || failedFromProviderError || finalizeFailed

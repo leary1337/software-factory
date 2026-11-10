@@ -150,6 +150,7 @@ const CLAUDE_CODE_USAGE_SHAPE: UsageShape = {
 export const USAGE_SHAPES: Readonly<Partial<Record<RuntimeId, UsageShape>>> = {
 	pi: PI_USAGE_SHAPE,
 	"claude-code": CLAUDE_CODE_USAGE_SHAPE,
+	codex: { ...CLAUDE_CODE_USAGE_SHAPE, runtime: "codex" },
 };
 
 /**

@@ -210,7 +210,7 @@ export class LocalEngine {
 		await writeLocalRunManifest(this.roots, manifest).catch(() => {});
 
 		// Fire-and-forget: the drive loop terminalizes the record itself.
-		void driveLocalRun(this.store, record, spec, profile, this.deps.drive ?? {});
+		record.driveDone = driveLocalRun(this.store, record, spec, profile, this.deps.drive ?? {});
 		return { runId: spec.runId, sandboxId, providerRunId: record.providerRunId };
 	}
 
@@ -423,7 +423,9 @@ export class LocalEngine {
 	 */
 	async terminate(handle: RunHandle): Promise<TeardownResult> {
 		const record = this.store.getBySandboxId(handle.sandboxId);
+		if (record) record.cancelRequested = true;
 		record?.proc?.cancel();
+		await record?.driveDone;
 		// Cascade: terminate every live preview sidecar + release every
 		// forward before the workspace they run in disappears (warren-4bf3).
 		await this.deps.sidecars?.cascadeDelete(handle.sandboxId).catch(() => undefined);

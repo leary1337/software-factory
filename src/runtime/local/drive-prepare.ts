@@ -13,7 +13,7 @@ import {
 } from "../../sandbox/proxy-server.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
 import { forwardClaudeHostCredentials } from "../adapters/claude-credentials.ts";
-import { type AgentRuntimeAdapter, allAdapters } from "../adapters/index.ts";
+import { type AgentRuntimeAdapter, allAdapters, eventParserFor } from "../adapters/index.ts";
 import type { AgentFrontmatter } from "../adapters/types.ts";
 import type { RunSpec } from "../contract.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
@@ -102,6 +102,7 @@ export interface PreparedSpawn {
 	readonly runCommand: SpawnCommand;
 	readonly proxy: ProxyHandle | null;
 	readonly useStdinHold: boolean;
+	readonly finalizeHome?: () => Promise<void>;
 }
 
 /** Resolve runtime + command + optional restricted-network proxy, or null on fail. */
@@ -112,7 +113,7 @@ export async function prepareSpawn(
 	profile: SandboxProfile,
 	deps: PrepareDeps,
 ): Promise<PreparedSpawn | null> {
-	const runtime = (deps.registry ?? DEFAULT_REGISTRY).get(spec.runtimeId);
+	let runtime = (deps.registry ?? DEFAULT_REGISTRY).get(spec.runtimeId);
 	if (runtime === undefined) {
 		failBeforeSpawn(store, record, `runtime '${spec.runtimeId}' is not registered`, deps);
 		return null;
@@ -129,6 +130,8 @@ export async function prepareSpawn(
 
 	const pendingMessages = store.claimPending(record, deps.now);
 	const frontmatter = readSpecFrontmatter(spec.metadata);
+	const buildSpawnCommand = runtime.buildSpawnCommand;
+	runtime = { ...runtime, parseEvents: eventParserFor(runtime, frontmatter) };
 	if (runtime.prepareWorkspace !== undefined) {
 		await runtime.prepareWorkspace({
 			runId: spec.runId,
@@ -149,7 +152,7 @@ export async function prepareSpawn(
 	}
 
 	const useStdinHold = typeof runtime.shouldCloseStdinOnEvent === "function";
-	const baseCommand = runtime.buildSpawnCommand({
+	const baseCommand = buildSpawnCommand({
 		runId: spec.runId,
 		prompt: spec.prompt,
 		pendingMessages,
@@ -163,14 +166,25 @@ export async function prepareSpawn(
 
 	// warren-70bb: under network=restricted, start a per-run loopback CONNECT
 	// proxy that enforces allowedDomains and overlays HTTP(S)_PROXY.
-	const armed = await armRestrictedProxy(store, record, profile, holdCommand, deps);
-	if (armed === null) return null;
+	const finalizeHome = once(await runtime.prepareHome?.(record.homePath));
+	let armed: ArmedProxy | null;
+	try {
+		armed = await armRestrictedProxy(store, record, profile, holdCommand, deps);
+	} catch (error) {
+		await finalizeHome?.();
+		throw error;
+	}
+	if (armed === null) {
+		await finalizeHome?.();
+		return null;
+	}
 	return {
 		runtime,
 		runProfile: armed.runProfile,
 		runCommand: armed.runCommand,
 		proxy: armed.proxy,
 		useStdinHold,
+		...(finalizeHome ? { finalizeHome } : {}),
 	};
 }
 
@@ -217,4 +231,14 @@ async function armRestrictedProxy(
 		},
 	};
 	return { runProfile, runCommand, proxy };
+}
+
+function once(cleanup: (() => Promise<void>) | undefined): (() => Promise<void>) | undefined {
+	if (!cleanup) return undefined;
+	let finished = false;
+	return async () => {
+		if (finished) return;
+		finished = true;
+		await cleanup();
+	};
 }

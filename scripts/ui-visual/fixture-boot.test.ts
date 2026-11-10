@@ -43,7 +43,7 @@ beforeAll(async () => {
 	// API only: the test must not depend on a `bun run build:ui` artifact.
 	fixture = await bootFixture({ uiDistDir: null });
 	bootMs = performance.now() - started;
-});
+}, BOOT_BUDGET_MS);
 
 afterAll(async () => {
 	await fixture?.stop();

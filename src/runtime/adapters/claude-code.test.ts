@@ -190,6 +190,16 @@ describe("claudeCodeAdapter.prepareWorkspace", () => {
 		expect(parsed.hooks).toEqual({});
 	});
 
+	test("never writes credentials into the workspace", async () => {
+		await claudeCodeAdapter.prepareWorkspace?.({ runId: "run_test", workspacePath: dir });
+		const fs = await import("node:fs");
+		expect(fs.existsSync(join(dir, ".claude", ".credentials.json"))).toBe(false);
+	});
+
+	test("excludes the credentials file from the run branch", () => {
+		expect(claudeCodeAdapter.commitExcludes).toContain(".claude/.credentials.json");
+	});
+
 	test("plants .sandbox-tmp/ + a `*` .gitignore (burrow-8452)", async () => {
 		await claudeCodeAdapter.prepareWorkspace?.({ runId: "run_test", workspacePath: dir });
 		const fs = await import("node:fs");
@@ -200,63 +210,63 @@ describe("claudeCodeAdapter.prepareWorkspace", () => {
 });
 
 describe("forwardClaudeHostCredentials (linux)", () => {
-	let workspaceDir: string;
+	let homeDir: string;
 	let fakeHome: string;
 	beforeEach(async () => {
-		workspaceDir = await mkdtemp(join(tmpdir(), "warren-claude-prep-"));
+		homeDir = await mkdtemp(join(tmpdir(), "warren-claude-prep-"));
 		fakeHome = await mkdtemp(join(tmpdir(), "warren-claude-home-"));
 	});
 	afterEach(async () => {
-		await rm(workspaceDir, { recursive: true, force: true });
+		await rm(homeDir, { recursive: true, force: true });
 		await rm(fakeHome, { recursive: true, force: true });
 	});
 
-	test("copies host ~/.claude/.credentials.json into the run's .claude/ when present", async () => {
+	test("copies host ~/.claude/.credentials.json into the run HOME's .claude/ when present", async () => {
 		const fs = await import("node:fs/promises");
 		await fs.mkdir(join(fakeHome, ".claude"), { recursive: true });
 		await writeFile(join(fakeHome, ".claude", ".credentials.json"), '{"token":"fake"}');
 
-		await forwardClaudeHostCredentials(workspaceDir, { home: fakeHome, plat: "linux" });
+		await forwardClaudeHostCredentials(homeDir, { home: fakeHome, plat: "linux" });
 
-		const forwarded = await readFile(join(workspaceDir, ".claude", ".credentials.json"), "utf8");
+		const forwarded = await readFile(join(homeDir, ".claude", ".credentials.json"), "utf8");
 		expect(JSON.parse(forwarded)).toEqual({ token: "fake" });
 	});
 
 	test("is a no-op when the host has no ~/.claude/.credentials.json", async () => {
-		await forwardClaudeHostCredentials(workspaceDir, { home: fakeHome, plat: "linux" });
+		await forwardClaudeHostCredentials(homeDir, { home: fakeHome, plat: "linux" });
 		const fs = await import("node:fs");
-		expect(fs.existsSync(join(workspaceDir, ".claude", ".credentials.json"))).toBe(false);
+		expect(fs.existsSync(join(homeDir, ".claude", ".credentials.json"))).toBe(false);
 	});
 });
 
 describe("forwardClaudeHostCredentials (darwin)", () => {
-	let workspaceDir: string;
+	let homeDir: string;
 	beforeEach(async () => {
-		workspaceDir = await mkdtemp(join(tmpdir(), "warren-claude-prep-"));
+		homeDir = await mkdtemp(join(tmpdir(), "warren-claude-prep-"));
 	});
 	afterEach(async () => {
-		await rm(workspaceDir, { recursive: true, force: true });
+		await rm(homeDir, { recursive: true, force: true });
 	});
 
 	test("extracts the Keychain blob and writes it as .credentials.json", async () => {
 		const blob = '{"claudeAiOauth":{"accessToken":"oat-x","refreshToken":"rt-y"}}';
-		await forwardClaudeHostCredentials(workspaceDir, {
+		await forwardClaudeHostCredentials(homeDir, {
 			plat: "darwin",
 			keychainReader: async (service) => {
 				expect(service).toBe("Claude Code-credentials");
 				return blob;
 			},
 		});
-		const written = await readFile(join(workspaceDir, ".claude", ".credentials.json"), "utf8");
+		const written = await readFile(join(homeDir, ".claude", ".credentials.json"), "utf8");
 		expect(written).toBe(blob);
 	});
 
 	test("is a no-op when Keychain has no entry", async () => {
-		await forwardClaudeHostCredentials(workspaceDir, {
+		await forwardClaudeHostCredentials(homeDir, {
 			plat: "darwin",
 			keychainReader: async () => null,
 		});
 		const fs = await import("node:fs");
-		expect(fs.existsSync(join(workspaceDir, ".claude", ".credentials.json"))).toBe(false);
+		expect(fs.existsSync(join(homeDir, ".claude", ".credentials.json"))).toBe(false);
 	});
 });

@@ -4,12 +4,11 @@
  * named. The plan-run review step (src/plan-runs/review.ts) chains them.
  *
  * Skills come from the pack in factory/skill-pack, delivered into the run's
- * $HOME. The Skill tool serves the pack's own skills; it refuses pstack's, so
- * those are read by path.
+ * $HOME. Codex discovers the skills in .agents; pstack is read by path.
  */
 
+import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
 import type { AgentDefinition } from "../schema.ts";
-import { MODEL_TIERS } from "./model-tiers.ts";
 import {
 	GATE_FINAL_RUN_RULE,
 	MULCH_FRAGMENT,
@@ -17,23 +16,27 @@ import {
 	TRACKER_FRAGMENT,
 } from "./prompt-fragments.ts";
 
-const PSTACK = "$HOME/.claude/factory/pstack";
+const PSTACK = "$HOME/.agents/pstack";
+const HARNESS_GUIDE = `Read \`${PSTACK}/docs/harness/codex.md\` before using the skills.`;
 
 const UNATTENDED_RULES = `## Unattended rules
 
 - This run has no human in it. When something is unclear, take the most defensible reading, note it in your final message, and finish.
-- Run every command in the foreground, giving long ones the Bash tool's \`timeout\` of 600000, and wait for every subagent to report before you finish. Your run ends the moment your turn does.
+- Run every command in the foreground, waiting for long-running commands to finish, and wait for every subagent to report before you finish. Your run ends the moment your turn does.
 - Warren pushes your commits and handles the PR, so your work ends at \`git commit\`.
-- Network access is limited to an allowlist. A blocked host means the task must get by without it.`;
+- Network access is limited to an allowlist. A blocked host means the task must get by without it.
+- The macOS sandbox blocks \`ps\`. Use \`pgrep -lf <pattern>\` to find your processes and \`pkill -f <pattern>\` to stop one you started; both work in every sandbox.`;
 
 const IMPLEMENTER_SYSTEM = `You implement one ticket in this repository, unattended, and leave it committed on the current branch.
 
+${HARNESS_GUIDE}
+
 ## Procedure
 
-1. Read CLAUDE.md or AGENTS.md if present, then the ticket in your prompt.
-2. Read \`${PSTACK}/docs/harness/claude-code.md\`, then \`${PSTACK}/skills/poteto-mode/SKILL.md\`, and follow the playbook that matches the ticket (feature, bug fix, refactoring). Stop its flow at the commit: step 4 below replaces its opening-a-pr ending.
+1. Read AGENTS.md or CLAUDE.md if present, then the ticket in your prompt.
+2. Read \`${PSTACK}/skills/poteto-mode/SKILL.md\`, and follow the playbook that matches the ticket (feature, bug fix, refactoring). Stop its flow at the commit: step 4 below replaces its opening-a-pr ending.
 3. Reach for these as the work calls for them:
-   - Skill tool: \`tdd\` for new behaviour, \`diagnosing-bugs\` for defects, \`codebase-design\` when a module's interface is in play, \`go-best-practices\` when you edit Go.
+   - Read the matching SKILL.md under $HOME/.agents/skills: \`tdd\` for new behaviour, \`diagnosing-bugs\` for defects, \`codebase-design\` when a module's interface is in play, \`go-best-practices\` when you edit Go.
    - Read by path: \`${PSTACK}/skills/architect/SKILL.md\` before code that crosses a function boundary, \`${PSTACK}/skills/typescript-best-practices/SKILL.md\` when you edit TypeScript.
 4. Run the project's complete quality gate (${QUALITY_GATE_CHAIN}) and commit. ${GATE_FINAL_RUN_RULE}
 
@@ -42,11 +45,13 @@ ${UNATTENDED_RULES}
 
 const REVIEWER_SYSTEM = `You review one pull request cold, against the ticket it came from. Your prompt gives the ticket and the fixed point of the diff. You report and commit nothing.
 
+${HARNESS_GUIDE}
+
 ## Procedure
 
-1. Read CLAUDE.md or AGENTS.md if present, then the ticket.
+1. Read AGENTS.md or CLAUDE.md if present, then the ticket.
 2. Install the project's dependencies and run its complete quality gate (${QUALITY_GATE_CHAIN}). A step that fails because of the code is a blocking finding. List each step the sandbox cannot run, such as a blocked download or a local port, under \`Not run:\` with the reason.
-3. Read \`$HOME/.claude/skills/code-review/SKILL.md\` and run both of its axes over the diff since the fixed point, with the ticket as the spec.
+3. Read \`$HOME/.agents/skills/code-review/SKILL.md\` and run both of its axes over the diff since the fixed point, with the ticket as the spec.
 4. Read \`${PSTACK}/skills/interrogate/SKILL.md\` and follow it, keeping only findings a run proves.
 5. When the diff changes something other code depends on, read \`${PSTACK}/skills/blast-radius/SKILL.md\` and follow it.
 6. Check the diff for security defects: untrusted input reaching queries, shells, paths or templates; missing authorization; secrets in code or logs; unsafe concurrency around shared state.
@@ -62,10 +67,12 @@ ${UNATTENDED_RULES}
 
 const REWORK_SYSTEM = `You fix what an automated review named on an existing pull request branch, unattended. The findings are in your prompt.
 
+${HARNESS_GUIDE}
+
 ## Procedure
 
-1. Read CLAUDE.md or AGENTS.md if present, then every finding.
-2. For each finding, confirm it against the code. Use the Skill tool's \`diagnosing-bugs\` for defects and \`go-best-practices\` when you edit Go.
+1. Read AGENTS.md or CLAUDE.md if present, then every finding.
+2. For each finding, confirm it against the code. Read the SKILL.md under $HOME/.agents/skills for \`diagnosing-bugs\` for defects and \`go-best-practices\` when you edit Go.
 3. Apply the smallest correct fix for each confirmed finding, and keep the diff to what the findings require.
 4. Run the project's complete quality gate (${QUALITY_GATE_CHAIN}) and commit, naming the findings you fixed. ${GATE_FINAL_RUN_RULE}
 5. In your final message, list any finding you judged wrong, with your evidence.
@@ -78,7 +85,7 @@ const GATED_PROMPTS = { tracker: TRACKER_FRAGMENT, mulch: MULCH_FRAGMENT };
 const FRONTMATTER = {
 	source: "builtin",
 	tags: ["agent"],
-	runtime: "claude-code",
+	runtime: "codex",
 	steering: "spawn-only",
 	mulch: "on",
 };
@@ -89,7 +96,7 @@ export const IMPLEMENTER_BUILTIN: AgentDefinition = {
 	sections: { system: IMPLEMENTER_SYSTEM, burrow_config: SANDBOX },
 	gatedPrompts: GATED_PROMPTS,
 	resolvedFrom: ["builtin:implementer"],
-	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.sonnet },
+	frontmatter: { ...FRONTMATTER, provider: "openai", model: CODEX_DEFAULT_MODEL },
 };
 
 export const REVIEWER_BUILTIN: AgentDefinition = {
@@ -98,7 +105,8 @@ export const REVIEWER_BUILTIN: AgentDefinition = {
 	sections: { system: REVIEWER_SYSTEM, burrow_config: SANDBOX },
 	gatedPrompts: GATED_PROMPTS,
 	resolvedFrom: ["builtin:reviewer"],
-	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.opus },
+	// Zero commits is a reviewer's success shape (src/runs/reap/no-commits.ts).
+	frontmatter: { ...FRONTMATTER, provider: "openai", model: CODEX_DEFAULT_MODEL, noCommits: true },
 };
 
 export const REWORK_BUILTIN: AgentDefinition = {
@@ -107,5 +115,5 @@ export const REWORK_BUILTIN: AgentDefinition = {
 	sections: { system: REWORK_SYSTEM, burrow_config: SANDBOX },
 	gatedPrompts: GATED_PROMPTS,
 	resolvedFrom: ["builtin:rework"],
-	frontmatter: { ...FRONTMATTER, ...MODEL_TIERS.sonnet },
+	frontmatter: { ...FRONTMATTER, provider: "openai", model: CODEX_DEFAULT_MODEL },
 };

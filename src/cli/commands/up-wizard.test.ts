@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CliContext } from "../output.ts";
 import {
+	defaultUpWizardDeps,
 	loadWizardEnv,
 	parseWizardEnv,
 	runUpWizard,
@@ -100,6 +101,64 @@ describe("wizardCredentialState", () => {
 });
 
 describe("runUpWizard", () => {
+	test("probes executables and forwards the login status command with a bounded timeout", async () => {
+		const home = freshHome();
+		const { context } = captureContext();
+		const commands: unknown[] = [];
+		const spawn: CliContext["spawn"] = async (cmd, options) => {
+			commands.push({ cmd, options });
+			return { stdout: "Logged in using ChatGPT", stderr: "", exitCode: 0 };
+		};
+		const deps = defaultUpWizardDeps({ ...context, spawn }, { PATH: "/bin:/usr/bin" }, () => home);
+		expect(deps.homeDir()).toBe(home);
+		expect(deps.isInteractive()).toBe(process.stdin.isTTY === true);
+		expect(deps.hasBinary("sh")).toBe(true);
+		expect(await deps.runCommand(["codex", "login", "status"])).toMatchObject({ exitCode: 0 });
+		expect(commands[0]).toMatchObject({
+			cmd: ["codex", "login", "status"],
+			options: { timeoutMs: 120000 },
+		});
+	});
+
+	test("requests Codex login when no subscription session is available", async () => {
+		const { context, out } = captureContext({
+			WARREN_GIT_TOKEN: "fake-git-token",
+			WARREN_GIT_AUTHOR_NAME: "test",
+			WARREN_GIT_AUTHOR_EMAIL: "test@example.com",
+		});
+		await runUpWizard(
+			context,
+			wizardDeps(freshHome(), {
+				hasBinary: (name) => name === "codex",
+			}),
+			{ wizard: true },
+		);
+		expect(out.join("")).toContain("Run codex login");
+	});
+
+	test("uses an existing Codex login without requesting an Anthropic credential", async () => {
+		const home = freshHome();
+		const { context, out } = captureContext({
+			WARREN_GIT_TOKEN: "fake-git-token",
+			WARREN_GIT_AUTHOR_NAME: "test",
+			WARREN_GIT_AUTHOR_EMAIL: "test@example.com",
+		});
+		const commands: string[][] = [];
+		await runUpWizard(
+			context,
+			wizardDeps(home, {
+				hasBinary: (name) => name === "codex",
+				runCommand: async (argv) => {
+					commands.push([...argv]);
+					return { stdout: "Logged in using ChatGPT", exitCode: 0 };
+				},
+			}),
+			{ wizard: true },
+		);
+		expect(commands).toEqual([["codex", "login", "status"]]);
+		expect(out.join("")).toContain("existing Codex login");
+	});
+
 	test("bypasses every prompt when stdin is not a TTY and still returns the stored env", async () => {
 		const home = freshHome();
 		writeWizardEnv(wizardEnvPath(home), { WARREN_GIT_TOKEN: "ghp_stored" });

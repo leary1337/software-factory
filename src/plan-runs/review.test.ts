@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { HandleInFlightInput } from "./in-flight.ts";
 import {
 	advanceReview,
 	decideReviewStep,
+	loadReviewStage,
 	MAX_REWORKS,
 	parseVerdict,
 	type ReviewStepRecord,
@@ -183,6 +185,75 @@ describe("advanceReview", () => {
 		const { input, spawned, comments } = harness("implementer", true);
 		expect(await advanceReview(input, run as never, prUrl)).toBeNull();
 		expect(spawned).toEqual([]);
+		expect(comments).toEqual([]);
+	});
+
+	test("keeps the stage readable when a Codex reviewer commits no changes", async () => {
+		const { input } = harness();
+		const repos = {
+			...input.repos,
+			events: {
+				...input.repos.events,
+				listByRun: async () => [
+					{ kind: "plan_run.review_step", payloadJson: { step: "review", stepRunId: "r" } },
+				],
+				listTail: async () => [
+					{ payloadJson: { type: "result", runtime: "codex", result: "VERDICT: PASS" } },
+				],
+			},
+			runs: {
+				require: async () => ({ state: "failed", failureReason: "no_changes", endedAt: "t" }),
+			},
+		} as unknown as HandleInFlightInput["repos"];
+		expect(await loadReviewStage(repos, "implementer", "run_a")).toBe("ready_to_merge");
+		expect(await loadReviewStage(repos, "pi", "run_a")).toBeNull();
+	});
+
+	test("waits for a running review and treats a missing final message as broken", async () => {
+		const { input, comments } = harness();
+		const repos = {
+			...input.repos,
+			events: {
+				...input.repos.events,
+				listByRun: async () => [
+					{ kind: "plan_run.review_step", payloadJson: { step: "review", stepRunId: "r" } },
+				],
+			},
+			runs: { require: async () => ({ state: "running", endedAt: null }) },
+		} as unknown as HandleInFlightInput["repos"];
+		expect(await advanceReview({ ...input, repos }, run as never, prUrl)).toMatchObject({
+			result: { kind: "waiting_for_run" },
+		});
+		repos.runs.require = async () => ({ state: "succeeded", endedAt: "t" }) as never;
+		expect(await advanceReview({ ...input, repos }, run as never, prUrl)).toBeNull();
+		expect(comments[0]).toContain("no verdict");
+	});
+
+	test("reports a missing branch or failed dispatch without merging", async () => {
+		const { input, comments } = harness();
+		expect(await advanceReview(input, { ...run, branch: null } as never, prUrl)).toBeNull();
+		expect(comments[0]).toContain("no branch");
+		const failed = {
+			...input,
+			spawn: async () => {
+				throw new Error("login expired");
+			},
+		};
+		expect(await advanceReview(failed, run as never, prUrl)).toBeNull();
+		expect(comments[1]).toContain("did not start");
+	});
+
+	test("defers a review when the shared concurrency budget is occupied", async () => {
+		const { input, comments } = harness();
+		const deferred = {
+			...input,
+			spawn: async () => {
+				throw new PlanRunSpawnDeferredError("concurrency_limit");
+			},
+		};
+		expect(await advanceReview(deferred, run as never, prUrl)).toMatchObject({
+			result: { kind: "noop" },
+		});
 		expect(comments).toEqual([]);
 	});
 });

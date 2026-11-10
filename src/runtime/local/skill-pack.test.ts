@@ -2,7 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { DEFAULT_SKILL_PACK_DIR, materializeSkillPack, pstackPluginDir } from "./skill-pack.ts";
+import {
+	DEFAULT_SKILL_PACK_DIR,
+	materializeCodexSkillPack,
+	materializeSkillPack,
+	pstackPluginDir,
+} from "./skill-pack.ts";
 
 const temps: string[] = [];
 
@@ -49,6 +54,15 @@ describe("materializeSkillPack", () => {
 });
 
 describe("the committed pack", () => {
+	test("delivers Codex skills and harness instructions into the isolated home", async () => {
+		const home = tempDir();
+		await materializeCodexSkillPack(home);
+		expect(existsSync(join(home, ".agents/skills/tdd/SKILL.md"))).toBe(true);
+		expect(existsSync(join(home, ".agents/skills/go-best-practices/SKILL.md"))).toBe(true);
+		expect(existsSync(join(home, ".agents/pstack/docs/harness/codex.md"))).toBe(true);
+		expect(existsSync(join(home, ".claude"))).toBe(false);
+	});
+
 	test("holds the pinned plugin and every locked skill", () => {
 		const lock = JSON.parse(readFileSync(join(DEFAULT_SKILL_PACK_DIR, "LOCK.json"), "utf8"));
 		expect(existsSync(join(DEFAULT_SKILL_PACK_DIR, "pstack/.claude-plugin/plugin.json"))).toBe(

@@ -38,14 +38,20 @@ function fakeSeedsCli(): { seedsCli: SeedsCliDeps; calls: Array<{ args: string[]
 
 async function setupSeeded(
 	seedId: string | null,
-	opts: { ref?: string; targetBranch?: string } = {},
+	opts: {
+		ref?: string;
+		targetBranch?: string;
+		agentName?: string;
+		renderedAgentJson?: unknown;
+	} = {},
 ): Promise<{
 	repos: Awaited<ReturnType<typeof createRepos>>;
 	runId: string;
 }> {
 	const db = await openDatabase({ path: ":memory:" });
 	const repos = createRepos(db);
-	await repos.agents.upsert({ name: "refactor-bot", renderedJson: { sections: { system: "x" } } });
+	const agentName = opts.agentName ?? "refactor-bot";
+	await repos.agents.upsert({ name: agentName, renderedJson: { sections: { system: "x" } } });
 	const project = await repos.projects.create({
 		gitUrl: "https://github.com/x/y.git",
 		localPath: "/data/projects/x/y",
@@ -53,10 +59,10 @@ async function setupSeeded(
 		hasSeeds: true,
 	});
 	const run = await repos.runs.create({
-		agentName: "refactor-bot",
+		agentName,
 		projectId: project.id,
 		prompt: "p",
-		renderedAgentJson: {},
+		renderedAgentJson: opts.renderedAgentJson ?? {},
 		trigger: "manual",
 		sandboxId: "bur_aaaaaaaaaaaa",
 		sandboxRunId: "run_zzzzzzzzzzzz",
@@ -124,6 +130,44 @@ describe("reapRun zero-commit classification (warren-89b0)", () => {
 
 		expect(result.state).toBe("failed");
 		expect(result.failureReason).toBe("dropped_commit");
+	});
+});
+
+describe("reapRun zero-commit agent that declares noCommits", () => {
+	async function reapCleanRefDispatch(agentName: string, renderedAgentJson: unknown) {
+		const { repos, runId } = await setupSeeded(null, {
+			ref: "factory/run_x",
+			targetBranch: "factory/run_x",
+			agentName,
+			renderedAgentJson,
+		});
+		const f = fakeFs({ "/data/projects/x/y/.seeds/issues.jsonl": ISSUES });
+		const e = fakeExec({ revListCount: "0", gitStatus: "" });
+		return reapRun({
+			runId,
+			outcome: "succeeded",
+			repos,
+			...reapDeps(fakeBurrowClient(makeBurrow()), { fs: f.fs, exec: e.exec }),
+			fs: f.fs,
+			exec: e.exec,
+		});
+	}
+
+	test("stays succeeded on a ref-dispatch that pushes no commits", async () => {
+		const result = await reapCleanRefDispatch("auditor", { frontmatter: { noCommits: true } });
+		expect(result.state).toBe("succeeded");
+		expect(result.failureReason).toBeNull();
+	});
+
+	test("accepts the string flag a canopy --fm author produces", async () => {
+		const result = await reapCleanRefDispatch("auditor", { frontmatter: { noCommits: "true" } });
+		expect(result.state).toBe("succeeded");
+	});
+
+	test("keys on the flag, not on the agent name", async () => {
+		const result = await reapCleanRefDispatch("reviewer", { frontmatter: {} });
+		expect(result.state).toBe("failed");
+		expect(result.failureReason).toBe("no_changes");
 	});
 });
 

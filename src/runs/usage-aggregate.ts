@@ -22,7 +22,7 @@
 
 import { extractAgentEventEnvelope } from "../core/event-envelope.ts";
 import { type UsageReading, type UsageShape, usageShapeFor } from "../core/usage-shape.ts";
-import type { RuntimeId } from "../core/wire.ts";
+import { isKnownRuntimeId, type RuntimeId } from "../core/wire.ts";
 import type { SessionStats } from "./stream/index.ts";
 
 /**
@@ -58,6 +58,7 @@ export interface UsageEventInput {
  */
 export interface SessionStatsAccumulator {
 	seen: boolean;
+	runtime?: RuntimeId;
 	costUsd: number;
 	tokensInput: number;
 	tokensOutput: number;
@@ -124,6 +125,7 @@ function accumulateWithShape(
 	const reading = shape.read(envelope.payload);
 	if (reading === null) return;
 	applyReading(acc, reading, shape.mode);
+	if (isKnownRuntimeId(envelope.payload.runtime)) acc.runtime = envelope.payload.runtime;
 }
 
 /**
