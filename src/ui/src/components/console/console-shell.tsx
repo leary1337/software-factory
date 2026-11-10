@@ -95,7 +95,8 @@ export function ConsoleShell() {
 					<ConsoleTopbar stats={stats} />
 				</div>
 
-				<main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+				{/* biome-ignore lint/a11y/noNoninteractiveTabindex: warren-f009 keyboard users must be able to focus this scroll container. */}
+				<main tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
 					{/* Boundary sits INSIDE the chrome so a page-level throw costs
 					    the page, not the shell (warren-1f12). */}
 					<ErrorBoundary resetKey={location.pathname}>

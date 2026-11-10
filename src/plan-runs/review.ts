@@ -1,3 +1,4 @@
+import { includeUiReview, UI_REVIEW_PROMPT } from "./ui-review.ts";
 /**
  * The factory's review step: between a child's PR opening and the human merge,
  * run `reviewer`, and on a CHANGES verdict run `rework` on the same branch,
@@ -5,11 +6,17 @@
  * child's run, so the state survives a server restart with no new columns.
  */
 
+import { hasQualityGateWitness, reportWithVerifiedGate } from "../core/quality-gate.ts";
+import type { ReviewStage, ReviewStepKind } from "../core/wire.ts";
+
+export type { ReviewStage, ReviewStepKind } from "../core/wire.ts";
+
 import { parseVerdict, passedReviewCommit } from "./review-result.ts";
 
 export { parseVerdict } from "./review-result.ts";
 
 import type { RunRow } from "../db/schema.ts";
+import { recordLearningEvidence } from "../runs/learning-evidence.ts";
 import type { CoordinatorRepos } from "./coordinator.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
@@ -18,7 +25,6 @@ import { currentReviewEvents, finishReview, pendingReviewDelivery } from "./revi
 export const MAX_REWORKS = 2;
 export const REVIEWED_AGENT = "implementer";
 
-export type ReviewStepKind = "review" | "rework";
 export type ReviewOutcome = "passed" | "changes_left" | "broken";
 
 export interface ReviewStepRecord {
@@ -26,10 +32,15 @@ export interface ReviewStepRecord {
 	readonly state: "running" | "succeeded" | "failed";
 	readonly resultText: string | null;
 	readonly reviewedCommit?: string;
+	readonly gateVerified?: boolean;
 }
 
 export type ReviewDecision =
-	| { readonly kind: "spawn"; readonly step: "review" }
+	| {
+			readonly kind: "spawn";
+			readonly step: "review" | "ui_review";
+			readonly reviewedCommit?: string;
+	  }
 	| { readonly kind: "spawn"; readonly step: "rework"; readonly findings: string }
 	| { readonly kind: "wait" }
 	| { readonly kind: "finished"; readonly outcome: ReviewOutcome; readonly report: string };
@@ -49,6 +60,12 @@ export function decideReviewStep(steps: readonly ReviewStepRecord[]): ReviewDeci
 		return { kind: "finished", outcome: "broken", report: "The review gave no verdict." };
 	}
 	if (verdict === "PASS") {
+		if (last.gateVerified === false)
+			return {
+				kind: "finished",
+				outcome: "broken",
+				report: "The runtime did not independently verify the quality gate on this commit.",
+			};
 		const commit = passedReviewCommit(report);
 		if (commit === null || (last.reviewedCommit !== undefined && commit !== last.reviewedCommit)) {
 			return {
@@ -66,7 +83,6 @@ export function decideReviewStep(steps: readonly ReviewStepRecord[]): ReviewDeci
 }
 
 /** Where a child with an open PR actually is, for the plan view. */
-export type ReviewStage = "reviewing" | "reworking" | "ready_to_merge" | "needs_attention";
 
 export function reviewStageOf(steps: readonly ReviewStepRecord[]): ReviewStage {
 	const decision = decideReviewStep(steps);
@@ -106,20 +122,31 @@ export async function loadSteps(
 			stepRunId: string;
 			reviewedCommit?: string;
 		};
-		const stepRun = await repos.runs.require(payload.stepRunId);
-		// A step that leaves the branch untouched ends as no_changes; for a reviewer that is the job done.
-		const finishedCleanly = stepRun.state === "succeeded" || stepRun.failureReason === "no_changes";
-		records.push({
-			step: payload.step,
-			reviewedCommit: payload.reviewedCommit ?? stepRun.baseCommit ?? "",
-			state: finishedCleanly ? "succeeded" : stepRun.endedAt === null ? "running" : "failed",
-			resultText: finishedCleanly ? await readResultText(repos, stepRun.id) : null,
-		});
+		records.push(await loadStep(repos, payload));
 	}
 	return records;
 }
 
-async function readResultText(repos: ReviewRepos, runId: string): Promise<string | null> {
+async function loadStep(
+	repos: ReviewRepos,
+	payload: { step: ReviewStepKind; stepRunId: string; reviewedCommit?: string },
+): Promise<ReviewStepRecord> {
+	const stepRun = await repos.runs.require(payload.stepRunId);
+	// A step that leaves the branch untouched ends as no_changes; for a reviewer that is the job done.
+	const finishedCleanly = stepRun.state === "succeeded" || stepRun.failureReason === "no_changes";
+	const commit = payload.reviewedCommit ?? stepRun.baseCommit ?? "";
+	const gateVerified = hasQualityGateWitness(await repos.events.listByRun(stepRun.id), commit);
+	const report = finishedCleanly ? await readResultText(repos, stepRun.id) : null;
+	return {
+		gateVerified,
+		step: payload.step,
+		reviewedCommit: payload.reviewedCommit ?? stepRun.baseCommit ?? "",
+		state: finishedCleanly ? "succeeded" : stepRun.endedAt === null ? "running" : "failed",
+		resultText: report && gateVerified ? reportWithVerifiedGate(report, commit) : report,
+	};
+}
+
+export async function readResultText(repos: ReviewRepos, runId: string): Promise<string | null> {
 	const tail = await repos.events.listTail(runId, 40);
 	for (const event of [...tail].reverse()) {
 		const payload = event.payloadJson as { type?: string; result?: unknown };
@@ -149,7 +176,8 @@ export async function advanceReview(
 	// GitHub may briefly report the pre-push head. Every verdict applies only to
 	// its pin, including CHANGES and a previously delivered terminal report.
 	if (
-		last?.step === "review" &&
+		last !== undefined &&
+		last.step !== "rework" &&
 		last.state !== "running" &&
 		last.reviewedCommit &&
 		input.getReviewHead
@@ -162,9 +190,17 @@ export async function advanceReview(
 	if (events.some((event) => event.kind === "plan_run.review_finished")) return null;
 
 	const pending = await pendingReviewDelivery(input, run.id);
-	const decision: ReviewDecision = pending
-		? { kind: "finished", ...pending }
+	const baseDecision: ReviewDecision = pending
+		? pending.outcome === "passed" && last?.gateVerified !== true
+			? {
+					kind: "finished",
+					outcome: "broken",
+					report: "The runtime quality-gate witness is missing.",
+				}
+			: { kind: "finished", ...pending }
 		: decideReviewStep(steps);
+
+	const decision = await includeUiReview(input, run.branch, prUrl, last, baseDecision);
 
 	if (decision.kind === "wait") {
 		return { kind: "result", result: { kind: "waiting_for_run" } };
@@ -186,14 +222,17 @@ async function spawnReviewStep(
 	}
 
 	const reviewedCommit =
-		decision.step === "review" ? await input.getReviewHead?.(prUrl) : undefined;
-	if (decision.step === "review" && !reviewedCommit) {
+		decision.step !== "rework" ? await input.getReviewHead?.(prUrl) : undefined;
+	if (decision.step !== "rework" && !reviewedCommit) {
 		return { kind: "result", result: { kind: "waiting_for_run" } };
+	}
+	if (decision.step === "ui_review" && decision.reviewedCommit !== reviewedCommit) {
+		return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
 	}
 	const ticket = await describeTicket(input);
 	const prompt =
-		decision.step === "review"
-			? `Review commit ${reviewedCommit} of ${prUrl}. The fixed point of the diff is ${run.baseCommit ?? "the merge-base with the default branch"}.\n\n${ticket}`
+		decision.step !== "rework"
+			? `${decision.step === "ui_review" ? `${UI_REVIEW_PROMPT}\n\n` : ""}Review commit ${reviewedCommit} of ${prUrl}. The fixed point of the diff is ${run.baseCommit ?? "the merge-base with the default branch"}.\n\n${ticket}`
 			: `Fix these findings from the automated review of ${prUrl}.\n\n${decision.findings}\n\n${ticket}`;
 
 	try {
@@ -201,17 +240,28 @@ async function spawnReviewStep(
 			planRun: input.planRun,
 			child: input.child,
 			prompt,
-			agentName: decision.step === "review" ? "reviewer" : "rework",
+			agentName: decision.step === "rework" ? "rework" : "reviewer",
 			existingBranch: run.branch,
 			...(reviewedCommit ? { baseCommit: reviewedCommit } : {}),
-			onRunCreated: async (stepRunId) =>
-				input.emit(run.id, "plan_run.review_step", {
+			onRunCreated: async (stepRunId) => {
+				await input.emit(run.id, "plan_run.review_step", {
 					planRunId: input.planRun.id,
 					seq: input.child.seq,
 					step: decision.step,
 					stepRunId,
 					...(reviewedCommit ? { reviewedCommit } : {}),
-				}),
+				});
+				if (decision.step === "rework")
+					await recordLearningEvidence(input.repos, input.emit, run.id, {
+						sourceKey: `rework:${stepRunId}`,
+						trigger: "rework",
+						sourceRunId: stepRunId,
+						projectId: input.planRun.projectId,
+						planRunId: input.planRun.id,
+						childSeq: input.child.seq,
+						report: decision.findings,
+					});
+			},
 		});
 		return { kind: "result", result: { kind: "dispatched", childRunId: spawned.runId } };
 	} catch (err) {
@@ -238,5 +288,16 @@ export async function resumeReviewDelivery(
 	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
 	if (events.some((event) => event.kind === "plan_run.review_finished")) return null;
 	const pending = await pendingReviewDelivery(input, run.id);
+	if (pending?.outcome === "passed") {
+		const last = (await loadSteps(input.repos, run.id)).at(-1);
+		if (last?.gateVerified !== true)
+			return finishReview(
+				input,
+				run,
+				prUrl,
+				"broken",
+				"The runtime quality-gate witness is missing.",
+			);
+	}
 	return pending ? finishReview(input, run, prUrl, pending.outcome, pending.report) : null;
 }

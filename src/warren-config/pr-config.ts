@@ -114,5 +114,20 @@ export const DeployConfigSchema = z
 	.object({
 		workflow: z.string().min(1).optional(),
 		environment: z.string().min(1).optional(),
+		autoDeploy: z.boolean().default(false),
+		shaInput: z
+			.string()
+			.regex(/^[A-Za-z_][A-Za-z0-9_-]*$/)
+			.optional(),
+		smokeUrl: z
+			.url()
+			.refine((value) => /^https?:\/\//.test(value), "smokeUrl must use HTTP or HTTPS")
+			.optional(),
+		timeoutMs: z.number().int().positive().max(3_600_000).default(900_000),
+		smokeTimeoutMs: z.number().int().positive().max(60_000).default(10_000),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(value) => !value.autoDeploy || (value.smokeUrl !== undefined && value.shaInput !== undefined),
+		"deploy.autoDeploy requires explicit smokeUrl and shaInput",
+	);

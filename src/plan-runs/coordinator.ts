@@ -40,6 +40,7 @@ import type { Repos } from "../db/repos/index.ts";
 import type { PlanRunChildRow, PlanRunChildState, PlanRunRow } from "../db/schema.ts";
 import type { PrMergeChecker } from "../runs/pr-merge.ts";
 import { DEFAULT_PLAN_RUN_MERGE_STALLED_WARNING_MS } from "./config.ts";
+import type { CoordinatorDeploymentFn, ProjectDeploymentBlocker } from "./deployment-gate.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import { handleInFlight } from "./in-flight.ts";
 import { withPlanRunLock } from "./lock.ts";
@@ -103,6 +104,7 @@ export type CoordinatorCloseChildSeedFn = (input: {
 }) => Promise<void>;
 
 export const PLAN_RUN_EVENT_KINDS = [
+	"factory.learning",
 	"plan_run.advanced",
 	"plan_run.dispatched",
 	"plan_run.waiting_for_merge",
@@ -120,6 +122,10 @@ export const PLAN_RUN_EVENT_KINDS = [
 	"plan_run.review_merged",
 	"plan_run.review_comment_attempt",
 	"plan_run.review_commented",
+	"plan_run.deployment_attempt",
+	"plan_run.deployment_dispatched",
+	"plan_run.deployment_verified",
+	"plan_run.deployment_incident",
 ] as const;
 export type PlanRunEventKind = (typeof PLAN_RUN_EVENT_KINDS)[number];
 
@@ -150,7 +156,15 @@ export interface AdvancePlanRunInput {
 	readonly commentOnPr?: CoordinatorCommentFn;
 	/** Present only when merging on a PASS verdict is switched on. */
 	readonly mergePassedPr?: CoordinatorMergeFn;
+	readonly verifyDeployment?: CoordinatorDeploymentFn;
+	readonly deploymentBlocked?: ProjectDeploymentBlocker;
 	readonly getReviewHead?: (prUrl: string) => Promise<string | null>;
+	readonly getReviewChangedPaths?: (
+		prUrl: string,
+		branch: string,
+		projectId: string,
+		commit: string,
+	) => Promise<readonly string[] | null>;
 	/** warren-3937: merge-wait budget (ms); defaults to {@link DEFAULT_MERGE_TIMEOUT_MS}, 0 disables. */
 	readonly mergeTimeoutMs?: number;
 	/** pl-92a3 step 7: stall-warning grace period (ms); 0 disables the warning. */
@@ -172,6 +186,8 @@ export async function advancePlanRun(input: AdvancePlanRunInput): Promise<Advanc
 		const planRun = await input.repos.planRuns.require(input.planRun.id);
 		if (planRun.state !== "queued" && planRun.state !== "running")
 			return { kind: "noop", reason: "plan is terminal" };
+		const blocked = await input.deploymentBlocked?.(planRun);
+		if (blocked) return { kind: "noop", reason: blocked };
 		return advanceLocked({ ...input, planRun });
 	});
 }
@@ -229,7 +245,11 @@ async function advanceLocked(input: AdvancePlanRunInput): Promise<AdvanceResult>
 				...(input.closeChildSeed !== undefined ? { closeChildSeed: input.closeChildSeed } : {}),
 				...(input.commentOnPr !== undefined ? { commentOnPr: input.commentOnPr } : {}),
 				...(input.mergePassedPr !== undefined ? { mergePassedPr: input.mergePassedPr } : {}),
+				...(input.verifyDeployment ? { verifyDeployment: input.verifyDeployment } : {}),
 				...(input.getReviewHead ? { getReviewHead: input.getReviewHead } : {}),
+				...(input.getReviewChangedPaths
+					? { getReviewChangedPaths: input.getReviewChangedPaths }
+					: {}),
 			});
 			if (decision.kind === "merged") {
 				mergedChildSeq = inFlight.seq;

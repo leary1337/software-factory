@@ -3,7 +3,11 @@ import type { Repos } from "../db/repos/index.ts";
 import type { Forge } from "../forge/contract.ts";
 import { FakeForge } from "../forge/fake/fake-forge.ts";
 import type { AutoMergeSnapshot } from "../runs/reap/auto-merge-snapshot.ts";
-import { createReviewedMerge, createReviewHeadReader } from "./review-forge.ts";
+import {
+	createReviewChangedPathsReader,
+	createReviewedMerge,
+	createReviewHeadReader,
+} from "./review-forge.ts";
 
 const SHA = "a".repeat(40);
 async function harness(snapshot: Partial<AutoMergeSnapshot> = {}, head = SHA) {
@@ -114,4 +118,35 @@ test("reads only complete SHA values from a resolvable pull request", async () =
 		error: { kind: "network", detail: "offline" },
 	});
 	expect(await read("fake://o/r/pulls/1")).toBeNull();
+});
+
+test("reads UI review paths only from the pinned remote snapshot", async () => {
+	const h = await harness();
+	let snapshot: AutoMergeSnapshot = {
+		config: undefined,
+		headCommit: SHA,
+		changedPaths: { kind: "changed", paths: ["view.tsx"] },
+	};
+	const read = createReviewChangedPathsReader({
+		forge: h.forge,
+		repos: {
+			projects: { require: async () => ({ gitUrl: "fake://o/r", localPath: "/tmp/review" }) },
+		} as unknown as Pick<Repos, "projects">,
+		exec: {
+			run: async () => {
+				throw new Error("unexpected git");
+			},
+		},
+		readSnapshot: async () => snapshot,
+	});
+	expect(await read("fake://o/r/pulls/1", "work", "p", SHA)).toEqual(["view.tsx"]);
+	snapshot = {
+		...snapshot,
+		changedPaths: { kind: "unsafe", reason: "binary_diff", paths: ["image.png"] },
+	};
+	expect(await read("fake://o/r/pulls/1", "work", "p", SHA)).toEqual([]);
+	snapshot = { ...snapshot, headCommit: "b".repeat(40) };
+	expect(await read("fake://o/r/pulls/1", "work", "p", SHA)).toBeNull();
+	snapshot = { ...snapshot, headCommit: SHA, changedPaths: { kind: "unreadable" } };
+	expect(await read("fake://o/r/pulls/1", "work", "p", SHA)).toBeNull();
 });

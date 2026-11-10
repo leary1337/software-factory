@@ -14,6 +14,10 @@ import type { Repos } from "../../db/repos/index.ts";
 import type { Forge, PullRequestRef, RepoRef } from "../../forge/contract.ts";
 import { mintGitCredential } from "../../forge/credentials.ts";
 import {
+	createDeploymentGate,
+	createProjectDeploymentBlocker,
+} from "../../plan-runs/deployment-gate.ts";
+import {
 	bootPlanRunCoordinator,
 	type CoordinatorCloseChildSeedFn,
 	closeMergedChildSeed,
@@ -23,7 +27,11 @@ import {
 	loadPlanRunCoordinatorConfigFromEnv,
 	type PlanRunCoordinatorHandle,
 } from "../../plan-runs/index.ts";
-import { createReviewedMerge, createReviewHeadReader } from "../../plan-runs/review-forge.ts";
+import {
+	createReviewChangedPathsReader,
+	createReviewedMerge,
+	createReviewHeadReader,
+} from "../../plan-runs/review-forge.ts";
 import type { SpawnFn } from "../../projects/clone.ts";
 import type { ProjectsConfig } from "../../projects/config.ts";
 import {
@@ -330,6 +338,7 @@ export interface PlanRunWiringInput {
 	readonly forge: Forge;
 	readonly bridges: BridgeRegistry;
 	readonly warrenConfigs: WarrenConfigCache;
+	readonly deploymentAdmission?: import("../../projects/deployment-admission.ts").DeploymentAdmission;
 	readonly projectsConfig: ProjectsConfig;
 	readonly autoOpenPr: AutoOpenPrConfig;
 	readonly runBranchPrefixDefault?: string;
@@ -385,7 +394,19 @@ export function bootPlanRunCoordinatorWiring(input: PlanRunWiringInput): PlanRun
 		probeMergeStall: createMergeStallProbe({ forge }),
 		mergeStallWarningMs: planRunCoordinatorConfig.mergeStallWarningMs,
 		commentOnPr: createCommentOnPr({ forge, logger }),
+		verifyDeployment: createDeploymentGate({
+			repos,
+			forge,
+			warrenConfigs,
+			...(input.deploymentAdmission ? { deploymentAdmission: input.deploymentAdmission } : {}),
+		}),
+		deploymentBlocked: createProjectDeploymentBlocker({ repos }),
 		getReviewHead: createReviewHeadReader(forge),
+		getReviewChangedPaths: createReviewChangedPathsReader({
+			forge,
+			repos,
+			exec: execFromSpawn(projectSpawn),
+		}),
 		...(planRunCoordinatorConfig.mergeOnPass
 			? { mergePassedPr: createReviewedMerge({ forge, repos, exec: execFromSpawn(projectSpawn) }) }
 			: {}),

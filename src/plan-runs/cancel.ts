@@ -8,6 +8,7 @@
  * and failed plans remain terminal.
  */
 
+import { StateTransitionError } from "../core/errors.ts";
 import { isTerminalRunState } from "../core/wire.ts";
 import type { Repos } from "../db/repos/index.ts";
 import type { PlanRunRow } from "../db/schema.ts";
@@ -18,6 +19,7 @@ import {
 	type RunEventBroker,
 } from "../runs/index.ts";
 import type { RuntimeProvider } from "../runtime/contract.ts";
+import { hasPendingDeployment } from "./deployment-gate.ts";
 import { withPlanRunLock } from "./lock.ts";
 
 /** Minimal logger shape — structurally satisfied by the server's pino-shaped Logger. */
@@ -54,6 +56,15 @@ async function cancelLocked(input: CancelPlanRunInput): Promise<CancelPlanRunRes
 	}
 
 	const children = await input.repos.planRuns.listChildren(planRun.id);
+	if (
+		await hasPendingDeployment(
+			input.repos,
+			children.flatMap((child) => (child.runId === null ? [] : [child.runId])),
+		)
+	)
+		throw new StateTransitionError(
+			"Production verification is pending. Inspect the deployment in GitHub; cancelling the plan cannot cancel an external deployment or clear its incident.",
+		);
 	const inFlight = children.find(
 		(c) => c.state === "dispatched" || c.state === "running" || c.state === "pr_open",
 	);

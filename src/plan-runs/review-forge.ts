@@ -16,12 +16,14 @@ export function createReviewHeadReader(forge: Forge) {
 }
 
 /** The remote base policy and the exact reviewed head must both authorize merge. */
-export function createReviewedMerge(deps: {
+interface ReviewSnapshotDeps {
 	forge: Forge;
 	repos: Pick<Repos, "projects">;
 	exec: ReapExec;
 	readSnapshot?: typeof readAutoMergeSnapshot;
-}): CoordinatorMergeFn {
+}
+
+export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeFn {
 	return async (prUrl, branch, reviewedCommit, projectId) => {
 		const target = resolvePollTarget(deps.forge, prUrl);
 		if (target.kind === "unparseable") return false;
@@ -29,23 +31,15 @@ export function createReviewedMerge(deps: {
 		if (!pr.ok || pr.value.headCommit !== reviewedCommit) return false;
 		if (pr.value.lifecycle === "merged") return true;
 		if (pr.value.lifecycle !== "open") return false;
-		const project = await deps.repos.projects.require(projectId);
-		if (!project.localPath) return false;
-		const snapshot = await (deps.readSnapshot ?? readAutoMergeSnapshot)({
-			projectAutoMerge: undefined,
-			run: { id: "review" },
-			project,
+		const snapshot = await loadSnapshot(deps, {
 			prUrl,
-			prNumber: target.pr.number,
-			repoRef: target.ref,
-			prRef: target.pr,
 			branch,
+			projectId,
 			baseBranch: pr.value.baseBranch,
-			workspacePath: null,
-			forge: deps.forge,
-			exec: deps.exec,
-			emit: async () => {},
+			ref: target.ref,
+			pr: target.pr,
 		});
+		if (!snapshot) return false;
 		return mergeSnapshot(deps.forge, target.ref, target.pr, snapshot, reviewedCommit, branch);
 	};
 }
@@ -72,4 +66,62 @@ async function mergeSnapshot(
 	if (!merged.ok) return false;
 	await forge.deleteBranch(ref, branch);
 	return true;
+}
+
+async function loadSnapshot(
+	deps: ReviewSnapshotDeps,
+	input: {
+		prUrl: string;
+		branch: string;
+		projectId: string;
+		baseBranch: string;
+		ref: RepoRef;
+		pr: PullRequestRef;
+	},
+): Promise<AutoMergeSnapshot | null> {
+	const project = await deps.repos.projects.require(input.projectId);
+	if (!project.localPath) return null;
+	return (deps.readSnapshot ?? readAutoMergeSnapshot)({
+		projectAutoMerge: undefined,
+		run: { id: "review" },
+		project,
+		prUrl: input.prUrl,
+		prNumber: input.pr.number,
+		repoRef: input.ref,
+		prRef: input.pr,
+		branch: input.branch,
+		baseBranch: input.baseBranch,
+		workspacePath: null,
+		forge: deps.forge,
+		exec: deps.exec,
+		emit: async () => {},
+	});
+}
+
+/** Re-read the diff from remote commits; a stale or unreadable head never skips UI review. */
+export function createReviewChangedPathsReader(deps: ReviewSnapshotDeps) {
+	return async (
+		prUrl: string,
+		branch: string,
+		projectId: string,
+		commit: string,
+	): Promise<readonly string[] | null> => {
+		const target = resolvePollTarget(deps.forge, prUrl);
+		if (target.kind === "unparseable") return null;
+		const pr = await deps.forge.getPullRequest(target.ref, target.pr);
+		if (!pr.ok || pr.value.headCommit !== commit) return null;
+		const snapshot = await loadSnapshot(deps, {
+			prUrl,
+			branch,
+			projectId,
+			baseBranch: pr.value.baseBranch,
+			ref: target.ref,
+			pr: target.pr,
+		});
+		if (!snapshot || snapshot.headCommit !== commit || snapshot.changedPaths.kind === "unreadable")
+			return null;
+		// Structural violations already require manual merge; do not park them forever
+		// as a transient unreadable diff. The merge policy still refuses them.
+		return snapshot.changedPaths.kind === "unsafe" ? [] : snapshot.changedPaths.paths;
+	};
 }

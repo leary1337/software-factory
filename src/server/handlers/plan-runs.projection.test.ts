@@ -161,6 +161,7 @@ describe("plan-run public wire projection (warren-8793)", () => {
 		expect(body.children).toHaveLength(1);
 		const child = body.children[0] as Record<string, unknown>;
 		expect(child).not.toHaveProperty("failureReason");
+		expect(child).not.toHaveProperty("reviewSteps");
 		expect(child.state).toBe("failed");
 		expect(JSON.stringify(body)).not.toContain("/data/projects");
 	});

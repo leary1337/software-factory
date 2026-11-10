@@ -1,4 +1,5 @@
 import type { RunRow } from "../db/schema.ts";
+import { recordLearningEvidence } from "../runs/learning-evidence.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
 import type { ReviewOutcome } from "./review.ts";
 import { passedReviewCommit } from "./review-result.ts";
@@ -105,6 +106,22 @@ export async function finishReview(
 	const merged = await deliverMerge(input, run, prUrl, { outcome, report }, events);
 	if (!merged) return WAIT;
 	const delivered = await deliverComment(input, run, prUrl, merged);
+	if (delivered.outcome !== "passed") {
+		const step = [...(await input.repos.events.listByRun(run.id))]
+			.reverse()
+			.find((event) => event.kind === "plan_run.review_step");
+		const source = (step?.payloadJson as { stepRunId?: unknown } | undefined)?.stepRunId;
+		const key = typeof source === "string" ? source : run.id;
+		await recordLearningEvidence(input.repos, input.emit, run.id, {
+			sourceKey: `escalation:${key}:${delivered.outcome}`,
+			trigger: "escalation",
+			sourceRunId: key,
+			projectId: input.planRun.projectId,
+			planRunId: input.planRun.id,
+			childSeq: input.child.seq,
+			report: delivered.report,
+		});
+	}
 	await input.emit(run.id, "plan_run.review_finished", {
 		planRunId: input.planRun.id,
 		seq: input.child.seq,

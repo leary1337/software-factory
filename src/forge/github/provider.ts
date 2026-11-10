@@ -95,6 +95,7 @@ function err<T>(error: ForgeError): ForgeResult<T> {
 }
 
 interface GitHubPrJson {
+	merge_commit_sha?: unknown;
 	readonly number?: unknown;
 	readonly html_url?: unknown;
 	readonly state?: unknown;
@@ -252,6 +253,7 @@ export class GitHubForge implements Forge {
 		return ok({
 			lifecycle,
 			mergedAt,
+			...(typeof body.merge_commit_sha === "string" ? { mergedCommit: body.merge_commit_sha } : {}),
 			headCommit: typeof head?.sha === "string" ? head.sha : "",
 			baseBranch: typeof base?.ref === "string" ? base.ref : "",
 			// pl-92a3: the REST `auto_merge` object maps onto the seam state.

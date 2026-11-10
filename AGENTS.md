@@ -66,7 +66,7 @@ the sequencing and [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) for policy.
 
 Warren runs against a swappable runtime provider, resolved once at boot
 from `WARREN_RUNTIME` (`src/runtime/registry.ts`) behind the
-`RuntimeProvider` contract (`src/runtime/contract.ts`). Three
+`RuntimeProvider` contract (`src/runtime/contract.ts`). Two
 backends exist.
 
 - `LocalProvider` (`src/runtime/local/`, the default) runs the
@@ -235,10 +235,10 @@ Run all checks before committing. Warnings count as failures:
 bun run check:all     # or its agent-facing alias: bun run verify
 ```
 
-`check:all` is the os-eco canonical quiet runner (`scripts/check-all.ts`).
-It is byte-identical to `../templates/l5-toolkit/scripts/check-all.ts`
-at the os-eco root. Never edit it in place. It prints one aligned
-status line per gate and a `12/12 gates passed` tally. On failure it
+`check:all` uses the inherited os-eco quiet runner (`scripts/check-all.ts`).
+Keep repository-specific gates in `package.json`, not in the runner.
+It resolves the manifest from the scripts this fork defines and prints one
+aligned status line per gate; the current manifest has 11 gates. On failure it
 shows parsed failure signatures plus a `re-run: bun run <gate>` hint.
 `CHECK_ALL_VERBOSE=1` streams full output and `--bail` stops early.
 Each run keeps every gate's full output as `<gate>.log`, with exit
@@ -292,7 +292,7 @@ run on inputs that did not change.
   for a failure you diagnosed, or as a bounded flake test that you
   declare. Never report success with a red gate.
 
-Twelve repo-specific guards ride inside the `lint` gate rather than
+Repo-specific guards ride inside the `lint` gate rather than
 taking a manifest slot, because the canonical gate vocabulary is
 frozen. Each also runs standalone under the matching `check:` script
 name.
@@ -480,7 +480,8 @@ It is not part of `check:all`.
 [scripts/ui-visual/README.md](scripts/ui-visual/README.md) names the
 output paths and the filter flags.
 
-CI adds two gates that a local run cannot give you.
+The upstream CI policy below describes two gates this fork does not run.
+Local checks and explicit operator review are the evidence available here.
 
 - The golden comparison runs only in the pinned CI container.
   Never commit a baseline that a laptop rendered.
@@ -746,7 +747,7 @@ imports it. `check:layers` enforces both directions, because an import
 either way compiles the extension into core and makes its removal
 breaking.
 
-Six extension packages ship today. The flagship is
+Four extension packages ship in this fork. The flagship is
 `extensions/audit-log/` (plan pl-116e), a collector that tails run
 events, normalizes them into an append-only audit log, and exports it
 over `GET /audit-log.jsonl`. Beside it sits `extensions/judge/`
@@ -797,6 +798,8 @@ The rest of the suite also runs locally.
 
 When ending a work session, complete ALL steps:
 
+For a connected project with Seeds/Mulch initialized:
+
 1. File issues for remaining work: `sd create --title "..."`
 2. Run quality gates (if code changed): `bun run check:all`
 3. Close finished issues: `sd close <id>`
@@ -809,7 +812,9 @@ When ending a work session, complete ALL steps:
 <!-- seeds-onboard:v0.4.0 -->
 <!-- seeds-onboard-schema:4 -->
 
-This project uses [Seeds](https://github.com/jayminwest/seeds) v0.4.0 for git-native issue tracking.
+Connected projects can use [Seeds](https://github.com/jayminwest/seeds) for git-native issue tracking.
+This fork has no `.seeds/`; its active work queue is `docs/FACTORY-BACKLOG.md`.
+Run the following tracker commands only in projects with `.seeds/`.
 
 **At the start of every session**, run:
 ```
@@ -847,7 +852,9 @@ Use `sd plan` when work is large or ambiguous enough that an LLM benefits from s
 ## Project Expertise (Mulch)
 <!-- mulch-onboard:v0.8.0 -->
 
-This project uses [Mulch](https://github.com/jayminwest/mulch) v0.8.0 for structured expertise management.
+Connected projects can use [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
+This fork has no `.mulch/`; run the following memory commands only in projects
+that have initialized it.
 
 **At the start of every session**, run:
 ```bash
@@ -904,7 +911,9 @@ context, run `ml search --archived <query>`.
 ## Without the sd/ml CLIs
 
 The seeds and mulch sections above assume you have the sd and ml CLIs.
-If you do not, skip those steps.
+If you do not, or this checkout has no corresponding tracker/memory directory,
+skip those steps. Record this fork’s completed and remaining work in
+`docs/FACTORY-BACKLOG.md`.
 
 Everything else applies as written: make the change, run the quality
 gates, open the PR. The project's own tooling maintains the issue queue
@@ -913,7 +922,8 @@ welcome.
 
 ## Further reading
 
-- [ROADMAP.md](ROADMAP.md) — sequencing and release plan
+- [docs/FACTORY-BACKLOG.md](docs/FACTORY-BACKLOG.md) — active factory work
+- [ROADMAP.md](ROADMAP.md) — upstream Warren roadmap archive
 - [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) — project policy
 - [docs/CONSTITUTION.md](docs/CONSTITUTION.md) — the articles agents answer to
 - [docs/design/](docs/design/) — topic design records

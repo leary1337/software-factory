@@ -21,13 +21,13 @@
  * from `src/forge/errors.ts`, mirroring the runtime registry.
  */
 
-import type { ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
+import type { DeploymentState, ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
 
 // Alias-not-relist (§2.1): the lifecycle and error-kind vocabulary live in
 // the canonical home because the UI and the SDK render them. The Exact<>
 // mutual-assignability tests in `contract.test.ts` are the mechanical
 // stand-in that fails to compile the moment either side drifts.
-export type { ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
+export type { DeploymentState, ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
 
 /**
  * Opaque repo handle — the domain compares and passes these, and reads
@@ -100,10 +100,11 @@ export type PullRequestAutoMergeState = "armed" | "unarmed" | "unknown";
 export interface DeployRecord {
 	readonly sha: string;
 	readonly createdAt: string;
-	readonly state: "success" | "failure" | "in_progress" | "unknown";
+	readonly state: DeploymentState;
 }
 
 export interface DeployRun {
+	readonly displayTitle?: string;
 	readonly id: number;
 	readonly status: string;
 	readonly conclusion: string | null;
@@ -123,6 +124,7 @@ export interface ForgeDeploys {
 		ref: RepoRef,
 		environment: string,
 		limit: number,
+		page?: number,
 	): Promise<ForgeResult<readonly DeployRecord[]>>;
 	compare(ref: RepoRef, base: string, head: string): Promise<ForgeResult<PendingChanges>>;
 	listRuns(
@@ -130,10 +132,19 @@ export interface ForgeDeploys {
 		workflow: string,
 		limit: number,
 	): Promise<ForgeResult<readonly DeployRun[]>>;
-	dispatch(ref: RepoRef, workflow: string, branch: string): Promise<ForgeResult<void>>;
+	resolveCommit(ref: RepoRef, branch: string): Promise<ForgeResult<string>>;
+	readWorkflow(ref: RepoRef, workflow: string, branch: string): Promise<ForgeResult<string>>;
+	dispatch(
+		ref: RepoRef,
+		workflow: string,
+		branch: string,
+		inputs?: Readonly<Record<string, string>>,
+	): Promise<ForgeResult<void>>;
 }
 
 export interface PullRequestState {
+	/** The resulting merge/squash commit; absent when the forge cannot establish it. */
+	readonly mergedCommit?: string;
 	lifecycle: PullRequestLifecycle;
 	/** epoch ms — required, not optional: the merge-watcher blocks on it (§7) */
 	mergedAt: number | null;

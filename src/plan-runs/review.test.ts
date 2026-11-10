@@ -169,6 +169,11 @@ describe("advanceReview", () => {
 					...input.repos.events,
 					listByRun: async () => [
 						{
+							kind: "quality_gate.completed",
+							stream: "system",
+							payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+						},
+						{
 							kind: "plan_run.review_step",
 							payloadJson: { step: "review", stepRunId: "run_r", reviewedCommit: SHA },
 						},
@@ -208,6 +213,11 @@ describe("advanceReview", () => {
 				...input.repos.events,
 				listByRun: async () => [
 					{
+						kind: "quality_gate.completed",
+						stream: "system",
+						payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+					},
+					{
 						kind: "plan_run.review_step",
 						payloadJson: { step: "review", stepRunId: "r", reviewedCommit: SHA },
 					},
@@ -231,6 +241,11 @@ describe("advanceReview", () => {
 			events: {
 				...input.repos.events,
 				listByRun: async () => [
+					{
+						kind: "quality_gate.completed",
+						stream: "system",
+						payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+					},
 					{
 						kind: "plan_run.review_step",
 						payloadJson: { step: "review", stepRunId: "r", reviewedCommit: SHA },

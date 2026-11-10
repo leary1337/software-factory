@@ -41,6 +41,7 @@ import {
 	type CoordinatorSpawnFn,
 	type PlanRunEventKind,
 } from "./coordinator.ts";
+import type { CoordinatorDeploymentFn, ProjectDeploymentBlocker } from "./deployment-gate.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { MergeStallProbe } from "./merge-stall.ts";
 
@@ -94,7 +95,15 @@ export interface PlanRunTickDeps {
 	readonly commentOnPr?: CoordinatorCommentFn;
 	/** Present only when merging on a PASS verdict is switched on. */
 	readonly mergePassedPr?: CoordinatorMergeFn;
+	readonly verifyDeployment?: CoordinatorDeploymentFn;
+	readonly deploymentBlocked?: ProjectDeploymentBlocker;
 	readonly getReviewHead?: (prUrl: string) => Promise<string | null>;
+	readonly getReviewChangedPaths?: (
+		prUrl: string,
+		branch: string,
+		projectId: string,
+		commit: string,
+	) => Promise<readonly string[] | null>;
 }
 
 export interface PlanRunAdvanceLog {
@@ -182,7 +191,10 @@ function buildAdvanceInput(
 		...(deps.closeChildSeed !== undefined ? { closeChildSeed: deps.closeChildSeed } : {}),
 		...(deps.commentOnPr !== undefined ? { commentOnPr: deps.commentOnPr } : {}),
 		...(deps.mergePassedPr !== undefined ? { mergePassedPr: deps.mergePassedPr } : {}),
+		...(deps.verifyDeployment ? { verifyDeployment: deps.verifyDeployment } : {}),
+		...(deps.deploymentBlocked ? { deploymentBlocked: deps.deploymentBlocked } : {}),
 		...(deps.getReviewHead ? { getReviewHead: deps.getReviewHead } : {}),
+		...(deps.getReviewChangedPaths ? { getReviewChangedPaths: deps.getReviewChangedPaths } : {}),
 		...(deps.now !== undefined ? { now: deps.now } : {}),
 	};
 }

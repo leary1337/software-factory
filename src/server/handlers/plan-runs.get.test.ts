@@ -186,6 +186,36 @@ describe("GET /plan-runs/:id", () => {
 			patch: { runId: runA.id, state: "dispatched", startedAt: new Date().toISOString() },
 		});
 
+		const review = await repos.runs.create({
+			agentName: "claude-code",
+			projectId: seedyProjectId,
+			prompt: "review",
+			renderedAgentJson: {},
+			trigger: "plan-run",
+		});
+		await repos.runs.markRunning(review.id);
+		await repos.runs.finalize(review.id, "succeeded");
+		const commit = "a".repeat(40);
+		await repos.events.append({
+			runId: runA.id,
+			sandboxEventSeq: 1,
+			ts: new Date().toISOString(),
+			kind: "plan_run.review_step",
+			stream: "system",
+			payload: { step: "review", stepRunId: review.id, reviewedCommit: commit },
+		});
+		await repos.events.append({
+			runId: review.id,
+			sandboxEventSeq: 1,
+			ts: new Date().toISOString(),
+			kind: "state_change",
+			stream: "system",
+			payload: {
+				type: "result",
+				result: `VERDICT: CHANGES\nREVIEWED_COMMIT: ${commit}\nQUALITY_GATE: NOT_RUN\nDependencies missing.`,
+			},
+		});
+
 		const deps = await depsFor({ repos, sdSpawn: makeSdSpawn([], []) });
 		handle = startServer(deps, {
 			transport: { kind: "tcp", hostname: "127.0.0.1", port: 0 },
@@ -197,12 +227,20 @@ describe("GET /plan-runs/:id", () => {
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			planRun: { id: string };
-			children: { seq: number; runId: string | null }[];
+			children: {
+				seq: number;
+				runId: string | null;
+				reviewSteps: { executionState: string; summary: { status: string; reason: string } }[];
+			}[];
 			runs: { id: string }[];
 		};
 		expect(body.planRun.id).toBe(created.planRun.id);
 		expect(body.children).toHaveLength(2);
 		expect(body.runs.map((r) => r.id)).toEqual([runA.id]);
+		expect(body.children[0]?.reviewSteps[0]).toMatchObject({
+			executionState: "succeeded",
+			summary: { status: "checks_not_run", reason: "Dependencies missing." },
+		});
 	});
 
 	test("404 for unknown id", async () => {

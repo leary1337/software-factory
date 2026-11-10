@@ -19,18 +19,18 @@
 	"$comment_outcomes_histogram_2026_10_08": "BOUNDED AUTO-RAISE, RAW JS ONLY (warren-e9cd via warren-9fd7): the telemetry run-outcomes chart gains loop-tab.buckets.ts (pad the series to one column per UTC day, weekly at 90 days) and telemetryWindowBounds. Net +699 B raw js measured by check-bundle-size; totals.raw.js takes measured + HEADROOM_RAW from a laptop --update. CI gzips about 1.8 KB hotter than the laptop, so the bundle-size-autoheal workflow then re-baselined the gzip and css figures from the CI measure (+514 B gzip js).",
 	"totals": {
 		"raw": {
-			"js": 699519,
-			"css": 55488
+			"js": 709988,
+			"css": 55842
 		},
 		"gzip": {
-			"js": 202351,
-			"css": 10795
+			"js": 205472,
+			"css": 10826
 		}
 	},
 	"largest": {
 		"gzip": {
-			"js": 202351,
-			"css": 10795
+			"js": 205472,
+			"css": 10826
 		}
 	}
 }

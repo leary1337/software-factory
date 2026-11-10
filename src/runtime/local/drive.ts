@@ -55,6 +55,7 @@ import {
 	settleCancelledIfNeeded,
 } from "./drive-prepare.ts";
 import { createStdinController, type StdinController, startMidRunSteering } from "./drive-stdin.ts";
+import { runIndependentQualityGate } from "./quality-gate.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 
 /** Mid-run steering poll cadence — burrow's MID_RUN_INBOX_POLL_MS verbatim. */
@@ -204,15 +205,13 @@ async function drivePrepared(
 		return;
 	}
 	log(`local-drive: launching '${runtime.runtimeId}' in ${record.workspacePath}`);
+	const spawn =
+		deps.spawn ??
+		((profile: SandboxProfile, command: SpawnCommand) =>
+			runSandboxed(profile, command, { lifecyclePath: `${record.homePath}.lifecycle.json` }));
 	let proc: SpawnResult;
 	try {
-		proc = await (
-			deps.spawn ??
-			((profile, command) =>
-				runSandboxed(profile, command, {
-					lifecyclePath: `${record.homePath}.lifecycle.json`,
-				}))
-		)(runProfile, runCommand);
+		proc = await spawn(runProfile, runCommand);
 	} catch (err) {
 		await proxy?.stop();
 		throw err;
@@ -228,11 +227,20 @@ async function drivePrepared(
 	const midRun = startMidRunSteering(store, record, runtime, proc, stdin, deps);
 	const deadline = armRunDeadline(proc, runProfile.timeoutMs);
 	const beforeTerminal =
-		prepared.finalizeHome || deadline
-			? async () => {
+		prepared.finalizeHome || deadline || prepared.qualityGate
+			? async (agentExitCode: number) => {
 					deadline?.stop();
-					await prepared.finalizeHome?.();
 					deadline?.assertWithinLimit();
+					if (agentExitCode === 0 && prepared.qualityGate && !cancelWon(store, record))
+						await runIndependentQualityGate(
+							store,
+							record,
+							prepared.qualityGate,
+							runProfile,
+							runCommand.env,
+							{ spawn },
+						);
+					await prepared.finalizeHome?.();
 				}
 			: undefined;
 	try {
@@ -281,12 +289,14 @@ async function pumpToExit(
 	proc: SpawnResult,
 	stdin: StdinController,
 	deps: DriveDeps,
-	beforeTerminal?: () => Promise<void>,
+	beforeTerminal?: (exitCode: number) => Promise<void>,
 ): Promise<PumpOutcome> {
 	const now = deps.now ?? (() => new Date());
 	let sawTerminalEnvelope = false;
 	const deferred: AdapterRuntimeEvent[] = [];
 	const persistEvent = (ev: AdapterRuntimeEvent): void => {
+		// Only the host runner may attest a quality gate. Harness stdout cannot.
+		if (ev.kind.startsWith("quality_gate.")) return;
 		if (beforeTerminal && isTerminalEnvelope(ev)) {
 			deferred.push(ev);
 			sawTerminalEnvelope = true;
@@ -320,7 +330,7 @@ async function pumpToExit(
 			streamError = streamError ?? err;
 		}),
 	]);
-	await beforeTerminal?.();
+	await beforeTerminal?.(exitCode);
 	for (const ev of deferred) store.appendEvent(record, ev, now);
 	return { exitCode, sawTerminalEnvelope, streamError };
 }

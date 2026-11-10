@@ -66,13 +66,13 @@ export interface RunSpec {
 	 * Docker + K8s consume it; LocalProvider ignores it (host toolchain). */
 	agentImage?: string;
 
-	// Agent.
 	runtimeId: AcceptedRuntimeId;
 	/** system section already prepended by the domain */
 	prompt: string;
 	/** e.g. `{ frontmatter }` — provider carries to runtime */
 	metadata?: Record<string, unknown>;
 	mode: "batch" | "conversation";
+	qualityGate?: { command: string; commit: string };
 
 	// Isolation INTENT (provider maps to SandboxProfile | pod securityContext+resources).
 	network: "none" | "restricted" | "open";

@@ -78,7 +78,7 @@ export async function runtimeChain(verdicts: string[]) {
 	await mkdir(join(host, ".warren"));
 	await writeFile(
 		join(host, ".warren/config.yaml"),
-		"agent:\n  skipGitHooks: true\npr:\n  autoMerge:\n    method: squash\n",
+		"qualityGate: test -f .warren/config.yaml && test -f change-1.txt\nagent:\n  skipGitHooks: true\npr:\n  autoMerge:\n    method: squash\n",
 	);
 	await fixtureGitOrThrow(host, ["add", "."]);
 	await fixtureGitOrThrow(host, [
@@ -136,7 +136,7 @@ export async function runtimeChain(verdicts: string[]) {
 					stream: "system",
 					payload: {
 						type: "result",
-						result: `VERDICT: ${verdict}\nREVIEWED_COMMIT: REVIEW_SHA\nQUALITY_GATE: PASS\n\nFixture report.`,
+						result: `VERDICT: ${verdict}\nREVIEWED_COMMIT: REVIEW_SHA\nQUALITY_GATE: NOT_RUN\n\nFixture report.`,
 					},
 				});
 				script =

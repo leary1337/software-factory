@@ -89,10 +89,16 @@ async function harness() {
 		mergeTimeoutMs: 0,
 		mergeStallWarningMs: 0,
 	} as unknown as HandleInFlightInput;
-	async function complete(report = REPORT) {
+	async function complete(report = REPORT, gate = true) {
 		await repos.runs.markRunning(reviewer.id);
 		await repos.runs.finalize(reviewer.id, "succeeded");
 		await emit(reviewer.id, "state_change", { type: "result", result: report });
+		if (gate)
+			await emit(reviewer.id, "quality_gate.completed", {
+				commit: SHA,
+				command: "./scripts/check.sh",
+				exitCode: 0,
+			});
 	}
 	return { input, repos, run, reviewer, planRun, complete };
 }
@@ -263,6 +269,14 @@ test.each(["PASS", "CHANGES", "finished CHANGES"])(
 			sandboxEventSeq: 1,
 			payload: { type: "result", result: REPORT.replace(SHA, nextSha) },
 		});
+		await h.repos.events.append({
+			runId: freshRunId,
+			kind: "quality_gate.completed",
+			stream: "system",
+			ts: new Date().toISOString(),
+			sandboxEventSeq: 2,
+			payload: { commit: nextSha, command: "check", exitCode: 0 },
+		});
 		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
 		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
 		expect(merges).toBe(1);
@@ -363,4 +377,41 @@ test("bounds failing report delivery and retains its diagnosis in the event log"
 	expect(events.find((e) => e.kind === "plan_run.review_finished")?.payloadJson).toMatchObject({
 		outcome: "broken",
 	});
+});
+
+test("refuses an agent PASS without an independent runtime witness", async () => {
+	const h = await harness();
+	await h.complete(REPORT, false);
+	let merges = 0;
+	await advanceReview(
+		{
+			...h.input,
+			mergePassedPr: async () => {
+				merges++;
+				return true;
+			},
+		},
+		h.run,
+		"https://github.com/o/r/pull/1",
+	);
+	expect(merges).toBe(0);
+	expect(await loadReviewStage(h.repos, "implementer", h.run.id)).toBe("needs_attention");
+});
+
+test("accepts a pending reviewer gate only after an independent successful execution", async () => {
+	const h = await harness();
+	await h.complete(REPORT.replace("QUALITY_GATE: PASS", "QUALITY_GATE: NOT_RUN"));
+	let merges = 0;
+	await advanceReview(
+		{
+			...h.input,
+			mergePassedPr: async () => {
+				merges++;
+				return true;
+			},
+		},
+		h.run,
+		"https://github.com/o/r/pull/1",
+	);
+	expect(merges).toBe(1);
 });

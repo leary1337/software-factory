@@ -445,6 +445,8 @@ export const planRunsApi = {
 			method: "POST",
 			body: {},
 		}),
+	resume: (id: string) =>
+		request<unknown>(`/plan-runs/${encodeURIComponent(id)}/resume`, { method: "POST", body: {} }),
 	events: (id: string, opts: StreamRunEventsOptions = {}) => streamPlanRunEvents(id, opts),
 };
 

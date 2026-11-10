@@ -23,6 +23,7 @@ import {
 import { loadPreviewLaunchConfigFromEnv } from "../../preview/launch/index.ts";
 import { loadPreviewPortRangeFromEnv, PreviewPortAllocator } from "../../preview/port-allocator.ts";
 import { loadProjectsConfigFromEnv } from "../../projects/config.ts";
+import { createDeploymentAdmission } from "../../projects/deployment-admission.ts";
 import { listProjects } from "../../projects/index.ts";
 import {
 	assertRegisteredProjectsAllowlisted,
@@ -226,6 +227,9 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 	// warren-cd3b: the salvage bundle capture lands beside the salvage intake dir.
 	// warren-45e6: the boot-resolved forge drives reap's PR sub-steps.
 	const salvageDir = join(serverConfig.dataDir, "salvage");
+	const deploymentAdmission = createDeploymentAdmission({
+		directory: join(serverConfig.dataDir, "deployment-intents"),
+	});
 	// warren-4af7: infra-lost auto-retry — see retry-wiring.ts.
 	const { onInfraLostRun, onRegistryCreated } = wireInfraLostRetry({
 		repos,
@@ -305,6 +309,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 
 	// Plan-run coordinator (pl-a258 / warren-2623). See plan-run-wiring.ts.
 	const planRunCoordinator = bootPlanRunCoordinatorWiring({
+		deploymentAdmission,
 		env,
 		repos,
 		runtimeProvider,
@@ -368,6 +373,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 	bootToolCallsBackfill({ repos, logger });
 
 	const deps = buildServerDeps({
+		deploymentAdmission,
 		repos,
 		db,
 		// warren-c531 / warren-6c4c: provider + forge resolved once above; deps re-uses them.

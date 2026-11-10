@@ -12,10 +12,8 @@
  *
  * Why `src/core/` and why this direction:
  *
- *   - `src/core/` is warren's dependency-free kernel (errors + ids). It
- *     imports nothing, so every layer — including the Vite-bundled UI, which
- *     must never reach `src/db/schema/` — can import it without inheriting a
- *     dependency.
+ *   - `src/core/` is warren's dependency-free kernel. Every layer, including
+ *     the Vite-bundled UI, can import it without inheriting server dependencies.
  *   - The three surfaces drifted for as long as they were hand-kept copies
  *     (`RunFailureReason` lost values in the SDK and the UI;
  *     `RefreshAgentsResponse.removed` read as `{name}[]` against a server
@@ -29,7 +27,6 @@
  * The physical-schema constants (table names, index names, row-id helpers)
  * are NOT wire vocabulary and stay in `src/db/schema/columns.ts`.
  */
-
 export const RUN_STATES = ["queued", "running", "succeeded", "failed", "cancelled"] as const;
 export type RunState = (typeof RUN_STATES)[number];
 
@@ -59,11 +56,13 @@ export type RunMode = (typeof RUN_MODES)[number];
 export * from "./wire-actor.ts";
 // Cost-basis vocabulary (warren-f3c3) lives in ./wire-cost.ts (file-size budget).
 export * from "./wire-cost.ts";
+export * from "./wire-delivery.ts";
 // The steering-inbox vocabulary (warren-3d0b) lives in ./wire-inbox.ts.
 export * from "./wire-inbox.ts";
 // The analytics-insight vocabulary (warren-be04) lives in
 // ./wire-insight.ts (file-size budget); re-exported for one canonical home.
 export * from "./wire-insight.ts";
+export * from "./wire-merge.ts";
 // The ops-overview window vocabulary (warren-7194) lives in ./wire-ops.ts.
 export * from "./wire-ops.ts";
 // The runtime-id vocabulary (warren-c4be) lives in ./wire-runtime.ts

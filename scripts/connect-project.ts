@@ -20,6 +20,9 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { Command } from "commander";
+import { load } from "js-yaml";
+import { parseDefaultsConfig } from "../src/warren-config/schema.ts";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 const CONNECT_DIR = join(REPO_ROOT, "factory", "connect");
@@ -87,9 +90,30 @@ export function scaffold(dir: string, project: string, module: string): void {
 	}
 }
 
+/** Keep existing config byte-for-byte, but never silently ignore the requested gate. */
+export function assertMatchingGate(configPath: string, gate: string): void {
+	if (!gate.trim()) throw new Error("--gate must be a non-empty command");
+	if (!existsSync(configPath)) {
+		if (existsSync(join(dirname(configPath), "defaults.json"))) {
+			throw new Error(
+				"Migrate .warren/defaults.json with warren config migrate --cwd <path> before connecting; legacy settings were kept.",
+			);
+		}
+		return;
+	}
+	const parsed = parseDefaultsConfig(load(readFileSync(configPath, "utf8")));
+	if (!parsed.ok) throw new Error(`${configPath} is invalid; fix it before connecting`);
+	if (parsed.value.qualityGate !== gate) {
+		throw new Error(
+			`${configPath} has a different or missing qualityGate. Update it explicitly or pass its existing command with --gate; no settings were overwritten.`,
+		);
+	}
+}
+
 /** Write the files every connected project carries. Existing config is kept. */
 export function writeConnectFiles(dir: string, gate: string, defaultBranch: string): void {
 	const config = join(dir, ".warren", "config.yaml");
+	assertMatchingGate(config, gate);
 	if (!existsSync(config)) {
 		mkdirSync(dirname(config), { recursive: true });
 		writeFileSync(config, renderWarrenConfig(gate, defaultBranch));
@@ -121,19 +145,36 @@ function defaultBranchOf(dir: string): string {
 	);
 }
 
+export function assertConnectBranchAvailable(dir: string): void {
+	if (run(["git", "branch", "--list", BRANCH], dir) !== "") {
+		throw new Error(
+			`${BRANCH} already exists; finish or preserve that work before connecting again. It was not reset.`,
+		);
+	}
+}
+
+export function assertOnConnectBranch(dir: string): void {
+	if (run(["git", "branch", "--show-current"], dir) !== BRANCH) {
+		throw new Error(`Switch to ${BRANCH} before finish; no files were staged or committed.`);
+	}
+}
+
 function connectExisting(dir: string, gate: string): void {
 	if (run(["git", "status", "--porcelain"], dir) !== "") {
 		throw new Error(`${dir} has uncommitted changes; commit or stash them first`);
 	}
+	assertConnectBranchAvailable(dir);
+	assertMatchingGate(join(dir, ".warren", "config.yaml"), gate);
 	const defaultBranch = defaultBranchOf(dir);
 	run(["git", "fetch", "origin", defaultBranch], dir);
-	run(["git", "checkout", "-B", BRANCH, `origin/${defaultBranch}`], dir);
-	initTrackers(dir);
+	run(["git", "checkout", "-b", BRANCH, `origin/${defaultBranch}`], dir);
 	writeConnectFiles(dir, gate, defaultBranch);
+	initTrackers(dir);
 	console.log(`Prepared ${dir} on branch ${BRANCH}.`);
 }
 
 function finish(dir: string): void {
+	assertOnConnectBranch(dir);
 	run(["git", "add", "-A"], dir);
 	run(["git", "commit", "-m", "chore: подключить проект к фабрике"], dir);
 	run(["git", "push", "-u", "origin", BRANCH], dir);
@@ -146,7 +187,13 @@ function register(dir: string): void {
 	const url = run(["git", "remote", "get-url", "origin"], dir);
 	const httpsUrl = url.replace(/^(?:ssh:\/\/)?git@github\.com[:/]/, "https://github.com/");
 	const output = run(
-		["bun", "src/cli/main.ts", "add-project", httpsUrl.replace(/\.git$/, "")],
+		[
+			"bun",
+			"--env-file=/dev/null",
+			"src/cli/main.ts",
+			"add-project",
+			httpsUrl.replace(/\.git$/, ""),
+		],
 		REPO_ROOT,
 	);
 	console.log(output);
@@ -170,31 +217,43 @@ function createNew(name: string, parent: string, shouldRegister: boolean): void 
 	if (shouldRegister) console.log(`Next run: bun scripts/connect-project.ts register ${dir}`);
 }
 
-function flagValue(args: readonly string[], flag: string): string | undefined {
-	const index = args.indexOf(flag);
-	return index === -1 ? undefined : args[index + 1];
-}
-
 function main(argv: readonly string[]): void {
-	const [command, target, ...rest] = argv;
-	if (target === undefined) throw new Error("usage: see the header of scripts/connect-project.ts");
-	if (command === "new") {
-		const parent = flagValue(rest, "--dir") ?? join(homedir(), "Prog");
-		createNew(target, resolve(parent), !rest.includes("--no-register"));
-		return;
-	}
-	const dir = resolve(target);
-	if (command === "existing") {
-		const gate = flagValue(rest, "--gate");
-		if (gate === undefined) throw new Error("existing needs --gate");
-		connectExisting(dir, gate);
-	} else if (command === "finish") {
-		finish(dir);
-	} else if (command === "register") {
-		register(dir);
-	} else {
-		throw new Error(`unknown command: ${command}`);
-	}
+	const command = new Command("bun scripts/connect-project.ts")
+		.description("Connect a project to the local factory. Requires git, gh, sd and ml.")
+		.addHelpText(
+			"after",
+			"\nUse $connect-project in Codex for glossary, verification and planning.\nGitHub token access must include the selected project before register.",
+		);
+	command
+		.command("existing <path>")
+		.description("Prepare factory/connect from the remote default branch; keep existing settings")
+		.requiredOption("--gate <command>", "quality gate; must match an existing config")
+		.action((path: string, options: { gate: string }) =>
+			connectExisting(resolve(path), options.gate),
+		);
+	command
+		.command("finish <path>")
+		.description("Commit prepared files, push factory/connect and open its pull request")
+		.action((path: string) => finish(resolve(path)));
+	command
+		.command("new <name>")
+		.description("Create and push a private GitHub repo from the Go/React template")
+		.option("--dir <parent>", "parent directory", join(homedir(), "Prog"))
+		.option(
+			"--no-register",
+			"suppress the next-step registration hint (registration is always explicit)",
+		)
+		.action((name: string, options: { dir: string; register: boolean }) => {
+			if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name)) {
+				throw new Error("name must be a repository name, not a path");
+			}
+			createNew(name, resolve(options.dir), options.register);
+		});
+	command
+		.command("register <path>")
+		.description("Register the repository with running Warren after onboarding is merged")
+		.action((path: string) => register(resolve(path)));
+	command.parse(argv, { from: "user" });
 }
 
 if (import.meta.main) {

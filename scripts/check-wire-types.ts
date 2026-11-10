@@ -49,7 +49,8 @@
  * is the convention for a seam that wants its own vocabulary word: alias, never
  * re-list. Widening DOMAIN_STEMS would not have caught them — the drift was a
  * DIFFERENT name, not a stem-less one — so the defence against an aliased
- * re-list stays review plus this note. The companion invariant "every
+ * re-list is also checked for factory delivery vocabularies by
+ * check-wire-unions.ts, including anonymous nullable unions and stale subsets. The companion invariant "every
  * canonical export carries a stem" that this paragraph once asserted by
  * observation is now mechanical (warren-7483): the unguarded-export check
  * below fails the gate the day a stem-less export lands.
@@ -69,6 +70,8 @@
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+
+import { copiedWireUnions, deliveryVocabularies } from "./check-wire-unions.ts";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 
@@ -161,6 +164,8 @@ export const DOMAIN_STEMS = [
 	// OPS_WINDOW_MS) joins the guarded stems so a local copy in a handler or
 	// the UI fails the gate instead of drifting.
 	"ops",
+	"deployment",
+	"review",
 ] as const;
 
 /**
@@ -309,11 +314,19 @@ export function enforcedNames(repoRoot: string = REPO_ROOT): {
 export function scan(repoRoot: string = REPO_ROOT): Violation[] {
 	const { names, sources } = enforcedNames(repoRoot);
 	const enforced = new Set(names);
+	const deliverySource = sources.find((source) => source.endsWith("/wire-delivery.ts"));
+	const vocabularies = deliverySource
+		? deliveryVocabularies(readFileSync(resolve(repoRoot, deliverySource), "utf8"))
+		: [];
 	const violations: Violation[] = [];
 	for (const abs of walk(resolve(repoRoot, "src"))) {
 		const rel = relative(repoRoot, abs).split("\\").join("/");
 		if (sources.includes(rel) || isTestFile(rel) || ALLOW.includes(rel)) continue;
-		violations.push(...scanText(rel, readFileSync(abs, "utf8"), enforced));
+		const text = readFileSync(abs, "utf8");
+		violations.push(...scanText(rel, text, enforced));
+		violations.push(
+			...copiedWireUnions(text, vocabularies).map((copy) => ({ file: rel, ...copy })),
+		);
 	}
 	return violations;
 }
