@@ -1,3 +1,4 @@
+import { eventParserFor } from "../adapters/index.ts";
 /**
  * The in-pod agent entrypoint (pl-829f step 25 / warren-186c, design
  * k8s-migration.md §1.4/§4.2/§5.1). Runs INSIDE the run pod's agent container —
@@ -275,6 +276,7 @@ export async function runAgent(
 	// (claude-code `--print`) leave the seam undefined and keep the
 	// write-and-close-at-spawn behavior. (warren-7a43)
 	const useStdinHold = typeof runtime.shouldCloseStdinOnEvent === "function";
+	const parseEvents = eventParserFor(runtime, ctx.frontmatter);
 	const baseCommand = runtime.buildSpawnCommand(ctx);
 
 	const command = await resolveAgentCommand(baseCommand, useStdinHold, env, { spawn, out, log });
@@ -326,7 +328,7 @@ export async function runAgent(
 		for await (const line of readLines(proc.stdout)) {
 			hold.onOutput(); // any output resets the idle watchdog
 			if (line.length === 0) continue;
-			const events = [...(runtime.parseEvents?.(line) ?? [])];
+			const events = [...(parseEvents?.(line) ?? [])];
 			for (const ev of events) {
 				out(formatEventLine(ev));
 				if (isTerminalEnvelope(ev)) sawTerminalEnvelope = true;

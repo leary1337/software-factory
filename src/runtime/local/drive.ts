@@ -50,6 +50,7 @@ import type { RunSpec } from "../contract.ts";
 import {
 	abandonSpawnedChild,
 	cancelWon,
+	type PreparedSpawn,
 	prepareSpawn,
 	settleCancelledIfNeeded,
 } from "./drive-prepare.ts";
@@ -166,7 +167,6 @@ async function spawnAndPump(
 	profile: SandboxProfile,
 	deps: DriveDeps,
 ): Promise<void> {
-	const log = deps.log ?? (() => {});
 	// Cancel can win before spawn (LocalEngine.cancel terminalizes immediately).
 	if (cancelWon(store, record)) {
 		settleCancelledIfNeeded(store, record);
@@ -174,6 +174,20 @@ async function spawnAndPump(
 	}
 	const prepared = await prepareSpawn(store, record, spec, profile, deps);
 	if (prepared === null) return;
+	try {
+		await drivePrepared(store, record, prepared, deps);
+	} finally {
+		await prepared.finalizeHome?.();
+	}
+}
+
+async function drivePrepared(
+	store: LocalRunStore,
+	record: LocalRunRecord,
+	prepared: PreparedSpawn,
+	deps: DriveDeps,
+): Promise<void> {
+	const log = deps.log ?? (() => {});
 	// warren-7116: the workspace is prepared — stamp the stage timestamp via
 	// the injected domain signal (never a direct db write from the runtime).
 	try {
@@ -206,11 +220,21 @@ async function spawnAndPump(
 
 	const stdin = createStdinController(runtime, proc, useStdinHold);
 	const midRun = startMidRunSteering(store, record, runtime, proc, stdin, deps);
+	const deadline = armRunDeadline(proc, runProfile.timeoutMs);
+	const beforeTerminal =
+		prepared.finalizeHome || deadline
+			? async () => {
+					deadline?.stop();
+					await prepared.finalizeHome?.();
+					deadline?.assertWithinLimit();
+				}
+			: undefined;
 	try {
-		const outcome = await pumpToExit(store, record, runtime, proc, stdin, deps);
+		const outcome = await pumpToExit(store, record, runtime, proc, stdin, deps, beforeTerminal);
 		terminalize(store, record, runProfile, proc, outcome, deps);
 		log(`local-drive: '${runtime.runtimeId}' exited ${outcome.exitCode}`);
 	} finally {
+		deadline?.stop();
 		// Stop the steering loop before tearing down stdin so its final
 		// poll tick can't race the closeStdin path (burrow dispatch.ts).
 		midRun.abort();
@@ -220,6 +244,21 @@ async function spawnAndPump(
 		// can't pin the run (burrow dispatch.ts shape).
 		await proxy?.stop();
 	}
+}
+
+function armRunDeadline(proc: SpawnResult, timeoutMs: number | undefined) {
+	if (timeoutMs === undefined || !Number.isFinite(timeoutMs) || timeoutMs <= 0) return undefined;
+	let expired = false;
+	const timer = setTimeout(() => {
+		expired = true;
+		proc.cancel();
+	}, timeoutMs);
+	return {
+		stop: () => clearTimeout(timer),
+		assertWithinLimit: () => {
+			if (expired) throw new Error(`agent exceeded run timeout (${timeoutMs}ms)`);
+		},
+	};
 }
 
 interface PumpOutcome {
@@ -236,17 +275,25 @@ async function pumpToExit(
 	proc: SpawnResult,
 	stdin: StdinController,
 	deps: DriveDeps,
+	beforeTerminal?: () => Promise<void>,
 ): Promise<PumpOutcome> {
 	const now = deps.now ?? (() => new Date());
 	let sawTerminalEnvelope = false;
+	const deferred: AdapterRuntimeEvent[] = [];
+	const persistEvent = (ev: AdapterRuntimeEvent): void => {
+		if (beforeTerminal && isTerminalEnvelope(ev)) {
+			deferred.push(ev);
+			sawTerminalEnvelope = true;
+			return;
+		}
+		store.appendEvent(record, { kind: ev.kind, stream: ev.stream, payload: ev.payload }, now);
+		if (isTerminalEnvelope(ev)) sawTerminalEnvelope = true;
+	};
 	const pumpStdout = async (): Promise<void> => {
 		for await (const line of readLines(proc.stdout)) {
 			if (line.length === 0) continue;
 			const events = runtime.parseEvents?.(line) ?? [];
-			for (const ev of events) {
-				store.appendEvent(record, { kind: ev.kind, stream: ev.stream, payload: ev.payload }, now);
-				if (isTerminalEnvelope(ev)) sawTerminalEnvelope = true;
-			}
+			events.forEach(persistEvent);
 			await stdin.autoRespond(events);
 			await stdin.closeOnTrigger(events);
 		}
@@ -267,6 +314,8 @@ async function pumpToExit(
 			streamError = streamError ?? err;
 		}),
 	]);
+	await beforeTerminal?.();
+	for (const ev of deferred) store.appendEvent(record, ev, now);
 	return { exitCode, sawTerminalEnvelope, streamError };
 }
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { WarrenDb } from "../../db/client.ts";
 import type { Repos } from "../../db/repos/index.ts";
+import { IMPLEMENTER_BUILTIN } from "../../registry/builtins/factory-roles.ts";
 import { spawnRun } from "./index.ts";
 import { makeProvider, makeSandboxClient, setupRepos } from "./test-helpers.ts";
 
@@ -48,5 +49,19 @@ describe("spawnRun: costBasis", () => {
 			},
 		});
 		expect((await repos.runs.require(result.run.id)).costBasis).toBe("api");
+	});
+
+	test("stamps the factory subscription independently of unrelated API credentials", async () => {
+		await repos.agents.upsert({ name: "implementer", renderedJson: IMPLEMENTER_BUILTIN });
+		const { client } = makeSandboxClient();
+		const result = await spawnRun({
+			repos,
+			runtimeProvider: makeProvider(client),
+			agentName: "implementer",
+			projectId: "prj_xxxxxxxxxxxx",
+			prompt: "p",
+			serverEnv: { ANTHROPIC_API_KEY: "fake-api-key", OPENAI_API_KEY: "fake-api-key" },
+		});
+		expect((await repos.runs.require(result.run.id)).costBasis).toBe("subscription_estimate");
 	});
 });

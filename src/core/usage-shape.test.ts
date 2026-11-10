@@ -44,8 +44,8 @@ const CLAUDE_RESULT = {
 };
 
 describe("USAGE_SHAPES", () => {
-	test("declares shapes keyed off RuntimeId for pi and claude-code only", () => {
-		expect(Object.keys(USAGE_SHAPES).sort()).toEqual(["claude-code", "pi"]);
+	test("declares shapes keyed off RuntimeId for every shipped runtime", () => {
+		expect(Object.keys(USAGE_SHAPES).sort()).toEqual(["claude-code", "codex", "pi"]);
 		for (const id of Object.keys(USAGE_SHAPES)) {
 			expect(KNOWN_RUNTIME_IDS as readonly string[]).toContain(id);
 		}

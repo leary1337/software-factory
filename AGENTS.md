@@ -15,7 +15,9 @@ events, intervention, recovery, and Git delivery.
 
 `AgentRuntimeAdapter` keeps the kernel harness-neutral. A harness needs
 an adapter before the runtime can drive it. The current distribution
-ships Pi and Claude Code adapters.
+ships Pi, Claude Code, and Codex adapters. The factory roles use Codex with
+ChatGPT authentication; see [docs/codex-runtime.md](docs/codex-runtime.md)
+when changing authentication, models, or run limits.
 
 Runtime providers place each run in a local `bwrap` sandbox on Linux or
 `sandbox-exec` sandbox on macOS or a sibling Docker container.
@@ -38,9 +40,10 @@ as opt-in features, not required infrastructure.
   [docs/design/issue-tracker.md](docs/design/issue-tracker.md).
 
 The agent registry is entirely inline. `BUILTIN_AGENTS`
-(`src/registry/builtins/`) ships seven agents and boot seeds them into
+(`src/registry/builtins/`) ships ten agents and boot seeds them into
 the agents table on every start: `claude-code`, `pi`,
-`planner`, `nightwatch`, `bugwatch`, `pr-fixer`, and `healer`. There is
+`planner`, `nightwatch`, `bugwatch`, `pr-fixer`, `healer`, `implementer`,
+`reviewer`, and `rework`. There is
 no external agent library. `GET /agents` still reports
 `source: "builtin" | "library"` provenance. The `library` arm survives
 only for legacy rows.

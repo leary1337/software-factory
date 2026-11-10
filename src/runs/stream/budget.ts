@@ -92,7 +92,7 @@ export async function persistObservedUsage(
 	const usePi = input.piUsage.seen;
 	await persistInStreamUsage({
 		usage: usePi ? input.piUsage : input.claudeUsage,
-		runtime: usePi ? "pi" : "claude-code",
+		runtime: usePi ? "pi" : (input.claudeUsage.runtime ?? "claude-code"),
 		runId: input.runId,
 		sandboxRunId: input.sandboxRunId,
 		repos: input.repos,

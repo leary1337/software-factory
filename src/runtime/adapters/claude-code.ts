@@ -14,9 +14,10 @@
  * the agent has a stable settings file even when the project ships none,
  * plants a private `.sandbox-tmp/` for the spawn's `TMPDIR` (burrow-8452 —
  * the host UID-keyed `/tmp/claude-${uid}/` root races every other
- * claude-code on the machine during startup cleanup), and, when the host
- * is logged in, forwards credentials into the run's `.claude/` (see
- * `./claude-credentials.ts`).
+ * claude-code on the machine during startup cleanup). It never writes
+ * credentials: the worktree is what the agent commits and warren pushes, so
+ * the host OAuth blob goes into the run's separate HOME instead
+ * (`../local/drive-prepare.ts`, `./claude-credentials.ts`).
  *
  * claude-code `--print` relies on stdin EOF to flush its final output, so
  * this adapter deliberately declares NO `shouldCloseStdinOnEvent` and NO
@@ -27,7 +28,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pstackPluginDir } from "../local/skill-pack.ts";
-import { forwardClaudeHostCredentials } from "./claude-credentials.ts";
 import { mulchClaudeHooks, readMulchArm } from "./mulch-arm.ts";
 import { parseJsonlClaude } from "./parsers/jsonl-claude.ts";
 import type {
@@ -71,13 +71,19 @@ export const claudeCodeAdapter: AgentRuntimeAdapter = {
 	 */
 	harnessStatePrefixes: [".claude/", ".claude.json"],
 	/**
-	 * Empty on purpose. `.claude/` is tracked in plenty of target repos
+	 * Exact files only. `.claude/` is tracked in plenty of target repos
 	 * (this one keeps five files there), so excluding the prefix would eat
 	 * real work; `.claude/settings.local.json` and `.claude.json` have not
 	 * been observed in a pull request yet. Add the exact file the day one
 	 * does (warren-194a).
+	 *
+	 * `.claude/.credentials.json` holds an OAuth token. The adapter once
+	 * forwarded it into the worktree, where every reap reported it dirty and
+	 * a broad `git add -A` would have pushed it. Warren no longer writes it
+	 * there; the exclude keeps a stray copy (an agent's own `/login`, a
+	 * leftover workspace) out of the branch.
 	 */
-	commitExcludes: [],
+	commitExcludes: [".claude/.credentials.json"],
 	/**
 	 * Empty by evidence, not by omission. The provider-error net (warren-edc3)
 	 * was written against pi's turn lifecycle, and warren has never observed
@@ -131,7 +137,6 @@ export const claudeCodeAdapter: AgentRuntimeAdapter = {
 			{ encoding: "utf8", flag: "w" },
 		);
 		ensureBurrowTmpdir(ctx.workspacePath);
-		await forwardClaudeHostCredentials(ctx.workspacePath);
 	},
 };
 

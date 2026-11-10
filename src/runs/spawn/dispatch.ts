@@ -16,6 +16,7 @@ import {
 	withMaxCostUsdOverride,
 	withProviderOverrides,
 } from "../../registry/schema.ts";
+import { runtimeCostBasis } from "../../runtime/adapters/index.ts";
 import type { RunHandle, RunSpec, RuntimeProvider } from "../../runtime/contract.ts";
 import { interactiveRuntimeOverride } from "../../warren-config/schema.ts";
 import { composeRunBranch, resolveRunBranchPrefix } from "../branch.ts";
@@ -203,7 +204,10 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		// anthropic credential is CLAUDE_CODE_OAUTH_TOKEN (subscription auth)
 		// gets `subscription_estimate` so costUsd reads as an estimate, not a
 		// bill. Resolved beside the provider env registry (core/providers.ts).
-		costBasis: resolveRunCostBasis(declaredProvider, input.serverEnv ?? process.env),
+		costBasis:
+			runtimeCostBasis(
+				readRuntimeId(agent, interactiveRuntimeOverride(agent.name, projectDefaults)),
+			) ?? resolveRunCostBasis(declaredProvider, input.serverEnv ?? process.env),
 		trigger: input.trigger ?? "manual",
 		...(input.seedId !== undefined ? { seedId: input.seedId } : {}),
 		...(input.mode !== undefined ? { mode: input.mode } : {}),

@@ -3,8 +3,8 @@ import { TOOL_SHAPES, toolShapeFor } from "./tool-shape.ts";
 import { KNOWN_RUNTIME_IDS } from "./wire.ts";
 
 describe("toolShape registry", () => {
-	test("covers claude-code and pi", () => {
-		expect(Object.keys(TOOL_SHAPES).sort()).toEqual(["claude-code", "pi"]);
+	test("covers every shipped runtime", () => {
+		expect(Object.keys(TOOL_SHAPES).sort()).toEqual(["claude-code", "codex", "pi"]);
 		expect(toolShapeFor("claude-code")?.runtime).toBe("claude-code");
 		expect(toolShapeFor("pi")?.runtime).toBe("pi");
 		for (const id of KNOWN_RUNTIME_IDS) {

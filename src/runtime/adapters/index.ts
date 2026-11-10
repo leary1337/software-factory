@@ -24,8 +24,9 @@
 
 import { KNOWN_RUNTIME_IDS, type RuntimeId } from "../../core/wire.ts";
 import { claudeCodeAdapter } from "./claude-code.ts";
+import { codexAdapter } from "./codex.ts";
 import { piAdapter } from "./pi.ts";
-import type { AgentRuntimeAdapter } from "./types.ts";
+import type { AgentFrontmatter, AgentRuntimeAdapter } from "./types.ts";
 
 // Phase-2 harness surface (warren-7933) — additive re-exports so the k8s
 // in-pod rewiring (warren-0efe) can consume the lifted types from the
@@ -50,6 +51,7 @@ export type {
 export const RUNTIME_ADAPTERS = {
 	"claude-code": claudeCodeAdapter,
 	pi: piAdapter,
+	codex: codexAdapter,
 } satisfies Record<RuntimeId, AgentRuntimeAdapter>;
 
 /** The adapter for one runtime id. Total over the union, so never null. */
@@ -60,6 +62,15 @@ export function adapterFor(runtimeId: RuntimeId): AgentRuntimeAdapter {
 /** Every adapter, in {@link KNOWN_RUNTIME_IDS} order. */
 export function allAdapters(): readonly AgentRuntimeAdapter[] {
 	return KNOWN_RUNTIME_IDS.map((id) => RUNTIME_ADAPTERS[id]);
+}
+
+/** Stateful parsers are instantiated once per process. Stateless adapters keep their parser. */
+export function eventParserFor(adapter: AgentRuntimeAdapter, frontmatter?: AgentFrontmatter) {
+	return adapter.createEventParser?.(frontmatter) ?? adapter.parseEvents ?? (() => []);
+}
+
+export function runtimeCostBasis(runtimeId: string) {
+	return allAdapters().find((adapter) => adapter.runtimeId === runtimeId)?.costBasis;
 }
 
 /** Collect one declared list across every adapter, de-duplicated, in id order. */

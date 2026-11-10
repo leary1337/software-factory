@@ -37,6 +37,7 @@ import type { PrivateGitScope } from "../../sandbox/git-scope.ts";
 import type { SandboxProfile } from "../../sandbox/types.ts";
 import { WORKSPACE_GITCONFIG_FILENAME } from "../../workspace/git/identity.ts";
 import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
+import { allAdapters } from "../adapters/index.ts";
 import type { RunSpec } from "../contract.ts";
 import { privateGitDenyRoots } from "./paths.ts";
 
@@ -115,6 +116,7 @@ const SYSTEM_RO_PREFIXES = ["/usr", "/etc", "/lib", "/lib64", "/bin", "/sbin", "
 const AGENT_BINARIES: Readonly<Record<string, readonly string[]>> = {
 	"claude-code": ["claude"],
 	pi: ["pi"],
+	codex: ["codex"],
 };
 const COMMON_BINARIES: readonly string[] = ["git", "bun", "node"];
 
@@ -214,6 +216,9 @@ function defaultHostBunInstall(): string {
  * replaces this one.
  */
 export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = [
+	"chatgpt.com",
+	"auth.openai.com",
+	"api.openai.com",
 	"api.anthropic.com",
 	"platform.claude.com",
 	"claude.ai",
@@ -383,7 +388,10 @@ export async function buildLocalSandboxProfile(input: BuildProfileInput): Promis
 			? { timeoutMs: spec.timeoutMs }
 			: toml.timeoutMs !== undefined
 				? { timeoutMs: toml.timeoutMs }
-				: {}),
+				: {
+						timeoutMs: allAdapters().find((adapter) => adapter.runtimeId === spec.runtimeId)
+							?.defaultTimeoutMs,
+					}),
 	};
 	const memoryLimitMb = spec.resources?.memoryMiB ?? toml.memoryLimitMb;
 	if (memoryLimitMb !== undefined) profile.memoryLimitMb = memoryLimitMb;

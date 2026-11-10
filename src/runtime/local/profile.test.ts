@@ -216,6 +216,16 @@ describe("readLocalSandboxConfig", () => {
 });
 
 describe("buildLocalSandboxProfile", () => {
+	test("applies the factory runtime deadline when no project or run limit is set", async () => {
+		const profile = await buildLocalSandboxProfile({
+			spec: makeSpec({ runtimeId: "codex" }),
+			env: {},
+			workspace: fakeWorkspace(),
+			homePath: "/tmp/home",
+		});
+		expect(profile.timeoutMs).toBe(20 * 60_000);
+	});
+
 	test("a project with no burrow.toml gets the default allowlist", async () => {
 		const profile = await buildLocalSandboxProfile({
 			spec: makeSpec({ network: "restricted" }),
