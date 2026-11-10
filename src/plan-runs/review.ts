@@ -143,7 +143,12 @@ async function loadStep(
 
 export async function readResultText(repos: ReviewRepos, runId: string): Promise<string | null> {
 	const tail = await repos.events.listTail(runId, 40);
-	for (const event of [...tail].reverse()) {
+	// Independent gates and reproductions run after the model's result and can fill the tail.
+	return resultFromEvents(tail) ?? resultFromEvents(await repos.events.listByRun(runId));
+}
+
+function resultFromEvents(events: readonly { payloadJson: unknown }[]): string | null {
+	for (const event of [...events].reverse()) {
 		const payload = event.payloadJson as { type?: string; result?: unknown };
 		if (payload.type === "result" && typeof payload.result === "string") return payload.result;
 	}

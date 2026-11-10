@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { decideReviewStep, type ReviewStepRecord } from "./review.ts";
+import {
+	decideReviewStep,
+	type ReviewRepos,
+	type ReviewStepRecord,
+	readResultText,
+} from "./review.ts";
 import { DEFAULT_REVIEW_BUDGET, loadReviewBudget } from "./review-progress.ts";
 
 const SHA = "a".repeat(40);
@@ -31,6 +36,21 @@ function reviewed(open: string[], closed: string[] = []): ReviewStepRecord {
 const rework: ReviewStepRecord = { step: "rework", state: "succeeded", resultText: "fixed" };
 
 describe("review progress", () => {
+	test("retains the verdict when independent check events fill the event tail", async () => {
+		const checks = Array.from({ length: 70 }, () => ({
+			payloadJson: { commit: SHA, id: "finding", exitCode: 0 },
+		}));
+		const repos = {
+			events: {
+				listTail: async () => checks.slice(-40),
+				listByRun: async () => [
+					{ payloadJson: { type: "result", result: "VERDICT: PASS" } },
+					...checks,
+				],
+			},
+		} as unknown as ReviewRepos;
+		expect(await readResultText(repos, "review")).toBe("VERDICT: PASS");
+	});
 	test("continues beyond two reworks when original reproductions close", () => {
 		const steps = [
 			reviewed(["a"]),
