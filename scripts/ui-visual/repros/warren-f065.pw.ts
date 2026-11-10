@@ -19,7 +19,15 @@ for (const c of cases.filter((entry) => entry.page.id === "run-detail")) {
 				const body = await response.json();
 				await route.fulfill({
 					response,
-					json: { ...body, agentName: "reviewer", state: "succeeded", endedAt: body.updatedAt },
+					json: {
+						run: {
+							...body.run,
+							agentName: "reviewer",
+							baseCommit: commit,
+							state: "succeeded",
+							endedAt: new Date(fixture.frozenNowMs).toISOString(),
+						},
+					},
 				});
 			});
 			await page.route(`**/runs/${runId}/events*`, async (route) => {
