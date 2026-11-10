@@ -405,7 +405,7 @@ describe("driveLocalRun", () => {
 		expect(seenCommand?.env?.HTTPS_PROXY).toBe(proxy.url);
 		expect(seenCommand?.env?.http_proxy).toBe(proxy.url);
 		expect(seenCommand?.env?.https_proxy).toBe(proxy.url);
-		expect(seenCommand?.env?.NO_PROXY).toBe("");
+		expect(seenCommand?.env?.NO_PROXY).toBe("localhost,127.0.0.1,::1");
 		expect(proxy.stopped()).toBe(true);
 		expect(proxy.stopCalls()).toBe(1);
 		expect(record.phase).toBe("succeeded");

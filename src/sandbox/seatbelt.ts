@@ -222,8 +222,8 @@ export function buildSeatbeltArgv(
 
 /**
  * Unix-domain sockets under the run's own writable trees. Build tools open
- * IPC sockets under $TMPDIR, which the sandbox env points into the
- * workspace: tsx listens on `<TMPDIR>/tsx-<uid>/<pid>.pipe`, and without
+ * IPC sockets under $TMPDIR, which defaults to the private HOME on macOS:
+ * tsx listens on `<TMPDIR>/tsx-<uid>/<pid>.pipe`, and without
  * this grant it fails with `listen EPERM`. Never grant connections to
  * shared temp directories: host daemons keep privileged sockets there.
  * Chrome needs only a narrowly named bind exception in its macOS temp dir.

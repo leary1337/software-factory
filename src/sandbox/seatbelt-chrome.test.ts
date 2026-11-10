@@ -58,7 +58,7 @@ assert.throws(() => fs.readFileSync(${JSON.stringify(privateFile)}), /EPERM|EACC
 						readOnlyMounts: [join(import.meta.dir, "../../node_modules")],
 						toolchainPaths: ["/opt/homebrew/bin"],
 						envPassthrough: [],
-						setEnv: { TMPDIR: home },
+						setEnv: {},
 					},
 					{ argv: [Bun.which("node") ?? "node", "browser.cjs"] },
 				);

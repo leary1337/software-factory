@@ -72,6 +72,9 @@ async function spawnDarwin(
 		hostEnv: process.env,
 		workspacePath: resolved.workspace,
 	});
+	// Tools such as tsx and Playwright create IPC sockets in os.tmpdir().
+	// Only the run's private trees permit IPC; never widen access to host /tmp.
+	env.TMPDIR ??= resolved.home;
 	// Playwright CLI enables Chrome's nested Seatbelt sandbox by default.
 	// macOS refuses sandbox reinitialization; Warren remains the outer boundary.
 	env.PLAYWRIGHT_MCP_SANDBOX = "false";

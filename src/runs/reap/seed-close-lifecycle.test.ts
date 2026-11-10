@@ -180,6 +180,45 @@ describe("createSeedCloseLifecycleExtension", () => {
 		expect(events.some((ev) => ev.kind === "seeds.seed_id_closed")).toBe(false);
 	});
 
+	for (const step of ["child", "review", "rework"] as const) {
+		test(`leaves a plan's ${step} ticket open until the coordinator observes merge`, async () => {
+			const { repos, runId, projectId } = await setup();
+			const { planRun } = await repos.planRuns.create({
+				projectId,
+				agentName: "refactor-bot",
+				children: [{ seq: 1, seedId: "sd-target" }],
+			});
+			if (step === "child") {
+				await repos.planRuns.updateChild({
+					planRunId: planRun.id,
+					seq: 1,
+					patch: { runId, state: "dispatched" },
+				});
+			} else {
+				const parent = await repos.runs.create({
+					agentName: "refactor-bot",
+					projectId,
+					prompt: "parent",
+					renderedAgentJson: {},
+					trigger: "manual",
+				});
+				await repos.events.append({
+					runId: parent.id,
+					sandboxEventSeq: 1,
+					ts: new Date().toISOString(),
+					kind: "plan_run.review_step",
+					stream: "system",
+					payload: { planRunId: planRun.id, step, stepRunId: runId },
+				});
+			}
+			const { issueTracker, calls } = fakeTracker();
+			const { logger } = recordingLogger();
+			await fire(repos, issueTracker, logger, { runId, projectId });
+			expect(calls).toHaveLength(0);
+			expect(await repos.events.hasKind(runId, "seeds.seed_id_closed")).toBe(false);
+		});
+	}
+
 	test("skips when the project has no seeds", async () => {
 		const { repos, runId, projectId } = await setup({ hasSeeds: false });
 		const { issueTracker, calls } = fakeTracker();

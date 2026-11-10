@@ -40,14 +40,14 @@ describe("matchAllowedDomain", () => {
 });
 
 describe("proxyEnvVars", () => {
-	test("sets both cases of HTTP(S)_PROXY and clears NO_PROXY", () => {
+	test("sets both cases of HTTP(S)_PROXY and limits NO_PROXY to loopback", () => {
 		expect(proxyEnvVars("http://127.0.0.1:9")).toEqual({
 			HTTP_PROXY: "http://127.0.0.1:9",
 			HTTPS_PROXY: "http://127.0.0.1:9",
 			http_proxy: "http://127.0.0.1:9",
 			https_proxy: "http://127.0.0.1:9",
-			NO_PROXY: "",
-			no_proxy: "",
+			NO_PROXY: "localhost,127.0.0.1,::1",
+			no_proxy: "localhost,127.0.0.1,::1",
 		});
 	});
 });

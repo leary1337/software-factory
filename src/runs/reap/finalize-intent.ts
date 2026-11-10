@@ -8,6 +8,7 @@
 import { mintGitCredential } from "../../forge/credentials.ts";
 import type { FinalizeIntent, FinalizeResult, RunHandle } from "../../runtime/contract.ts";
 import type { GitSpawnCredential } from "../../workspace/git/credential-env.ts";
+import { declaresNoCommits } from "./no-commits.ts";
 import type { ReapPipelineContext } from "./pipeline.ts";
 import { seededArtifactResetPaths } from "./seed-reset.ts";
 
@@ -18,6 +19,16 @@ export async function runProviderFinalize(ctx: ReapPipelineContext): Promise<Fin
 		sandboxId: ctx.run.sandboxId as string, // non-null in the pipeline branch (reapRun guards it)
 		providerRunId: ctx.run.sandboxRunId ?? "",
 	};
+	// Read-only runs must not move the reviewed branch, even through host-authored
+	// tracker/memory commits. Their verdict is pinned to the input commit.
+	if (declaresNoCommits(ctx.run)) {
+		return ctx.provider.finalize(handle, {
+			branch: ctx.branch ?? "",
+			push: false,
+			artifacts: [],
+			commit: [],
+		});
+	}
 	// Merges run unconditionally; COMMITS gate on project flags (warren-1f56).
 	const commit: string[] = [];
 	if (ctx.project.hasSeeds) commit.push("seeds");
