@@ -46,6 +46,7 @@ describe("spawnRun: per-project host-clone serialization (warren-232d)", () => {
 
 		const [a, b] = await Promise.all([
 			spawnRun({
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 				repos,
 				runtimeProvider: makeProvider(client),
 				agentName: "refactor-bot",
@@ -57,6 +58,7 @@ describe("spawnRun: per-project host-clone serialization (warren-232d)", () => {
 				refreshProjectFn,
 			}),
 			spawnRun({
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 				repos,
 				runtimeProvider: makeProvider(client),
 				agentName: "refactor-bot",
@@ -103,6 +105,7 @@ describe("spawnRun: per-project host-clone serialization (warren-232d)", () => {
 
 		await Promise.all([
 			spawnRun({
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 				repos,
 				runtimeProvider: makeProvider(client),
 				agentName: "refactor-bot",
@@ -113,6 +116,7 @@ describe("spawnRun: per-project host-clone serialization (warren-232d)", () => {
 				refreshProjectFn,
 			}),
 			spawnRun({
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 				repos,
 				runtimeProvider: makeProvider(client),
 				agentName: "refactor-bot",

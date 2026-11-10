@@ -310,3 +310,11 @@ describe("runAutoMergeArm", () => {
 		},
 	);
 });
+
+test("does not arm implementer PRs before independent factory review", async () => {
+	const { forge, armCalls } = armedForge();
+	await runAutoMergeArm(
+		baseInput({ forge, run: { id: "factory", trigger: "plan-run", agentName: "implementer" } }),
+	);
+	expect(armCalls).toHaveLength(0);
+});

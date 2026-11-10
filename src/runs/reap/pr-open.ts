@@ -320,7 +320,7 @@ export async function runPrOpen(input: RunPrOpenInput): Promise<OpenedPr | null>
 			// project never opted in (the module owns all three invariants).
 			await runAutoMergeArm({
 				projectAutoMerge: input.prAutoMerge,
-				run: { id: input.run.id, trigger: input.run.trigger },
+				run: { id: input.run.id, trigger: input.run.trigger, agentName: input.run.agentName },
 				project: input.project,
 				prUrl: opened.pr.url,
 				prNumber: opened.pr.prRef.number,

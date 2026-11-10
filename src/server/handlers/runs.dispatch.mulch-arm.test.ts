@@ -76,6 +76,8 @@ describe("POST /runs — mulch experiment arm", () => {
 	async function frozenFrontmatter(res: Response): Promise<Record<string, unknown>> {
 		const body = (await res.json()) as { run: { id: string } };
 		const row = await repos.runs.require(body.run.id);
+		await repos.runs.markRunning(row.id);
+		await repos.runs.finalize(row.id, "succeeded");
 		return (row.renderedAgentJson as { frontmatter: Record<string, unknown> }).frontmatter;
 	}
 

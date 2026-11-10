@@ -30,6 +30,7 @@
 import { formatError, NotFoundError } from "../core/errors.ts";
 import type { ScheduledIssue } from "../core/wire.ts";
 import type { Repos } from "../db/repos/index.ts";
+import { RunCapacityError } from "../runs/spawn/admission.ts";
 import type { CronTrigger, DefaultsConfig } from "../warren-config/index.ts";
 import { parseCron } from "./cron.ts";
 import {
@@ -428,6 +429,8 @@ interface CronSpawnFailureInput {
  */
 async function handleCronSpawnFailure(args: CronSpawnFailureInput): Promise<DispatchCronResult> {
 	const { input, retry, nextFireAt, createdRunId, err } = args;
+	if (err instanceof RunCapacityError)
+		return { kind: "skipped", nextFireAt, reason: "run_capacity_full" };
 	if (isPermanentSpawnFailure(err)) {
 		await consumeCronSlot(input, nextFireAt);
 		return { kind: "error", reason: `spawnRun failed: ${formatError(err)}`, permanent: true };

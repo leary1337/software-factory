@@ -25,6 +25,7 @@ import { resolveCapOverride } from "../cost-cap.ts";
 import { lifecycleBus } from "../lifecycle-bus.ts";
 import { buildSeedFiles } from "../seed.ts";
 import { validateTargetBranch } from "../target-branch.ts";
+import { withRunAdmission } from "./admission.ts";
 import { readCachedAgent, readProjectDefaults, resolveOverride } from "./agent-cache.ts";
 import { injectWarrenCallbackEnv } from "./callback-env.ts";
 import { resolveContinuationRef, resolveExistingBranch } from "./continuation.ts";
@@ -67,7 +68,9 @@ export async function spawnRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// read the SAME shared host clone, so two concurrent dispatches on one
 	// project with different base refs must not interleave. Different projects
 	// dispatch in parallel; see src/projects/clone-lock.ts.
-	return withProjectCloneLock(input.projectId, () => dispatchRun(input));
+	return withRunAdmission(input, (admitted) =>
+		withProjectCloneLock(admitted.projectId, () => dispatchRun(admitted)),
+	);
 }
 
 async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
@@ -226,7 +229,12 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	});
 	// warren-a0a2: expose the run id the instant the row exists so the cron
 	// bounded-retry GC can reclaim it if the dispatch below throws (see types).
-	input.onRunRowCreated?.(run.id);
+	try {
+		await input.onRunRowCreated?.(run.id);
+	} catch (err) {
+		await rollback(input, run.id, bindRunLogger(input.logger, run.id, {}), err);
+		throw err;
+	}
 
 	// warren-d6ca: dispatch-context snapshot BEFORE any runtime contact so a
 	// never-started failure still gets a row. Fire-and-log — see writeDispatchContext.

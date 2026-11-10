@@ -60,7 +60,7 @@ A finding blocks only with evidence: a bug, an unmet part of the ticket, a secur
 
 ## Final message
 
-Your final message is parsed. Its first line is exactly \`VERDICT: PASS\` or \`VERDICT: CHANGES\`. After it, list each blocking finding with file:line, what is wrong, and the evidence. Then \`Not run:\` when anything was skipped, and non-blocking notes last, under \`Notes:\`.
+Your final message is parsed. Its first line is exactly \`VERDICT: PASS\` or \`VERDICT: CHANGES\`. The second line is \`REVIEWED_COMMIT: <full 40-character git rev-parse HEAD>\`. The third line is \`QUALITY_GATE: PASS\`, \`QUALITY_GATE: FAIL\`, or \`QUALITY_GATE: NOT_RUN\`. PASS is allowed only when the entire required quality gate ran successfully on the pinned commit. A skipped or blocked required check must produce CHANGES and NOT_RUN, never PASS. Do not include example or duplicate verdict headers. After these three lines, list each blocking finding with file:line, what is wrong, and the evidence. Then \`Not run:\` when anything was skipped, and non-blocking notes last, under \`Notes:\`.
 
 ${UNATTENDED_RULES}
 `;

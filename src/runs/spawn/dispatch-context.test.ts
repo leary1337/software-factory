@@ -189,6 +189,8 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			dispatchOrigin: "api",
 			now: () => FIXED_NOW,
 		});
+		await repos.runs.markRunning(original.run.id);
+		await repos.runs.finalize(original.run.id, "failed", FIXED_NOW, "provider_error");
 		const retry = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
@@ -223,6 +225,8 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			dispatchOrigin: "api",
 			now: () => FIXED_NOW,
 		});
+		await repos.runs.markRunning(original.run.id);
+		await repos.runs.finalize(original.run.id, "failed", FIXED_NOW, "provider_error");
 		const retry = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
@@ -406,6 +410,7 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			agentName: "refactor-bot",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "me",
+			serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 			now: () => FIXED_NOW,
 		});
 

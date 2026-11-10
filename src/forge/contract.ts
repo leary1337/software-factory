@@ -380,11 +380,20 @@ export interface Forge {
 	/** Deploy status and start; absent on forges without deployments. */
 	readonly deploys?: ForgeDeploys;
 
-	/** Squash-merge a PR. Providers without support return `unsupported`. */
-	mergePullRequest(ref: RepoRef, pr: PullRequestRef): Promise<ForgeResult<void>>;
+	/** Merge only the expected head with the chosen method; unsupported providers refuse. */
+	mergePullRequest(
+		ref: RepoRef,
+		pr: PullRequestRef,
+		options: { readonly expectedHead: string; readonly method: AutoMergeMethod },
+	): Promise<ForgeResult<void>>;
 
-	/** Post a comment on a PR. Providers without support return `unsupported`. */
-	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string): Promise<ForgeResult<void>>;
+	/** Post a comment; a supplied key deduplicates delivery retries. Unsupported providers refuse. */
+	commentOnPullRequest(
+		ref: RepoRef,
+		pr: PullRequestRef,
+		body: string,
+		key?: string,
+	): Promise<ForgeResult<void>>;
 
 	/**
 	 * Rewrite a PR body. The domain composes the body; the forge only

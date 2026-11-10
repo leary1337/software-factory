@@ -339,6 +339,7 @@ describe("bootScheduler", () => {
 		});
 		await repos.runs.markRunning(opener.id, NOW);
 		await repos.runs.setPrUrl(opener.id, "fake://x/y/pulls/9");
+		await repos.runs.finalize(opener.id, "succeeded", NOW);
 
 		const { DEFAULT_RUN_BRANCH_PREFIX } = await import("../runs/branch.ts");
 		const forge = new FakeForge();

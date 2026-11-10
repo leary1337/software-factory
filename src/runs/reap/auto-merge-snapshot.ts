@@ -9,7 +9,8 @@ import { computeAutoMergeChangedPaths, readBaseAutoMergeConfig } from "./auto-me
 import type { ChangedPaths } from "./auto-merge-policy.ts";
 import type { ReapExec } from "./types.ts";
 
-interface AutoMergeSnapshot {
+export interface AutoMergeSnapshot {
+	headCommit?: string;
 	config: AutoMergeConfig | undefined;
 	changedPaths: ChangedPaths;
 }
@@ -37,7 +38,11 @@ export async function readAutoMergeSnapshot(
 		const base = await fetchCommit(exec, cwd, url, input.baseBranch, "base");
 		config = await readBaseAutoMergeConfig(exec, cwd, base);
 		const head = await fetchCommit(exec, cwd, url, input.branch, "head");
-		return { config, changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head) };
+		return {
+			config,
+			headCommit: head,
+			changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head),
+		};
 	} catch {
 		// Never expose fetch errors: their text can contain the minted credential.
 		// A failed base read is off; a failed head read is diff_unreadable.

@@ -208,16 +208,21 @@ export class GitHubAppForge implements Forge {
 		return this.transport.deploys;
 	}
 
-	mergePullRequest(ref: RepoRef, pr: Parameters<Forge["mergePullRequest"]>[1]) {
-		return this.transport.mergePullRequest(ref, pr);
+	mergePullRequest(
+		ref: RepoRef,
+		pr: Parameters<Forge["mergePullRequest"]>[1],
+		options: Parameters<Forge["mergePullRequest"]>[2],
+	) {
+		return this.transport.mergePullRequest(ref, pr, options);
 	}
 
 	commentOnPullRequest(
 		ref: RepoRef,
 		pr: Parameters<Forge["commentOnPullRequest"]>[1],
 		body: string,
+		key?: string,
 	) {
-		return this.transport.commentOnPullRequest(ref, pr, body);
+		return this.transport.commentOnPullRequest(ref, pr, body, key);
 	}
 
 	setPullRequestBody(ref: RepoRef, pr: Parameters<Forge["setPullRequestBody"]>[1], body: string) {

@@ -61,7 +61,7 @@ describe("automatic run window", () => {
 		let capacityChecks = 0;
 		const result = await withAutomaticRunAdmission(
 			{
-				async countNonTerminalAutomatic() {
+				async countNonTerminal() {
 					capacityChecks += 1;
 					return 0;
 				},
@@ -83,7 +83,7 @@ describe("automatic run window", () => {
 		let releaseWork: (() => void) | undefined;
 		let workStarted = 0;
 		const runs = {
-			async countNonTerminalAutomatic() {
+			async countNonTerminal() {
 				return 0;
 			},
 		};
@@ -110,7 +110,7 @@ describe("automatic run window", () => {
 		let activeRuns = 0;
 		let dispatches = 0;
 		const runs = {
-			async countNonTerminalAutomatic() {
+			async countNonTerminal() {
 				return activeRuns;
 			},
 		};
@@ -136,7 +136,7 @@ describe("automatic run window", () => {
 		let workStarted = false;
 		const result = await withAutomaticRunAdmission(
 			{
-				async countNonTerminalAutomatic() {
+				async countNonTerminal() {
 					return 1;
 				},
 			},
@@ -155,7 +155,7 @@ describe("automatic run window", () => {
 
 describe("withAutomaticRunAdmission", () => {
 	const inWindow = new Date("2026-06-01T01:00:00.000Z");
-	const runsAt = (count: number) => ({ countNonTerminalAutomatic: async () => count });
+	const runsAt = (count: number) => ({ countNonTerminal: async () => count });
 
 	test("passes the free slot count to the admitted work", async () => {
 		const result = await withAutomaticRunAdmission(
