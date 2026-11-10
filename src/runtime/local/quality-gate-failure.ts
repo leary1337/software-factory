@@ -8,6 +8,7 @@ export function preserveFailedReviewUsage(
 	store: LocalRunStore,
 	record: LocalRunRecord,
 	deferred: readonly AdapterRuntimeEvent[],
+	error: unknown,
 ): void {
 	if (record.cancelRequested) return;
 	const result = [...deferred]
@@ -27,6 +28,7 @@ export function preserveFailedReviewUsage(
 		payload: {
 			...result.payload,
 			is_error: true,
+			error: error instanceof Error ? error.message : String(error),
 			synthesized: true,
 			source_type: "verification_failed",
 		},

@@ -352,7 +352,7 @@ async function pumpToExit(
 		await beforeTerminal?.(exitCode);
 	} catch (error) {
 		recordFailedGateReview(store, record, error, exitCode, streamError, deferred);
-		preserveFailedReviewUsage(store, record, deferred);
+		preserveFailedReviewUsage(store, record, deferred, error);
 		throw error;
 	}
 	for (const ev of deferred) store.appendEvent(record, ev, now);

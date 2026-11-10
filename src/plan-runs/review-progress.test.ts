@@ -6,7 +6,7 @@ import {
 	readResultText,
 } from "./review.ts";
 import { DEFAULT_REVIEW_BUDGET, loadReviewBudget } from "./review-progress.ts";
-import { legacyReviewPrompt } from "./review-prompt.ts";
+import { legacyReviewPrompt, reviewHistoryPrompt } from "./review-prompt.ts";
 
 const SHA = "a".repeat(40);
 function reviewed(open: string[], closed: string[] = []): ReviewStepRecord {
@@ -41,7 +41,21 @@ describe("review progress", () => {
 		const report = "VERDICT: CHANGES\nReloading a pending deletion corrupts positions.";
 		expect(legacyReviewPrompt(report)).toContain(report);
 		expect(legacyReviewPrompt(report)).toContain("including already fixed cases");
+		expect(legacyReviewPrompt(report)).toContain("put every one in the findings array");
 		expect(legacyReviewPrompt("VERDICT: PASS")).toBe("");
+	});
+	test("retains legacy findings across a failed manifest attempt", () => {
+		const report = "VERDICT: CHANGES\nAn unresolved timestamp defect.";
+		const history = reviewHistoryPrompt(
+			[
+				{ step: "review", state: "succeeded", resultText: report },
+				{ step: "review", state: "failed", resultText: null, evidenceRequired: true },
+			],
+			false,
+		);
+		expect(history.prompt).toContain(report);
+		expect(history.prompt).toContain("The only top-level keys are version and findings");
+		expect(history.prior).toEqual([]);
 	});
 	test("retains the verdict when independent check events fill the event tail", async () => {
 		const checks = Array.from({ length: 70 }, () => ({
