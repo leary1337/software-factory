@@ -27,6 +27,26 @@ function baseProfile(over: Partial<SandboxProfile> = {}): SandboxProfile {
 }
 
 describe("buildSeatbeltProfile", () => {
+	test("grants Chrome binaries without exposing applications or personal profiles", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		expect(out).toContain(
+			'(allow file-read* (subpath "/Applications/Google Chrome.app/Contents"))',
+		);
+		expect(out).not.toContain('(subpath "/Applications")');
+		expect(out).not.toContain("Application Support/Google/Chrome");
+		expect(out).not.toContain("(allow mach-register)");
+		expect(out).toContain("MachPortRendezvousServer");
+	});
+
+	test("permits binding a Chrome singleton without connecting to host sockets", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		const rules = out.split("\n").filter((line) => line.includes("SingletonSocket"));
+		expect(rules).toHaveLength(1);
+		expect(rules[0]).toContain("(allow network-bind (local unix-socket");
+		expect(rules[0]).toContain("/[^/]+/SingletonSocket$");
+		expect(out).not.toMatch(/network-outbound.*SingletonSocket/);
+	});
+
 	test("allows signalling only processes in the same sandbox", () => {
 		const out = buildSeatbeltProfile(baseProfile());
 		expect(out).toContain("(allow signal (target same-sandbox))");
@@ -97,7 +117,7 @@ describe("buildSeatbeltProfile", () => {
 		expect(out).not.toMatch(/ip "\*/);
 		// Domain rules are no longer in the profile (sandbox-exec can't
 		// match by hostname after DNS — see burrow-14b6).
-		expect(out).not.toMatch(/regex/);
+		expect(out).not.toMatch(/network-outbound.*regex/);
 		expect(out).not.toContain("mDNSResponder");
 	});
 
@@ -114,7 +134,7 @@ describe("buildSeatbeltProfile", () => {
 		expect(out).not.toMatch(IP_RULE);
 	});
 
-	test("unix sockets are allowed under the workspace and the run home only", () => {
+	test("unix socket connections are allowed under the workspace and run home only", () => {
 		const out = buildSeatbeltProfile(baseProfile({ network: "restricted" }));
 		for (const root of ["/Users/u/ws", "/Users/u/homes/run-1"]) {
 			expect(out).toContain(`(allow network-bind (local unix-socket (subpath "${root}")))`);
@@ -197,7 +217,7 @@ describe("buildSeatbeltProfile", () => {
 		});
 		const none = buildSeatbeltProfile(baseProfile(), { developerDir: null });
 		expect(clt).toBe(none);
-		expect(none).not.toContain(".app/Contents");
+		expect(none).not.toContain("Xcode.app/Contents");
 	});
 
 	test("xcodeBundleContents skips failed lookups and non-bundle dirs", () => {

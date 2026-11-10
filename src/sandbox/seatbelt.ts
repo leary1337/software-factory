@@ -22,11 +22,13 @@
  *
  * Every policy allows unix sockets inside the workspace and the run HOME,
  * the two per-run writable trees, so tool IPC (tsx, Turbopack) works.
+ * Chrome may also bind its singleton socket in the macOS temp directory;
+ * connections to host sockets there remain denied.
  */
 
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { SandboxProfile, SpawnCommand } from "./types.ts";
 
@@ -85,6 +87,14 @@ export function buildSeatbeltProfile(
 	for (const path of SYSTEM_READ_SUBPATHS) {
 		lines.push(`(allow file-read* (subpath ${sbString(path)}))`);
 	}
+
+	// Playwright's Chrome channel loads its framework and helpers from the
+	// app bundle. Grant binaries only, not /Applications or the user's profile.
+	lines.push('(allow file-read* (subpath "/Applications/Google Chrome.app/Contents"))');
+	lines.push('(allow file-read* (literal "/Applications/Google Chrome.app"))');
+	lines.push(
+		'(allow mach-register (global-name-regex #"^(com[.]google[.]Chrome)?[.]MachPortRendezvousServer[.][0-9]+$"))',
+	);
 
 	for (const path of profile.toolchainPaths) {
 		lines.push(`(allow file-read* (subpath ${sbString(path)}))`);
@@ -214,16 +224,24 @@ export function buildSeatbeltArgv(
  * Unix-domain sockets under the run's own writable trees. Build tools open
  * IPC sockets under $TMPDIR, which the sandbox env points into the
  * workspace: tsx listens on `<TMPDIR>/tsx-<uid>/<pid>.pipe`, and without
- * this grant it fails with `listen EPERM`. Never /private/tmp or
- * /private/var/folders: host daemons (tmux, launchd listeners, editor IPC)
- * keep their sockets there, and a connect to one is a sandbox escape.
+ * this grant it fails with `listen EPERM`. Never grant connections to
+ * shared temp directories: host daemons keep privileged sockets there.
+ * Chrome needs only a narrowly named bind exception in its macOS temp dir.
  */
 function renderUnixSocketRules(profile: SandboxProfile): string[] {
 	if (profile.network === "open") return [];
-	return [profile.workspace, profile.home].flatMap((root) => [
-		`(allow network-bind (local unix-socket (subpath ${sbString(root)})))`,
-		`(allow network-outbound (remote unix-socket (subpath ${sbString(root)})))`,
-	]);
+	// Chrome obtains the macOS temp dir via confstr, ignoring TMPDIR. It
+	// binds its profile singleton there. Binding is safe; connecting to
+	// host sockets remains denied, including an existing Chrome instance.
+	const temp = realpathOrSelf(tmpdir()).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const singleton = `^${temp}/[^/]+/SingletonSocket$`;
+	return [
+		`(allow network-bind (local unix-socket (regex ${sbString(singleton)})))`,
+		...[profile.workspace, profile.home].flatMap((root) => [
+			`(allow network-bind (local unix-socket (subpath ${sbString(root)})))`,
+			`(allow network-outbound (remote unix-socket (subpath ${sbString(root)})))`,
+		]),
+	];
 }
 
 function renderNetworkRules(profile: SandboxProfile): string[] {

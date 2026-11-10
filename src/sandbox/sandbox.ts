@@ -70,6 +70,9 @@ async function spawnDarwin(
 		hostEnv: process.env,
 		workspacePath: resolved.workspace,
 	});
+	// Playwright CLI enables Chrome's nested Seatbelt sandbox by default.
+	// macOS refuses sandbox reinitialization; Warren remains the outer boundary.
+	env.PLAYWRIGHT_MCP_SANDBOX = "false";
 	const argv = buildSeatbeltArgv(profilePath, command, {
 		sandboxExecBin: options.sandboxExecBin,
 	});
