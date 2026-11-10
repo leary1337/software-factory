@@ -3,6 +3,7 @@ import { spawnReviewStep } from "./review-dispatch.ts";
 
 export { decideReviewStep } from "./review-decision.ts";
 
+import { failedGateChangesReport } from "../core/review-check-failure.ts";
 import type { ReviewEvidence } from "../core/review-findings.ts";
 import { parseReviewEvidence } from "../runtime/review-artifacts.ts";
 import { loadReviewBudget, reviewBudgetReason } from "./review-progress.ts";
@@ -103,6 +104,13 @@ export async function loadSteps(
 	return records;
 }
 
+function activeDuration(run: RunRow): number | null | undefined {
+	if (run.startedAt === undefined) return undefined;
+	if (!run.startedAt || !run.endedAt) return null;
+	const duration = Date.parse(run.endedAt) - Date.parse(run.startedAt);
+	return Number.isFinite(duration) && duration >= 0 ? duration : null;
+}
+
 async function loadStep(
 	repos: ReviewRepos,
 	payload: {
@@ -114,26 +122,26 @@ async function loadStep(
 ): Promise<ReviewStepRecord> {
 	const stepRun = await repos.runs.require(payload.stepRunId);
 	// A step that leaves the branch untouched ends as no_changes; for a reviewer that is the job done.
-	const finishedCleanly = stepRun.state === "succeeded" || stepRun.failureReason === "no_changes";
 	const commit = payload.reviewedCommit ?? stepRun.baseCommit ?? "";
 	const stepEvents = await repos.events.listByRun(stepRun.id);
+	const findings =
+		stepRun.state === "failed" && stepRun.failureReason === "crashed" && payload.step !== "rework"
+			? failedGateChangesReport(stepEvents, commit)
+			: null;
+	const finishedCleanly =
+		stepRun.state === "succeeded" || stepRun.failureReason === "no_changes" || findings !== null;
 	const gateVerified = hasQualityGateWitness(stepEvents, commit);
 	const rawEvidence = [...stepEvents]
 		.reverse()
 		.find((event) => event.stream === "system" && event.kind === "review_check.evidence");
 	const evidence = parseReviewEvidence(rawEvidence?.payloadJson);
-	const activeMs =
-		stepRun.startedAt && stepRun.endedAt
-			? Date.parse(stepRun.endedAt) - Date.parse(stepRun.startedAt)
-			: null;
-	const report = finishedCleanly ? await readResultText(repos, stepRun.id) : null;
+	const report = findings ?? (finishedCleanly ? await readResultText(repos, stepRun.id) : null);
 	return {
 		gateVerified,
 		evidenceRequired: payload.evidenceRequired,
 		...(evidence ? { evidence } : {}),
 		costUsd: stepRun.costUsd,
-		activeMs:
-			stepRun.startedAt === undefined ? undefined : Number.isFinite(activeMs) ? activeMs : null,
+		activeMs: activeDuration(stepRun),
 		step: payload.step,
 		reviewedCommit: payload.reviewedCommit ?? stepRun.baseCommit ?? "",
 		state: finishedCleanly ? "succeeded" : stepRun.endedAt === null ? "running" : "failed",

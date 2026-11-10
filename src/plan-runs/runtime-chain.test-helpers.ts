@@ -69,7 +69,10 @@ function nextVerdict(verdicts: string[]): string {
 	return verdicts.shift() ?? "PASS";
 }
 
-export async function runtimeChain(verdicts: string[]) {
+export async function runtimeChain(
+	verdicts: string[],
+	gate = "test -f .warren/config.yaml && test -f change-1.txt",
+) {
 	const root = await realpath(await mkdtemp(join(tmpdir(), "factory-chain-")));
 	const remote = join(root, "remote.git");
 	const host = join(root, "host");
@@ -78,7 +81,7 @@ export async function runtimeChain(verdicts: string[]) {
 	await mkdir(join(host, ".warren"));
 	await writeFile(
 		join(host, ".warren/config.yaml"),
-		"qualityGate: test -f .warren/config.yaml && test -f change-1.txt\nagent:\n  skipGitHooks: true\npr:\n  autoMerge:\n    method: squash\n",
+		`qualityGate: ${gate}\nagent:\n  skipGitHooks: true\npr:\n  autoMerge:\n    method: squash\n`,
 	);
 	await fixtureGitOrThrow(host, ["add", "."]);
 	await fixtureGitOrThrow(host, [
@@ -228,6 +231,11 @@ export async function runtimeChain(verdicts: string[]) {
 }
 
 function reviewerScript(verdict: string, step: number): string {
+	const text = JSON.stringify({
+		kind: "text",
+		stream: "stdout",
+		payload: { text: "Review completed." },
+	});
 	const manifest = JSON.stringify({
 		version: 1,
 		findings:
@@ -247,7 +255,7 @@ function reviewerScript(verdict: string, step: number): string {
 		stream: "system",
 		payload: {
 			type: "result",
-			total_cost_usd: 0,
+			total_cost_usd: 0.25,
 			result: `VERDICT: ${verdict === "STALLED" ? "CHANGES" : verdict}\nREVIEWED_COMMIT: REVIEW_SHA\nQUALITY_GATE: NOT_RUN\n\nFixture report.`,
 		},
 	});
@@ -255,5 +263,5 @@ function reviewerScript(verdict: string, step: number): string {
 		? "exit 1"
 		: verdict === "WAIT"
 			? "sleep 30"
-			: `printf '%s' '${manifest}' > "$HOME/warren-review.json"; sha=$(git rev-parse HEAD); printf '%s\\n' '${envelope.replace("REVIEW_SHA", "'\"$sha\"'")}'`;
+			: `printf '%s\\n' '${text}'; printf '%s' '${manifest}' > "$HOME/warren-review.json"; sha=$(git rev-parse HEAD); printf '%s\\n' '${envelope.replace("REVIEW_SHA", "'\"$sha\"'")}'`;
 }

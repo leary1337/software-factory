@@ -2,6 +2,7 @@
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
 import type { RunSpec } from "../contract.ts";
 import { stopAgentProcess } from "./git-pin.ts";
+import { QualityGateFailure } from "./quality-gate-failure.ts";
 import { prepareQualityGateWorkspace } from "./quality-gate-workspace.ts";
 import { prepareReviewChecks } from "./review-checks.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
@@ -98,9 +99,9 @@ export async function runIndependentQualityGate(
 				stderr,
 			},
 		});
-		if (exitCode !== 0) throw new Error(`Independent quality gate failed (exit ${exitCode})`);
 		clearTimeout(timer);
 		await checkFindings(workspace, deps.spawn, startedAt + (profile.timeoutMs ?? 1_200_000));
+		if (exitCode !== 0) throw new QualityGateFailure(gate.commit, exitCode);
 	} finally {
 		clearTimeout(timer);
 		clearInterval(heartbeat);

@@ -12,6 +12,11 @@ quality gate, and executes the reproductions against the pinned commit in the
 independent gate sandbox. These commands receive the gate's isolated environment,
 without model credentials. The harness cannot emit the runtime's evidence events.
 
+A nonzero gate exit still permits reproduction replay in the verified checkout.
+Pinned CHANGES from a clean model exit can request rework when those reproductions
+confirm the defect. The run retains its failure status and reported usage; it is
+never promoted to PASS. Crashes, cancellation and unverifiable checks remain stops.
+
 A failing assertion exits 1; a passing regression exits 0. Timeout, cancellation,
 missing evidence, an unexpected exit code or source mutation cannot close a
 finding. Original sources are retained and replayed on subsequent commits. A

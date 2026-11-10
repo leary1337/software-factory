@@ -285,7 +285,7 @@ describe("driveLocalRun", () => {
 		});
 		expect(record.phase).toBe("failed");
 		expect(record.errorMessage).toContain("bwrap missing");
-		expect(record.events.at(-1)?.kind).toBe("error");
+		expect(record.events.at(-1)?.kind).toBe("state_change");
 	});
 
 	test("stdin-hold closes stdin on the adapter's trigger event", async () => {

@@ -132,7 +132,13 @@ describe("driveLocalRun home lifecycle", () => {
 		expect(cleaned).toBe(true);
 		expect(record.phase).toBe("failed");
 		expect(record.errorMessage).toContain("exceeded run timeout");
-		expect(record.events.some((event) => event.kind === "state_change")).toBe(false);
+		const terminals = record.events.filter((event) => event.kind === "state_change");
+		expect(terminals).toHaveLength(1);
+		expect(terminals[0]?.payload).toMatchObject({
+			is_error: true,
+			synthesized: true,
+			source_type: "runtime_failed",
+		});
 	});
 
 	test("settles a cancellation latched while the child exits after cleanup", async () => {

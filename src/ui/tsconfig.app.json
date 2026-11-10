@@ -44,6 +44,7 @@
 		"../core/wire-merge.ts",
 		"../core/review-result.ts",
 		"../core/review-evidence.ts",
+		"../core/review-check-failure.ts",
 		"../core/quality-gate.ts",
 		"../core/wire-ops.ts",
 		"../core/wire-cost.ts",
