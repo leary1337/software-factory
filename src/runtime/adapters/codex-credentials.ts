@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -107,25 +108,65 @@ async function lendCredentials(homePath: string, source: string): Promise<() => 
 	await mkdir(dirname(target), { recursive: true, mode: 0o700 });
 	const directory = await lstat(dirname(target));
 	if (!directory.isDirectory()) throw new Error("Codex home must be a private directory");
-	await writeAuth(target, original);
-	return async () => {
-		// The child has exited before cleanup. Refuse a replaced ancestor before
-		// reading OR unlinking its auth file (O_NOFOLLOW protects the leaf only).
-		const current = await lstat(dirname(target));
-		if (!current.isDirectory() || current.ino !== directory.ino || current.dev !== directory.dev) {
-			throw new Error("Codex home was replaced during the run");
-		}
-		try {
-			const refreshed = await readAuth(target);
-			if (
-				refreshed !== original &&
-				account(refreshed) === accountId &&
-				(await readAuth(source)) === original
-			) {
-				await writeAuth(source, refreshed);
-			}
-		} finally {
-			await rm(target, { force: true });
-		}
+	const journal: CredentialJournal = {
+		source,
+		originalHash: hash(original),
+		accountId,
+		directoryIno: directory.ino,
+		directoryDev: directory.dev,
 	};
+	// Outside the sandbox-writable HOME: never trust a child-supplied source path.
+	await writeAuth(`${homePath}.credentials.json`, JSON.stringify(journal));
+	await writeAuth(target, original);
+	return () => recoverCodexCredentials(homePath);
+}
+
+interface CredentialJournal {
+	source: string;
+	originalHash: string;
+	accountId: string;
+	directoryIno: number;
+	directoryDev: number;
+}
+
+function hash(body: string): string {
+	return createHash("sha256").update(body).digest("hex");
+}
+
+/** Called only after the runtime has confirmed that the child and its descendants exited. */
+export async function recoverCodexCredentials(homePath: string): Promise<void> {
+	const path = `${homePath}.credentials.json`;
+	let journal: CredentialJournal;
+	try {
+		journal = JSON.parse(await readAuth(path)) as CredentialJournal;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+		throw error;
+	}
+	const target = join(homePath, ".codex", "auth.json");
+	const current = await lstat(dirname(target));
+	if (
+		!current.isDirectory() ||
+		current.ino !== journal.directoryIno ||
+		current.dev !== journal.directoryDev
+	) {
+		throw new Error("Codex home was replaced during the run");
+	}
+	let refreshed: string | undefined;
+	try {
+		refreshed = await readAuth(target);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+	if (
+		refreshed !== undefined &&
+		hash(refreshed) !== journal.originalHash &&
+		account(refreshed) === journal.accountId &&
+		hash(await readAuth(journal.source)) === journal.originalHash
+	) {
+		await writeAuth(journal.source, refreshed);
+	}
+	// If persistence fails, leave both credential and journal for another recovery attempt.
+	await rm(target, { force: true });
+	await rm(path, { force: true });
 }

@@ -33,9 +33,7 @@ describe("POST /runs — spawn flow", () => {
 			},
 		});
 
-		// Real on-disk localPath so the project-refresh path inside POST
-		// /runs (warren-1bb6) can pass its existsSync probe before the
-		// stubbed spawn handles git fetch + reset --hard origin/main.
+		// A real directory satisfies the refresh probe before the stub handles git.
 		const { mkdtemp } = await import("node:fs/promises");
 		const { tmpdir } = await import("node:os");
 		const { join } = await import("node:path");
@@ -310,6 +308,9 @@ describe("POST /runs — spawn flow", () => {
 		const persisted = await repos.runs.require(body.run.id);
 		expect(persisted.ref).toBe("fix/pr-head");
 
+		await repos.runs.markRunning(body.run.id);
+		await repos.runs.finalize(body.run.id, "succeeded");
+
 		// A ref-less dispatch echoes null, not a dropped field.
 		const res2 = await fetch(`${tcpUrl(handle)}/runs`, {
 			method: "POST",
@@ -336,6 +337,8 @@ describe("POST /runs — spawn flow", () => {
 			renderedAgentJson: { name: "refactor-bot", version: 1, sections: { system: "x" } },
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "succeeded");
 
 		const calls: { method: string; path: string; body: unknown }[] = [];
 		const sandboxClient = makeSandboxClient(
@@ -383,6 +386,8 @@ describe("POST /runs — spawn flow", () => {
 			},
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "succeeded");
 
 		const sandboxClient = makeSandboxClient(
 			{ sandboxId: "bur_clone0000000", sandboxRunId: "run_clonerun0000", workspacePath: "/tmp/ws" },

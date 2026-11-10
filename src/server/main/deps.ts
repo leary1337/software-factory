@@ -110,6 +110,7 @@ export interface BuildServerDepsInput {
 	 * `POST /runs/:id/salvage` intake.
 	 */
 	readonly salvageDir: string;
+	readonly deploymentAdmission?: import("../../projects/deployment-admission.ts").DeploymentAdmission;
 	readonly now?: () => Date;
 }
 
@@ -161,6 +162,7 @@ export function buildServerDeps(input: BuildServerDepsInput): ServerDeps {
 	// and threaded in here, rather than deps re-resolving a second instance.
 
 	return {
+		...(input.deploymentAdmission ? { deploymentAdmission: input.deploymentAdmission } : {}),
 		repos,
 		db,
 		// Persistence seams derived from `db` ONCE here (warren-89a6). The HTTP

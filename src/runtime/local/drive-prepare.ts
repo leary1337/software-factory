@@ -103,6 +103,7 @@ export interface PreparedSpawn {
 	readonly proxy: ProxyHandle | null;
 	readonly useStdinHold: boolean;
 	readonly finalizeHome?: () => Promise<void>;
+	readonly qualityGate?: RunSpec["qualityGate"];
 }
 
 /** Resolve runtime + command + optional restricted-network proxy, or null on fail. */
@@ -184,6 +185,7 @@ export async function prepareSpawn(
 		runCommand: armed.runCommand,
 		proxy: armed.proxy,
 		useStdinHold,
+		...(spec.qualityGate ? { qualityGate: spec.qualityGate } : {}),
 		...(finalizeHome ? { finalizeHome } : {}),
 	};
 }

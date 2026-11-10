@@ -25,6 +25,7 @@ import type {
 	CoordinatorSpawnFn,
 	CoordinatorSpawnResult,
 } from "./coordinator.ts";
+import type { CoordinatorDeploymentFn } from "./deployment-gate.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import {
 	type CoordinatorReopenPrFn,
@@ -41,7 +42,7 @@ import {
 	mergeTimeoutDiagnosis,
 } from "./merge-stall.ts";
 import { shouldRetryChild } from "./retry.ts";
-import { advanceReview } from "./review.ts";
+import { advanceReview, resumeReviewDelivery } from "./review.ts";
 
 export interface HandleInFlightInput {
 	readonly planRun: PlanRunRow;
@@ -60,7 +61,15 @@ export interface HandleInFlightInput {
 	readonly closeChildSeed?: CoordinatorCloseChildSeedFn; // warren-3806: host-side seed close on merge
 	readonly spawn: CoordinatorSpawnFn; // warren-6de9: automatic child re-dispatch
 	readonly commentOnPr?: CoordinatorCommentFn; // posts the finished review on the PR
-	readonly mergePassedPr?: CoordinatorMergeFn; // present when merge-on-PASS is on
+	readonly mergePassedPr?: CoordinatorMergeFn;
+	readonly verifyDeployment?: CoordinatorDeploymentFn;
+	readonly getReviewHead?: (prUrl: string) => Promise<string | null>;
+	readonly getReviewChangedPaths?: (
+		prUrl: string,
+		branch: string,
+		projectId: string,
+		commit: string,
+	) => Promise<readonly string[] | null>; // present when merge-on-PASS is on
 }
 
 /**
@@ -325,6 +334,20 @@ async function pollMergeState(
 	}
 	const polled = await checkPrMerged(effectivePrUrl);
 	if (polled.kind === "merged") {
+		const delivery = await resumeReviewDelivery(input, run, effectivePrUrl);
+		if (delivery !== null) return delivery;
+		const deployment = await input.verifyDeployment?.({
+			planRun,
+			child,
+			run,
+			prUrl: effectivePrUrl,
+			emit,
+			now,
+		});
+		if (deployment?.kind === "waiting")
+			return { kind: "result", result: { kind: "waiting_for_merge" } };
+		if (deployment?.kind === "incident")
+			return failChild(input, run, "deployment_incident", { detail: deployment.reason });
 		await repos.planRuns.updateChild({
 			planRunId: planRun.id,
 			seq: child.seq,

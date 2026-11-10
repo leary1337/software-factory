@@ -74,7 +74,15 @@ function planRunOverrides(planRun: PlanRunRow) {
 
 export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorSpawnFn {
 	const spawnRunFn = input.spawnRunFn ?? spawnRun;
-	return async ({ planRun, child, prompt, agentName, existingBranch }) => {
+	return async ({
+		planRun,
+		child,
+		prompt,
+		agentName = planRun.agentName,
+		existingBranch,
+		baseCommit,
+		onRunCreated,
+	}) => {
 		const project = await input.repos.projects.require(planRun.projectId);
 		const ref = planRun.ref ?? project.defaultBranch;
 		const gitCredential =
@@ -82,10 +90,12 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		const result = await spawnRunFn({
 			repos: input.repos,
 			runtimeProvider: input.runtimeProvider,
-			agentName: agentName ?? planRun.agentName,
+			agentName,
 			projectId: planRun.projectId,
 			prompt,
 			trigger: "plan-run",
+			baseCommit,
+			onRunRowCreated: onRunCreated,
 			// warren-9ce3: underscore spelling matches the dispatch-origin
 			// vocabulary (distinct from the hyphenated trigger column).
 			dispatchOrigin: "plan_run",

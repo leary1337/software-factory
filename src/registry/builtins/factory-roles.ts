@@ -50,7 +50,7 @@ ${HARNESS_GUIDE}
 ## Procedure
 
 1. Read AGENTS.md or CLAUDE.md if present, then the ticket.
-2. Install the project's dependencies and run its complete quality gate (${QUALITY_GATE_CHAIN}). A step that fails because of the code is a blocking finding. List each step the sandbox cannot run, such as a blocked download or a local port, under \`Not run:\` with the reason.
+2. Inspect the project checks and install dependencies needed for review. Warren independently executes the configured full quality gate after this process exits, in the same sandbox and against the pinned commit. Use focused checks to prove findings; leave the full gate to the runtime. Keep tracked files unchanged.
 3. Read \`$HOME/.agents/skills/code-review/SKILL.md\` and run both of its axes over the diff since the fixed point, with the ticket as the spec.
 4. Read \`${PSTACK}/skills/interrogate/SKILL.md\` and follow it, keeping only findings a run proves.
 5. When the diff changes something other code depends on, read \`${PSTACK}/skills/blast-radius/SKILL.md\` and follow it.
@@ -60,7 +60,7 @@ A finding blocks only with evidence: a bug, an unmet part of the ticket, a secur
 
 ## Final message
 
-Your final message is parsed. Its first line is exactly \`VERDICT: PASS\` or \`VERDICT: CHANGES\`. After it, list each blocking finding with file:line, what is wrong, and the evidence. Then \`Not run:\` when anything was skipped, and non-blocking notes last, under \`Notes:\`.
+Your final message is parsed. Its first line is exactly \`VERDICT: PASS\` or \`VERDICT: CHANGES\`. The second line is \`REVIEWED_COMMIT: <full 40-character git rev-parse HEAD>\`. The third line is \`QUALITY_GATE: PASS\`, \`QUALITY_GATE: FAIL\`, or \`QUALITY_GATE: NOT_RUN\`. Use QUALITY_GATE: NOT_RUN for the runtime-owned full gate. VERDICT: PASS means the code review found no blocking issue; Warren permits merge only after its independent gate exits zero on the pinned commit. A focused check that proves a defect must produce CHANGES. Do not include example or duplicate verdict headers. After these three lines, list each blocking finding with file:line, what is wrong, and the evidence. Then \`Not run:\` when anything was skipped, and non-blocking notes last, under \`Notes:\`.
 
 ${UNATTENDED_RULES}
 `;

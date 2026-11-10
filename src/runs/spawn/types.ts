@@ -283,9 +283,10 @@ export interface SpawnRunInput {
 	 * finalized `failed`/`never_started` on a pre-dispatch failure). The
 	 * scheduler's bounded-retry GC uses this to drop the transient
 	 * never_started rows a persistently-unreachable runtime would flood the
-	 * runs list with. Best-effort: the callback must not throw.
+	 * runs list with. Awaited: a rejection prevents runtime creation and
+	 * finalizes the row as never_started. Review steps persist their link here.
 	 */
-	readonly onRunRowCreated?: (runId: string) => void;
+	readonly onRunRowCreated?: (runId: string) => void | Promise<void>;
 	/**
 	 * Migration journal preflight seam (warren-1f03, warren-4371). For
 	 * ref-dispatches onto an existing branch, spawnRun checks the drizzle

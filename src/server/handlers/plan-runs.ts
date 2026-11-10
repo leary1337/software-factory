@@ -27,6 +27,8 @@ import {
 	tailPlanRunEvents,
 } from "../../plan-runs/index.ts";
 import { loadReviewStage } from "../../plan-runs/review.ts";
+import { loadReviewSummaries } from "../../plan-runs/review-summary.ts";
+import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
 import type { RouteHandler, ServerDeps } from "../types.ts";
@@ -198,6 +200,12 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 				children.map(async (child) => ({
 					...projectPlanRunChild(child, ctx.actor),
 					title: await ticketTitle(deps, planRun.projectId, child.seedId),
+					...(isPublicOnly(ctx.actor)
+						? {}
+						: {
+								reviewSteps:
+									child.runId !== null ? await loadReviewSummaries(deps.repos, child.runId) : [],
+							}),
 					reviewStage:
 						child.state === "pr_open" && child.runId !== null
 							? await loadReviewStage(deps.repos, planRun.agentName, child.runId)

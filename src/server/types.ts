@@ -201,6 +201,7 @@ export interface ServerDeps {
 	 * silently dropping the run's only recoverable copy.
 	 */
 	readonly salvageDir?: string;
+	readonly deploymentAdmission?: import("../projects/deployment-admission.ts").DeploymentAdmission;
 	readonly broker: RunEventBroker;
 	/**
 	 * Global lifecycle notification broker (warren-f566), built ONCE at boot

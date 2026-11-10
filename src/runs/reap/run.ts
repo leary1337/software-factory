@@ -256,14 +256,7 @@ export async function reapRun(input: ReapRunInput): Promise<ReapRunResult> {
 			input.failureReason ?? (await inferFailureReason(input.repos, run.id, stateOnEntry));
 	}
 
-	// warren-cd3b: salvage-before-destroy. The finalize branch push never
-	// landed, so the agent's commits exist ONLY on this workspace — capture
-	// them (rescue-ref push, then a durable git bundle) BEFORE the destroy
-	// sub-step decides the workspace's fate. LocalProvider only: under k8s
-	// `workspacePath` is null (the pod's emptyDir is host-unreachable) and the
-	// pod runs its own salvage + POSTs it to `/runs/:id/salvage`. A successful
-	// capture also lifts the destroy skip below: the work is safe, so the
-	// workspace no longer needs preserving.
+	// Preserve undelivered work before destroying the workspace.
 	let salvage: WorkspaceSalvageOutcome | null = null;
 	// warren-985e / warren-5ea1 / warren-cbd3: the pod-side surfacing arm lives
 	// in `salvage.ts` (`surfacePodSalvage`) — under K8s it surfaces whatever
@@ -392,6 +385,10 @@ export async function reapRun(input: ReapRunInput): Promise<ReapRunResult> {
 		// self-salvages instead — or a local salvage that failed outright). Once
 		// salvage lands, destroy proceeds: the work is durable elsewhere.
 		branchPushFailed: workspacePreserved || salvageFailed,
+		recordRecovery: async (bundlePath) => {
+			salvage = { rescueRef: salvage?.rescueRef ?? null, bundlePath, errors: [] };
+			await input.repos.runs.setSalvage(run.id, { rescueRef: salvage.rescueRef, bundlePath });
+		},
 		terminate,
 		emit,
 		fail: (step, err) => fail(step, err),

@@ -71,6 +71,8 @@ describe("POST /runs — rescueFromRunId (#1241)", () => {
 			},
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "failed", new Date(), "sandbox_run_lost");
 		await repos.runs.setSalvage(parent.id, {
 			rescueRef: `warren/rescue/${parent.id}`,
 			bundlePath: null,
@@ -160,6 +162,8 @@ describe("POST /runs — rescueFromRunId (#1241)", () => {
 			renderedAgentJson: { name: "refactor-bot", version: 1, sections: { system: "x" } },
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "failed", new Date(), "sandbox_run_lost");
 
 		const calls: { method: string; path: string; body: unknown }[] = [];
 		const sandboxClient = makeSandboxClient(
@@ -197,6 +201,8 @@ describe("POST /runs — rescueFromRunId (#1241)", () => {
 			renderedAgentJson: { name: "refactor-bot", version: 1, sections: { system: "x" } },
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "failed", new Date(), "sandbox_run_lost");
 		await repos.runs.setSalvage(parent.id, {
 			rescueRef: `warren/rescue/${parent.id}`,
 			bundlePath: null,

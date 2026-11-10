@@ -19,15 +19,24 @@ import { relativeTime } from "@/lib/utils.ts";
 const PANEL =
 	"flex min-w-0 flex-col rounded-sm border border-(--color-border) bg-(--color-surface)";
 const PANEL_HEAD =
-	"flex h-10 shrink-0 items-center gap-2.5 border-b border-b-(--color-border) px-3.5";
+	"flex min-h-10 shrink-0 flex-wrap items-center gap-2.5 border-b border-b-(--color-border) px-3.5 py-2";
 const MONO = "font-mono text-xs leading-4";
 const NOTE = "font-mono text-xs leading-3 text-(--color-text-3)";
 
 function behindLabel(overview: ProjectDeployOverview): string {
+	if (overview.currentState === "unknown") return "Current release unknown";
 	if (overview.current === null) return "Not deployed yet";
 	if (overview.behind === null) return "Unknown";
 	if (overview.behind.count === 0) return "Up to date";
 	return `Behind by ${overview.behind.count} commit${overview.behind.count === 1 ? "" : "s"}`;
+}
+
+function releaseLabel(overview: ProjectDeployOverview): string {
+	const { current, currentState, environment } = overview;
+	if (currentState === "unknown") return "Could not establish which release is live.";
+	return current === null
+		? `nothing live on ${environment} yet`
+		: `live ${current.sha.slice(0, 7)} · ${relativeTime(current.createdAt)}`;
 }
 
 function ChangeList({ overview }: { overview: ProjectDeployOverview }) {
@@ -66,7 +75,7 @@ function ConfirmDeploy(props: {
 					</DialogDescription>
 				</DialogHeader>
 				{overview.activePlan !== null ? (
-					<Alert variant="warning">
+					<Alert className="text-(--color-fg)" variant="warning">
 						A plan is still running: {overview.activePlan.merged} of {overview.activePlan.total}{" "}
 						tickets merged. This deploys an in-between state.
 					</Alert>
@@ -93,18 +102,18 @@ function Overview({
 	overview: ProjectDeployOverview;
 	onDeploy: () => void;
 }) {
-	const { current, activeRun, history, error } = overview;
+	const { activeRun, history, error } = overview;
 	return (
 		<div className="flex flex-col gap-3 p-3.5">
-			{error !== null ? <Alert variant="warning">{error}</Alert> : null}
+			{error !== null ? (
+				<Alert className="text-(--color-fg)" variant="warning">
+					{error}
+				</Alert>
+			) : null}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex min-w-0 flex-col gap-0.5">
 					<span className="font-semibold text-sm leading-5">{behindLabel(overview)}</span>
-					<span className={NOTE}>
-						{current !== null
-							? `live ${current.sha.slice(0, 7)} · ${relativeTime(current.createdAt)}`
-							: `nothing live on ${overview.environment} yet`}
-					</span>
+					<span className={NOTE}>{releaseLabel(overview)}</span>
 				</div>
 				{activeRun !== null ? (
 					<a
@@ -116,7 +125,12 @@ function Overview({
 						Deploying · {activeRun.status} ↗
 					</a>
 				) : (
-					<Button onClick={onDeploy} disabled={overview.behind?.count === 0}>
+					<Button
+						onClick={onDeploy}
+						disabled={
+							overview.behind?.count === 0 || overview.currentState === "unknown" || error !== null
+						}
+					>
 						Deploy
 					</Button>
 				)}
@@ -148,6 +162,7 @@ export function DeployPanel({ projectId }: { projectId: string }) {
 	const overview = useQuery({
 		queryKey,
 		queryFn: ({ signal }) => projectsApi.deployOverview(projectId, signal),
+		retry: false,
 		refetchInterval: (q) => {
 			const data = q.state.data;
 			return data?.configured && data.activeRun !== null ? 10_000 : 60_000;
@@ -162,25 +177,54 @@ export function DeployPanel({ projectId }: { projectId: string }) {
 	});
 
 	const data = overview.data;
-	if (data === undefined || !data.configured) return null;
 	return (
 		<OperatorOnly capability="dispatch">
 			<section className={PANEL} aria-label="Production">
 				<div className={PANEL_HEAD}>
 					<h2 className="font-semibold text-(--color-text) text-xs leading-4">Production</h2>
-					<span className={NOTE}>
-						{data.environment} · {data.workflow}
-					</span>
+					{data?.configured ? (
+						<span className={`${NOTE} break-all`}>
+							{data.environment} · {data.workflow}
+						</span>
+					) : null}
 				</div>
-				<Overview overview={data} onDeploy={() => setConfirming(true)} />
-				<ConfirmDeploy
-					overview={data}
-					open={confirming}
-					onOpenChange={setConfirming}
-					onConfirm={() => deploy.mutate()}
-					pending={deploy.isPending}
-					error={deploy.error}
-				/>
+				{overview.isError ? (
+					<div className="flex flex-col items-start gap-3 p-3.5">
+						<Alert className="text-(--color-fg)" variant="warning">
+							Could not load production: {formatError(overview.error)}
+						</Alert>
+						<Button
+							variant="outline"
+							onClick={() => void overview.refetch()}
+							disabled={overview.isFetching}
+						>
+							Retry
+						</Button>
+					</div>
+				) : null}
+				{data === undefined && !overview.isError ? (
+					<p role="status" className="p-3.5 text-sm">
+						Loading production…
+					</p>
+				) : null}
+				{data !== undefined && !data.configured && !overview.isError ? (
+					<p className="p-3.5 text-(--color-text-3) text-sm">
+						Deployment is not configured for this project.
+					</p>
+				) : null}
+				{data?.configured && !overview.isError ? (
+					<>
+						<Overview overview={data} onDeploy={() => setConfirming(true)} />
+						<ConfirmDeploy
+							overview={data}
+							open={confirming}
+							onOpenChange={setConfirming}
+							onConfirm={() => deploy.mutate()}
+							pending={deploy.isPending}
+							error={deploy.error}
+						/>
+					</>
+				) : null}
 			</section>
 		</OperatorOnly>
 	);

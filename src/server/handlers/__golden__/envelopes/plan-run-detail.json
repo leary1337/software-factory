@@ -38,6 +38,7 @@
 				"failureReason": null,
 				"retryCount": 0,
 				"title": null,
+				"reviewSteps": [],
 				"reviewStage": null
 			},
 			{
@@ -54,6 +55,7 @@
 				"failureReason": null,
 				"retryCount": 0,
 				"title": null,
+				"reviewSteps": [],
 				"reviewStage": null
 			}
 		],

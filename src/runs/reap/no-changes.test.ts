@@ -134,6 +134,36 @@ describe("reapRun zero-commit classification (warren-89b0)", () => {
 });
 
 describe("reapRun zero-commit agent that declares noCommits", () => {
+	test("does not publish bookkeeping commits from a read-only review", async () => {
+		const { repos, runId } = await setupSeeded("sd-target", {
+			ref: "factory/run_x",
+			targetBranch: "factory/run_x",
+			agentName: "auditor",
+			renderedAgentJson: { frontmatter: { noCommits: true } },
+		});
+		const f = fakeFs({ "/data/projects/x/y/.seeds/issues.jsonl": ISSUES });
+		const e = fakeExec({
+			revListCount: "1",
+			stagedDelta: true,
+			gitStatus: " M .seeds/issues.jsonl\n",
+		});
+		const result = await reapRun({
+			runId,
+			outcome: "succeeded",
+			repos,
+			...reapDeps(fakeBurrowClient(makeBurrow()), { fs: f.fs, exec: e.exec }),
+			fs: f.fs,
+			exec: e.exec,
+		});
+		expect(result.state).toBe("succeeded");
+		expect(result.branchPushed).toBe(false);
+		expect(
+			e.calls.filter(
+				(call) => call.cmd === "git" && ["push", "commit"].includes(call.args[0] ?? ""),
+			),
+		).toHaveLength(0);
+	});
+
 	async function reapCleanRefDispatch(agentName: string, renderedAgentJson: unknown) {
 		const { repos, runId } = await setupSeeded(null, {
 			ref: "factory/run_x",

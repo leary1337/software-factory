@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "runtime_event_seq" integer;

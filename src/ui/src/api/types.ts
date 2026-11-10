@@ -1,3 +1,5 @@
+import type { ReviewStepSummary } from "./review-types.ts";
+
 // Wire-side response shapes for warren's HTTP API. The ENUM VOCABULARY (run / plan-run / preview lifecycle states, the
 // failure-cause discriminator, run mode, clone kind, event stream) is NOT
 // declared here. It is defined once in `src/core/wire.ts` — warren's
@@ -31,6 +33,7 @@ export {
 	PREVIEW_ACTIVE_STATES,
 	type PreviewState,
 	type PullRequestLifecycle,
+	type ReviewStage,
 	RUN_STATES,
 	RUN_TERMINAL_STATES,
 	type RunFailureReason,
@@ -49,6 +52,7 @@ import type {
 	PlanRunState,
 	PreviewState,
 	PullRequestLifecycle,
+	ReviewStage,
 	RunCostBasis,
 	RunFailureReason,
 	RunMode,
@@ -653,6 +657,7 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	reviewSteps?: ReviewStepSummary[];
 	planRunId: string;
 	seq: number;
 	seedId: string;
@@ -666,12 +671,11 @@ export interface PlanRunChildRow {
 	/** Optional: redacted on the spectator projection (REDACTED_PLAN_RUN_CHILD_FIELDS). */
 	failureReason?: string | null;
 	title?: string | null;
-	reviewStage?: "reviewing" | "reworking" | "ready_to_merge" | "needs_attention" | null;
+	reviewStage?: ReviewStage | null;
 	/** warren-6de9: automatic child re-dispatch budget consumed so far. */
 	retryCount: number;
 }
 
-/** `POST /plan-runs` request body (warren-f923). Exactly one of `planId` / `issues` (warren-de42). */
 export interface CreatePlanRunInput {
 	project: string;
 	planId?: string;
@@ -687,16 +691,13 @@ export interface CreatePlanRunInput {
 	dispatcherHandle?: string;
 }
 
-/** `POST /plan-runs` 201 response envelope. */
 export interface CreatePlanRunResponse {
 	planRun: PlanRunRow;
 	children: PlanRunChildRow[];
 }
 
 /**
- * `GET /plan-runs/:id` envelope — row + children + fanned-out `runs[]`
- * via repos.runs.listByIds so the detail page renders in one round-trip
- * (warren-f923). `runs` excludes children whose `runId` is still null.
+ * Plan details include dispatched implementation runs and operator review history.
  */
 export interface PlanRunDetailResponse {
 	planRun: PlanRunRow;
@@ -704,7 +705,6 @@ export interface PlanRunDetailResponse {
 	runs: RunRow[];
 }
 
-/** `POST /plan-runs/:id/cancel` envelope. */
 export interface CancelPlanRunResponse {
 	planRun: PlanRunRow;
 	cancelledChild: { childSeq: number; runId: string } | null;

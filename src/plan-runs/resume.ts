@@ -37,6 +37,7 @@ import type { CoordinatorEmitFn, CoordinatorRepos } from "./coordinator.ts";
 export const RESUMABLE_PLAN_RUN_FAILURE_REASONS = [
 	"child_pr_merge_timeout",
 	"parent_pr_merge_timeout",
+	"deployment_incident",
 ] as const;
 export type ResumablePlanRunFailureReason = (typeof RESUMABLE_PLAN_RUN_FAILURE_REASONS)[number];
 
@@ -79,7 +80,7 @@ export async function resumePlanRun(input: ResumePlanRunInput): Promise<ResumePl
 	const reason = planRun.failureReason;
 
 	let resumedChild: ResumePlanRunResult["resumedChild"] = null;
-	if (reason === "child_pr_merge_timeout") {
+	if (reason === "child_pr_merge_timeout" || reason === "deployment_incident") {
 		const children = await input.repos.planRuns.listChildren(planRun.id);
 		const child = children.find((c) => c.state === "failed" && c.failureReason === reason);
 		if (child === undefined) {

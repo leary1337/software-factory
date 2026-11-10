@@ -1,4 +1,15 @@
-# Warren Roadmap
+# Warren roadmap (upstream archive)
+
+This document preserves upstream Warren sequencing and design-record links.
+It is not the work queue for this fork. The current scope is in
+[docs/PLAN.md](docs/PLAN.md), and confirmed work is in
+[docs/FACTORY-BACKLOG.md](docs/FACTORY-BACKLOG.md).
+
+The factory supports its local macOS Codex path. This fork removed Kubernetes, GCP, Jira and
+Azure DevOps. Their references below describe upstream history.
+Docker remains substrate code, with factory acceptance deferred.
+
+## Archived upstream roadmap
 
 This file carries direction, sequencing, and seam status. Seeds holds the work queue, so run `sd ready` for what to pick up next.
 

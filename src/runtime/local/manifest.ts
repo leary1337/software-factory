@@ -9,7 +9,7 @@
  * spawn path the provider persists the equivalent itself.
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { MaterializedWorkspaceSource } from "../../workspace/materialize.ts";
 import type { LocalStateRoots } from "./paths.ts";
@@ -17,6 +17,7 @@ import { localManifestPath } from "./paths.ts";
 
 export interface LocalRunManifest {
 	readonly version: 1;
+	readonly runtimeId?: string;
 	readonly sandboxId: string;
 	readonly runId: string;
 	readonly branch: string;
@@ -33,7 +34,13 @@ export async function writeLocalRunManifest(
 ): Promise<void> {
 	const path = localManifestPath(roots, manifest.sandboxId);
 	await mkdir(dirname(path), { recursive: true });
-	await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+	const temporary = `${path}.${crypto.randomUUID()}.tmp`;
+	try {
+		await writeFile(temporary, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+		await rename(temporary, path);
+	} finally {
+		await rm(temporary, { force: true });
+	}
 }
 
 /** Read the manifest for a sandbox id; `null` when absent or unparseable. */

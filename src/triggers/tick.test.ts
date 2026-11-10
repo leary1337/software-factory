@@ -311,13 +311,7 @@ describe("runTick", () => {
 		// so we need a real run row to satisfy the FK. Spawn returns an id
 		// the runs repo created.
 		const project = await repos.projects.require(projectId);
-		const realRun = await repos.runs.create({
-			agentName: "claude-code",
-			projectId: project.id,
-			prompt: "scheduled",
-			renderedAgentJson: { sections: {} },
-			trigger: "manual",
-		});
+		let runId = "";
 
 		const logger = makeLogger();
 		await runTick({
@@ -341,11 +335,21 @@ describe("runTick", () => {
 				],
 				mergeThrows: true,
 			}).issueTracker,
-			spawn: async () => ({ runId: realRun.id }),
+			spawn: async () => {
+				const realRun = await repos.runs.create({
+					agentName: "claude-code",
+					projectId: project.id,
+					prompt: "scheduled",
+					renderedAgentJson: { sections: {} },
+					trigger: "manual",
+				});
+				runId = realRun.id;
+				return { runId };
+			},
 			logger,
 		});
 
-		const events = await repos.events.listByRun(realRun.id);
+		const events = await repos.events.listByRun(runId);
 		expect(events).toHaveLength(1);
 		expect(events[0]?.kind).toBe("trigger.cleared_extension_failed");
 		expect(events[0]?.stream).toBe("system");

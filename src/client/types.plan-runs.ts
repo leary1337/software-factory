@@ -1,3 +1,4 @@
+import type { ReviewStepSummary } from "../core/review-result.ts";
 /**
  * Plan-run wire types (warren-8ffc), split out of `./types.ts`
  * (warren-fcc8) to keep that file under its line budget.
@@ -49,6 +50,7 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	reviewSteps?: ReviewStepSummary[];
 	planRunId: string;
 	seq: number;
 	seedId: string;

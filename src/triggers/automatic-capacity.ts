@@ -107,7 +107,7 @@ export interface AutomaticAdmissionOptions {
  * `work` receives the free slot count so a multi-dispatch pass stays under the cap.
  */
 export async function withAutomaticRunAdmission<T>(
-	runs: Pick<Repos["runs"], "countNonTerminalAutomatic">,
+	runs: Pick<Repos["runs"], "countNonTerminal">,
 	work: (freeSlots: number) => Promise<T>,
 	now: Date = new Date(),
 	policy: AutomaticRunPolicy = resolveAutomaticRunPolicy(),
@@ -117,7 +117,7 @@ export async function withAutomaticRunAdmission<T>(
 	if (options.waitForLock === true) await acquireLock();
 	else if (!tryAcquireLock()) return { admitted: false };
 	try {
-		const freeSlots = policy.maxConcurrentRuns - (await runs.countNonTerminalAutomatic());
+		const freeSlots = policy.maxConcurrentRuns - (await runs.countNonTerminal());
 		if (freeSlots <= 0) return { admitted: false };
 		return { admitted: true, value: await work(freeSlots) };
 	} finally {
@@ -126,7 +126,7 @@ export async function withAutomaticRunAdmission<T>(
 }
 
 export async function withAutomaticRetryAdmission(
-	runs: Pick<Repos["runs"], "countNonTerminalAutomatic">,
+	runs: Pick<Repos["runs"], "countNonTerminal">,
 	trigger: string,
 	work: () => Promise<void>,
 	onDenied: () => Promise<unknown>,

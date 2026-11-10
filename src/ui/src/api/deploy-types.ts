@@ -1,7 +1,11 @@
+import type { DeploymentCurrentState, DeploymentState } from "../../../core/wire.ts";
+
+export type { DeploymentCurrentState, DeploymentState } from "../../../core/wire.ts";
+
 export interface ProjectDeployRecord {
 	sha: string;
 	createdAt: string;
-	state: "success" | "failure" | "in_progress" | "unknown";
+	state: DeploymentState;
 }
 
 export interface ProjectDeployOverview {
@@ -10,6 +14,7 @@ export interface ProjectDeployOverview {
 	environment: string;
 	branch: string;
 	current: ProjectDeployRecord | null;
+	currentState: DeploymentCurrentState;
 	behind: { count: number; changes: Array<{ sha: string; title: string }> } | null;
 	activeRun: { id: number; status: string; url: string } | null;
 	history: ProjectDeployRecord[];

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { proxyEnvVars, startProxy } from "./proxy-server.ts";
 import { runSandboxed } from "./sandbox.ts";
 import type { SandboxProfile } from "./types.ts";
 
@@ -79,6 +80,73 @@ if (isDarwin) {
 			const out = await Bun.readableStreamToText(proc2.stdout);
 			await proc2.exited;
 			expect(out.trim()).toBe("host-value");
+		});
+
+		test("runs temporary Unix socket IPC without a caller-provided TMPDIR", async () => {
+			writeFileSync(
+				join(workspace, "ipc.cjs"),
+				`
+const net = require('node:net');
+const { tmpdir } = require('node:os');
+const { join } = require('node:path');
+const path = join(tmpdir(), 'ipc-' + process.pid + '.sock');
+const server = net.createServer(socket => socket.end('IPC_OK'));
+server.on('error', error => { console.error(error); process.exit(1); });
+server.listen(path, () => {
+  const client = net.createConnection(path);
+  client.on('data', data => process.stdout.write(data));
+  client.on('error', error => { console.error(error); process.exit(1); });
+  client.on('end', () => server.close());
+});
+`,
+			);
+			const proc = await runSandboxed(baseProfile(workspace, home), {
+				argv: [Bun.which("node") ?? "node", "ipc.cjs"],
+			});
+			const timer = setTimeout(() => proc.cancel(), 5000);
+			try {
+				const [stdout, stderr, code] = await Promise.all([
+					Bun.readableStreamToText(proc.stdout),
+					Bun.readableStreamToText(proc.stderr),
+					proc.exited,
+				]);
+				expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
+				expect(stdout).toBe("IPC_OK");
+			} finally {
+				clearTimeout(timer);
+				proc.cancel();
+			}
+		});
+
+		test("reaches a local smoke server while external proxy destinations remain restricted", async () => {
+			const server = Bun.serve({
+				hostname: "127.0.0.1",
+				port: 0,
+				fetch: () => new Response("LOCAL_OK"),
+			});
+			const proxy = await startProxy({ allowedDomains: [] });
+			try {
+				const proc = await runSandboxed(
+					baseProfile(workspace, home, {
+						network: "restricted",
+						proxyAddress: { host: "127.0.0.1", port: proxy.port },
+						setEnv: proxyEnvVars(proxy.url),
+					}),
+					{ argv: ["/usr/bin/curl", "--max-time", "5", "-fsS", `http://127.0.0.1:${server.port}`] },
+				);
+				const [stdout, stderr, code] = await Promise.all([
+					Bun.readableStreamToText(proc.stdout),
+					Bun.readableStreamToText(proc.stderr),
+					proc.exited,
+				]);
+				expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
+				expect(stdout).toBe("LOCAL_OK");
+				const denied = await fetch("http://not-allowed.invalid", { proxy: proxy.url });
+				expect(denied.status).toBe(403);
+			} finally {
+				server.stop(true);
+				await proxy.stop();
+			}
 		});
 
 		test("workspace + home can be read+written, files outside them cannot be read", async () => {

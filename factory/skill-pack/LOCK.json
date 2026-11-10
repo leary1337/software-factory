@@ -9,7 +9,30 @@
     "repository": "https://github.com/mattpocock/skills",
     "commit": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
     "path": "skills/engineering",
-    "skills": ["tdd", "diagnosing-bugs", "codebase-design", "code-review"],
+    "skills": [
+      "tdd",
+      "diagnosing-bugs",
+      "codebase-design",
+      "code-review"
+    ],
     "license": "MIT"
+  },
+  "owner": {
+    "repository": "https://github.com/mattpocock/skills",
+    "commit": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
+    "paths": [
+      "skills/engineering/grill-with-docs",
+      "skills/engineering/domain-modeling",
+      "skills/engineering/to-spec",
+      "skills/engineering/to-tickets",
+      "skills/engineering/wayfinder",
+      "skills/engineering/prototype",
+      "skills/engineering/retro",
+      "skills/engineering/research",
+      "skills/productivity/grilling",
+      "skills/productivity/writing-for-agents"
+    ],
+    "license": "MIT",
+    "purpose": "Interactive owner sessions only; not delivered to unattended run homes"
   }
 }

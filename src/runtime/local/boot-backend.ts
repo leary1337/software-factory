@@ -81,7 +81,16 @@ export function resolveLocalBootBackend(
 		...(caps.previewPorts ? { previewSidecars: createLocalSidecarsResolver(sidecarRegistry) } : {}),
 		...(caps.workspaceGc ? { workspaceDestroyer: createLocalWorkspaceDestroyer(env) } : {}),
 		close: async () => {
-			await sidecarRegistry.shutdownAll().catch(() => undefined);
+			await Promise.all(
+				store.list().map((record) =>
+					runtimeProvider.cancel({
+						runId: record.runId,
+						sandboxId: record.sandboxId,
+						providerRunId: record.providerRunId,
+					}),
+				),
+			);
+			await sidecarRegistry.shutdownAll();
 		},
 	};
 }

@@ -11,10 +11,12 @@ import {
 	reviewStageOf,
 } from "./review.ts";
 
+const SHA = "a".repeat(40);
+const REPORT = `VERDICT: PASS\nREVIEWED_COMMIT: ${SHA}\nQUALITY_GATE: PASS`;
 const passed: ReviewStepRecord = {
 	step: "review",
 	state: "succeeded",
-	resultText: "VERDICT: PASS",
+	resultText: REPORT,
 };
 const changes: ReviewStepRecord = {
 	step: "review",
@@ -110,12 +112,16 @@ describe("advanceReview", () => {
 			child: { seq: 1, seedId: "s-1" },
 			repos: {
 				events: {
-					listByRun: async () => [],
+					listByRun: async () =>
+						finished
+							? [{ kind: "plan_run.review_finished", payloadJson: { outcome: "changes_left" } }]
+							: [],
 					listTail: async () => [],
 					hasKind: async () => finished,
 				},
 				runs: { require: async () => ({}) },
 			},
+			getReviewHead: async () => SHA,
 			getIssue: async () => ({ id: "s-1", status: "open", title: "T", description: "D" }),
 			emit: async (_: string, kind: string) => {
 				emitted.push(kind);
@@ -123,7 +129,8 @@ describe("advanceReview", () => {
 			commentOnPr: async (_: string, body: string) => {
 				comments.push(body);
 			},
-			spawn: async (arg: unknown) => {
+			spawn: async (arg: { onRunCreated?: (id: string) => Promise<void> }) => {
+				await arg.onRunCreated?.("run_r");
 				spawned.push(arg);
 				return { runId: "run_r" };
 			},
@@ -145,9 +152,13 @@ describe("advanceReview", () => {
 
 	test("a PASS merges the PR when merging is on, and says so", async () => {
 		const { input, comments } = harness();
+		const deliveryEvents: { kind: string; payloadJson: unknown }[] = [];
 		const merges: string[] = [];
 		const withMerge = {
 			...input,
+			emit: async (_: string, kind: string, payload: unknown) => {
+				deliveryEvents.push({ kind, payloadJson: payload });
+			},
 			mergePassedPr: async (_: string, branch: string) => {
 				merges.push(branch);
 				return true;
@@ -158,11 +169,17 @@ describe("advanceReview", () => {
 					...input.repos.events,
 					listByRun: async () => [
 						{
-							kind: "plan_run.review_step",
-							payloadJson: { step: "review", stepRunId: "run_r" },
+							kind: "quality_gate.completed",
+							stream: "system",
+							payloadJson: { commit: SHA, command: "check", exitCode: 0 },
 						},
+						{
+							kind: "plan_run.review_step",
+							payloadJson: { step: "review", stepRunId: "run_r", reviewedCommit: SHA },
+						},
+						...deliveryEvents,
 					],
-					listTail: async () => [{ payloadJson: { type: "result", result: "VERDICT: PASS" } }],
+					listTail: async () => [{ payloadJson: { type: "result", result: REPORT } }],
 				},
 				runs: {
 					require: async () => ({ state: "succeeded", endedAt: "t", failureReason: null }),
@@ -195,10 +212,18 @@ describe("advanceReview", () => {
 			events: {
 				...input.repos.events,
 				listByRun: async () => [
-					{ kind: "plan_run.review_step", payloadJson: { step: "review", stepRunId: "r" } },
+					{
+						kind: "quality_gate.completed",
+						stream: "system",
+						payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+					},
+					{
+						kind: "plan_run.review_step",
+						payloadJson: { step: "review", stepRunId: "r", reviewedCommit: SHA },
+					},
 				],
 				listTail: async () => [
-					{ payloadJson: { type: "result", runtime: "codex", result: "VERDICT: PASS" } },
+					{ payloadJson: { type: "result", runtime: "codex", result: REPORT } },
 				],
 			},
 			runs: {
@@ -216,7 +241,15 @@ describe("advanceReview", () => {
 			events: {
 				...input.repos.events,
 				listByRun: async () => [
-					{ kind: "plan_run.review_step", payloadJson: { step: "review", stepRunId: "r" } },
+					{
+						kind: "quality_gate.completed",
+						stream: "system",
+						payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+					},
+					{
+						kind: "plan_run.review_step",
+						payloadJson: { step: "review", stepRunId: "r", reviewedCommit: SHA },
+					},
 				],
 			},
 			runs: { require: async () => ({ state: "running", endedAt: null }) },

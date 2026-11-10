@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { openDatabase, type WarrenDb } from "../db/client.ts";
 import { createRepos, type Repos } from "../db/repos/index.ts";
 import { agents } from "../db/schema.ts";
+import { RunCapacityError } from "../runs/spawn/admission.ts";
 import type { CronTrigger } from "../warren-config/index.ts";
 import { CronRetryTracker, MAX_CRON_TRANSIENT_RETRIES } from "./cron-retry.ts";
 import { type DispatchSpawnFn, dispatchCronTrigger } from "./dispatch.ts";
@@ -113,6 +114,37 @@ describe("dispatchCronTrigger bounded transient retries (warren-a0a2)", () => {
 			lastFiredAt: "2026-05-10T12:00:00.000Z",
 		});
 	}
+
+	test("preserves the cron slot while manual work occupies capacity", async () => {
+		await seedSlot();
+		const tracker = new CronRetryTracker();
+		for (let tick = 0; tick < MAX_CRON_TRANSIENT_RETRIES + 2; tick++) {
+			const result = await dispatchCronTrigger({
+				projectId,
+				trigger: cronTrigger(),
+				repos,
+				retryTracker: tracker,
+				now: new Date("2026-05-11T00:05:00.000Z"),
+				spawn: async () => {
+					throw new RunCapacityError();
+				},
+			});
+			expect(result).toMatchObject({ kind: "skipped", reason: "run_capacity_full" });
+		}
+		const { spawn } = spawnRecorder(repos, projectId);
+		expect(
+			(
+				await dispatchCronTrigger({
+					projectId,
+					trigger: cronTrigger(),
+					repos,
+					retryTracker: tracker,
+					now: new Date("2026-05-11T00:06:00.000Z"),
+					spawn,
+				})
+			).kind,
+		).toBe("fired");
+	});
 
 	test("gives up and consumes the slot after N consecutive transient failures", async () => {
 		await seedSlot();

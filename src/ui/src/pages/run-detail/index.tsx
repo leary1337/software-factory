@@ -26,6 +26,7 @@ import {
 import { CancelRunButton, SteerForm } from "@/pages/run-detail/steering-panel.tsx";
 import { extractReapSummary, isBridgeStalled } from "@/pages/run-detail-format.ts";
 import { projectLabel } from "@/pages/runs/runs-format.ts";
+import { RunReviewPanel } from "./review-panel.tsx";
 import { formatRunElapsed } from "./run-detail-format.ts";
 
 /**
@@ -385,6 +386,10 @@ export function RunDetailPage() {
 				reap={reap}
 				onCancelSettled={() => void qc.invalidateQueries({ queryKey: ["runs"] })}
 			/>
+
+			<OperatorOnly>
+				<RunReviewPanel run={r} events={stream.events} status={stream.status} />
+			</OperatorOnly>
 
 			{bridgeStalled ? (
 				<Alert variant="warning" title="Agent infrastructure unreachable">

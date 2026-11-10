@@ -25,8 +25,13 @@ import { resolveCapOverride } from "../cost-cap.ts";
 import { lifecycleBus } from "../lifecycle-bus.ts";
 import { buildSeedFiles } from "../seed.ts";
 import { validateTargetBranch } from "../target-branch.ts";
+import { withRunAdmission } from "./admission.ts";
 import { readCachedAgent, readProjectDefaults, resolveOverride } from "./agent-cache.ts";
 import { injectWarrenCallbackEnv } from "./callback-env.ts";
+import { composeDispatchPrompt, recordContextMetrics } from "./context-metrics.ts";
+
+export { composeDispatchPrompt } from "./context-metrics.ts";
+
 import { resolveContinuationRef, resolveExistingBranch } from "./continuation.ts";
 import { writeDispatchContext } from "./dispatch-context.ts";
 import { injectGitIdentityEnv } from "./git-identity.ts";
@@ -67,7 +72,9 @@ export async function spawnRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// read the SAME shared host clone, so two concurrent dispatches on one
 	// project with different base refs must not interleave. Different projects
 	// dispatch in parallel; see src/projects/clone-lock.ts.
-	return withProjectCloneLock(input.projectId, () => dispatchRun(input));
+	return withRunAdmission(input, (admitted) =>
+		withProjectCloneLock(admitted.projectId, () => dispatchRun(admitted)),
+	);
 }
 
 async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
@@ -226,7 +233,12 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	});
 	// warren-a0a2: expose the run id the instant the row exists so the cron
 	// bounded-retry GC can reclaim it if the dispatch below throws (see types).
-	input.onRunRowCreated?.(run.id);
+	try {
+		await input.onRunRowCreated?.(run.id);
+	} catch (err) {
+		await rollback(input, run.id, bindRunLogger(input.logger, run.id, {}), err);
+		throw err;
+	}
 
 	// warren-d6ca: dispatch-context snapshot BEFORE any runtime contact so a
 	// never-started failure still gets a row. Fire-and-log — see writeDispatchContext.
@@ -317,6 +329,14 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 			projectDefaults?.repoContext,
 		),
 		metadata: composeBurrowMetadata(input.metadata, agent.frontmatter),
+		...(agent.name === "reviewer"
+			? {
+					qualityGate: {
+						command: projectDefaults?.qualityGate ?? "",
+						commit: input.baseCommit ?? "",
+					},
+				}
+			: {}),
 		mode: input.mode ?? "batch",
 		network: burrowConfig.network ?? "none",
 		seedFiles: seedResult.files,
@@ -363,6 +383,17 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 					})
 				: null;
 		spec.prompt = appendMigrationCollisionNote(spec.prompt, collisionNote);
+		await recordContextMetrics(
+			input.repos,
+			run.id,
+			{
+				system: agent.sections.system ?? "",
+				repository: projectDefaults?.repoContext ?? "",
+				task: input.prompt,
+				finalPrompt: spec.prompt,
+			},
+			input.now?.() ?? new Date(),
+		);
 		const dispatchStart = Date.now();
 		const handle = await provider.create(spec);
 		created = handle;
@@ -451,33 +482,6 @@ function composeRunEnv(
 
 // warren-4e36 / warren-e7b7: the git-identity env helpers moved to
 // `./git-identity.ts` (size budget, warren-4553).
-
-/**
- * Prefix the user's run prompt with the agent's `system` section so the
- * canopy-defined operating contract (workspace map, rituals, expectations)
- * actually reaches claude. Burrow's claude-code runtime feeds the dispatch
- * prompt to the agent as a single user turn — it never reads
- * `.warren/agent.json` itself, so without this prepend the canopy `system`
- * body is dead text on disk.
- *
- * `runs.prompt` (warren-side) keeps the user-typed input verbatim; only
- * the body sent on POST /sandboxes/:id/runs is composed.
- */
-export function composeDispatchPrompt(
-	systemBody: string | undefined,
-	userPrompt: string,
-	repoContext?: string,
-): string {
-	const trimmed = (systemBody ?? "").trim();
-	// warren-540f: the project's `.warren/config.yaml` `repoContext` block
-	// rides between the system section and the user prompt, clearly
-	// delimited. Absent/whitespace-only → byte-identical to the pre-540f
-	// composition.
-	const context = (repoContext ?? "").trim();
-	const parts = [trimmed, context].filter((part) => part !== "");
-	if (parts.length === 0) return userPrompt;
-	return `${parts.join("\n\n---\n\n")}\n\n---\n\n${userPrompt}`;
-}
 
 /** Fold agent frontmatter onto operator metadata (burrow-b5b4 / warren-618b). */
 function composeBurrowMetadata(

@@ -145,7 +145,7 @@ function childStatusLine(
 	if (child.state === "pr_open") {
 		return {
 			text: child.reviewStage
-				? REVIEW_STAGES[child.reviewStage].detail
+				? REVIEW_STAGE_LABELS[child.reviewStage].detail
 				: `open ${relativeTime(child.updatedAt)} · waiting for merge`,
 			danger: child.reviewStage === "needs_attention",
 		};
@@ -156,7 +156,7 @@ function childStatusLine(
 	return null;
 }
 
-const REVIEW_STAGES: Record<
+const REVIEW_STAGE_LABELS: Record<
 	NonNullable<PlanRunChildRow["reviewStage"]>,
 	{ label: string; detail: string; tone: InventoryCardTone; color: string }
 > = {
@@ -186,13 +186,13 @@ const REVIEW_STAGES: Record<
 	},
 };
 
-function childStateLabel(child: PlanRunChildRow): string {
-	return child.reviewStage ? REVIEW_STAGES[child.reviewStage].label : child.state;
+export function childStateLabel(child: PlanRunChildRow): string {
+	return child.reviewStage ? REVIEW_STAGE_LABELS[child.reviewStage].label : child.state;
 }
 
 /** Child state → card tone (mirrors CHILD_SQUARE_COLOR). */
 function childTone(child: PlanRunChildRow): InventoryCardTone {
-	if (child.reviewStage) return REVIEW_STAGES[child.reviewStage].tone;
+	if (child.reviewStage) return REVIEW_STAGE_LABELS[child.reviewStage].tone;
 	switch (child.state) {
 		case "merged":
 			return "success";
@@ -260,7 +260,7 @@ function ChildCard({
 			tone={childTone(child)}
 			stateLabel={childStateLabel(child)}
 			title={`${String(child.seq).padStart(2, "0")} ${child.title ?? child.seedId}`}
-			titleTo={child.runId !== null ? `/runs/${encodeURIComponent(child.runId)}` : undefined}
+			titleTo={`/plan-runs/${encodeURIComponent(child.planRunId)}?task=${child.seq}`}
 			subline={child.runId !== null ? child.runId : "not dispatched"}
 			figures={childCardFigures(child, prLabel, isGate)}
 			meta={
@@ -295,7 +295,7 @@ function ChildRow({
 	isGate: boolean;
 }) {
 	const color = child.reviewStage
-		? REVIEW_STAGES[child.reviewStage].color
+		? REVIEW_STAGE_LABELS[child.reviewStage].color
 		: CHILD_SQUARE_COLOR[child.state];
 	// The pending dot is an unfilled rail (border-strong); as text that fails
 	// WCAG contrast, so the label falls back to tertiary text (warren-b629).
@@ -317,9 +317,13 @@ function ChildRow({
 				{String(child.seq).padStart(2, "0")}
 			</span>
 			<div className="flex w-[320px] min-w-0 shrink-0 flex-col gap-0.5">
-				<span className="truncate text-(--color-text) text-[12px] leading-4" title={child.seedId}>
+				<Link
+					to={`/plan-runs/${encodeURIComponent(child.planRunId)}?task=${child.seq}`}
+					className="truncate text-(--color-text) text-[12px] leading-4 hover:underline"
+					title={child.seedId}
+				>
 					{child.title ?? child.seedId}
-				</span>
+				</Link>
 				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
 					{child.runId !== null ? (
 						<Link

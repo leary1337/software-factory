@@ -46,6 +46,7 @@
 	},
 	"scripts": {
 		"test": "bun test",
+		"factory:start": "WARREN_RUNTIME=local WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS=1 WARREN_PLAN_RUN_MERGE_ON_PASS=1 WARREN_PLAN_RUN_MERGE_TIMEOUT_MS=0 bun --env-file=/dev/null src/cli/main.ts up",
 		"workspace:init": "bun run src/runtime/container/workspace-init.ts",
 		"agent:run": "bun run src/runtime/container/agent-entrypoint.ts",
 		"finalize:run": "bun run src/runtime/container/finalize-entrypoint.ts",

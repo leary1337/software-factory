@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleStop } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
 import type { CancelPlanRunResponse, PlanRunDetailResponse } from "@/api/types.ts";
 import { isTerminalPlanRunState } from "@/api/types.ts";
@@ -11,6 +11,7 @@ import { formatError } from "@/lib/format-error.ts";
 import { formatPlanRunFailureReason } from "@/lib/labels.ts";
 import { ChildWalkPanel } from "./plan-run-detail/child-walk.tsx";
 import { DetailRail } from "./plan-run-detail/detail-rail.tsx";
+import { TaskDetail } from "./plan-run-detail/task-detail.tsx";
 import { PLAN_RUN_STATE_COLOR, summarizeCost } from "./plan-runs/walk-state.ts";
 
 /**
@@ -34,6 +35,7 @@ const ACTIVE_STATES = new Set<PlanRunDetailResponse["planRun"]["state"]>(["queue
 export function PlanRunDetailPage() {
 	const { id = "" } = useParams<{ id: string }>();
 	const qc = useQueryClient();
+	const [search] = useSearchParams();
 
 	const detail = useQuery({
 		queryKey: ["plan-runs", id],
@@ -76,6 +78,16 @@ export function PlanRunDetailPage() {
 		: planRun.projectId;
 	const canCancel = ACTIVE_STATES.has(planRun.state);
 	const cost = summarizeCost(runs);
+	if (search.has("task")) {
+		const child = children.find((entry) => entry.seq === Number(search.get("task")));
+		return child ? (
+			<TaskDetail detail={detail.data} child={child} />
+		) : (
+			<Alert title="Task not found" variant="warning">
+				<Link to={`/plan-runs/${encodeURIComponent(id)}`}>Back to plan</Link>
+			</Alert>
+		);
+	}
 
 	return (
 		<div className="flex min-h-full flex-col px-3.5 pt-[22px] pb-12 md:px-6">

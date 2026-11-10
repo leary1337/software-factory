@@ -131,6 +131,26 @@ describe("POST /runs — Idempotency-Key dedupe (warren-d525)", () => {
 		expect((await repos.runs.listAll()).length).toBe(1);
 	});
 
+	test("returns 409 for a new dispatch while preserving same-key deduplication", async () => {
+		const project = (await repos.projects.listAll())[0];
+		if (!project) throw new Error("fixture");
+		const { client, sandboxCreateCount } = countingBurrowClient(workspacePath);
+		const h = await startWith({
+			...(await depsFor(repos, client)),
+			idempotencyStore: new IdempotencyStore(),
+		});
+		const first = await postRun(h, project.id, "active");
+		const refused = await fetch(`${tcpUrl(h)}/runs`, {
+			method: "POST",
+			headers: { "content-type": "application/json", "Idempotency-Key": "another" },
+			body: JSON.stringify({ agent: "refactor-bot", project: project.id, prompt: "second" }),
+		});
+		expect(refused.status).toBe(409);
+		expect(await refused.text()).toContain("capacity is full");
+		expect((await postRun(h, project.id, "active")).run.id).toBe(first.run.id);
+		expect(sandboxCreateCount()).toBe(1);
+	});
+
 	test("different key spawns a new run", async () => {
 		const project = (await repos.projects.listAll())[0];
 		if (!project) throw new Error("project missing");
@@ -142,6 +162,8 @@ describe("POST /runs — Idempotency-Key dedupe (warren-d525)", () => {
 		const h = await startWith(deps);
 
 		const first = await postRun(h, project.id, "key-1");
+		await repos.runs.markRunning(first.run.id);
+		await repos.runs.finalize(first.run.id, "succeeded");
 		const second = await postRun(h, project.id, "key-2");
 
 		expect(sandboxCreateCount()).toBe(2);
@@ -158,6 +180,8 @@ describe("POST /runs — Idempotency-Key dedupe (warren-d525)", () => {
 		const h = await startWith(deps);
 
 		const first = await postRun(h, project.id, "windowed");
+		await repos.runs.markRunning(first.run.id);
+		await repos.runs.finalize(first.run.id, "succeeded");
 		clock += 5000;
 		const second = await postRun(h, project.id, "windowed");
 
@@ -165,7 +189,7 @@ describe("POST /runs — Idempotency-Key dedupe (warren-d525)", () => {
 		expect(second.run.id).not.toBe(first.run.id);
 	});
 
-	test("no header preserves always-spawn behavior", async () => {
+	test("no header spawns a new run once capacity is available", async () => {
 		const project = (await repos.projects.listAll())[0];
 		if (!project) throw new Error("project missing");
 		const { client, sandboxCreateCount } = countingBurrowClient(workspacePath);
@@ -176,6 +200,8 @@ describe("POST /runs — Idempotency-Key dedupe (warren-d525)", () => {
 		const h = await startWith(deps);
 
 		const first = await postRun(h, project.id);
+		await repos.runs.markRunning(first.run.id);
+		await repos.runs.finalize(first.run.id, "succeeded");
 		const second = await postRun(h, project.id);
 
 		expect(sandboxCreateCount()).toBe(2);
@@ -205,6 +231,8 @@ describe("POST /runs — Idempotency-Key dedupe (warren-d525)", () => {
 		const h = await startWith(deps);
 
 		const a = await postRun(h, projectA.id, "shared-key");
+		await repos.runs.markRunning(a.run.id);
+		await repos.runs.finalize(a.run.id, "succeeded");
 		const b = await postRun(h, projectB.id, "shared-key");
 
 		expect(sandboxCreateCount()).toBe(2);

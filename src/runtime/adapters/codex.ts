@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { materializeCodexSkillPack } from "../local/skill-pack.ts";
 import { CODEX_DEFAULT_MODEL } from "./codex-config.ts";
-import { prepareCodexCredentials } from "./codex-credentials.ts";
+import { prepareCodexCredentials, recoverCodexCredentials } from "./codex-credentials.ts";
 import { createCodexParser } from "./parsers/codex.ts";
 import type { AgentRuntimeAdapter } from "./types.ts";
 
@@ -16,6 +16,7 @@ export const codexAdapter: AgentRuntimeAdapter = {
 	commitExcludes: [".codex/auth.json", ".codex/sessions/"],
 	terminalErrorEnvelopeTypes: [],
 	createEventParser: createCodexParser,
+	recoverHome: recoverCodexCredentials,
 	async prepareHome(homePath) {
 		await materializeCodexSkillPack(homePath);
 		return prepareCodexCredentials(homePath);

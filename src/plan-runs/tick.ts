@@ -26,6 +26,7 @@ import { formatError } from "../core/errors.ts";
 import type { Repos } from "../db/repos/index.ts";
 import type { PlanRunRow } from "../db/schema.ts";
 import type { PrMergeChecker } from "../runs/pr-merge.ts";
+import { RunCapacityError } from "../runs/spawn/admission.ts";
 import { withAutomaticRunAdmission } from "../triggers/automatic-capacity.ts";
 import {
 	type AdvanceResult,
@@ -40,6 +41,7 @@ import {
 	type CoordinatorSpawnFn,
 	type PlanRunEventKind,
 } from "./coordinator.ts";
+import type { CoordinatorDeploymentFn, ProjectDeploymentBlocker } from "./deployment-gate.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { MergeStallProbe } from "./merge-stall.ts";
 
@@ -93,6 +95,15 @@ export interface PlanRunTickDeps {
 	readonly commentOnPr?: CoordinatorCommentFn;
 	/** Present only when merging on a PASS verdict is switched on. */
 	readonly mergePassedPr?: CoordinatorMergeFn;
+	readonly verifyDeployment?: CoordinatorDeploymentFn;
+	readonly deploymentBlocked?: ProjectDeploymentBlocker;
+	readonly getReviewHead?: (prUrl: string) => Promise<string | null>;
+	readonly getReviewChangedPaths?: (
+		prUrl: string,
+		branch: string,
+		projectId: string,
+		commit: string,
+	) => Promise<readonly string[] | null>;
 }
 
 export interface PlanRunAdvanceLog {
@@ -137,7 +148,15 @@ function admittedSpawn(deps: PlanRunTickDeps, now: Date): CoordinatorSpawnFn {
 	return async (spawnInput) => {
 		const admission = await withAutomaticRunAdmission(
 			deps.repos.runs,
-			() => deps.spawn(spawnInput),
+			async () => {
+				try {
+					return await deps.spawn(spawnInput);
+				} catch (error) {
+					if (error instanceof RunCapacityError)
+						throw new PlanRunSpawnDeferredError("concurrency_limit");
+					throw error;
+				}
+			},
 			now,
 		);
 		if (!admission.admitted) throw new PlanRunSpawnDeferredError("automatic admission denied");
@@ -172,6 +191,10 @@ function buildAdvanceInput(
 		...(deps.closeChildSeed !== undefined ? { closeChildSeed: deps.closeChildSeed } : {}),
 		...(deps.commentOnPr !== undefined ? { commentOnPr: deps.commentOnPr } : {}),
 		...(deps.mergePassedPr !== undefined ? { mergePassedPr: deps.mergePassedPr } : {}),
+		...(deps.verifyDeployment ? { verifyDeployment: deps.verifyDeployment } : {}),
+		...(deps.deploymentBlocked ? { deploymentBlocked: deps.deploymentBlocked } : {}),
+		...(deps.getReviewHead ? { getReviewHead: deps.getReviewHead } : {}),
+		...(deps.getReviewChangedPaths ? { getReviewChangedPaths: deps.getReviewChangedPaths } : {}),
 		...(deps.now !== undefined ? { now: deps.now } : {}),
 	};
 }

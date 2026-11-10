@@ -25,7 +25,7 @@ function harness(routes: Record<string, unknown>) {
 }
 
 describe("GitHubDeploys", () => {
-	test("reads each deployment's latest status, counting inactive as a past success", async () => {
+	test("reads each deployment's latest status, preserving inactive as distinct from live success", async () => {
 		const { deploys } = harness({
 			"deployments/1/statuses": [{ state: "failure" }],
 			"deployments/2/statuses": [{ state: "inactive" }],
@@ -39,9 +39,15 @@ describe("GitHubDeploys", () => {
 			ok: true,
 			value: [
 				{ sha: "a", createdAt: "t1", state: "failure" },
-				{ sha: "b", createdAt: "t2", state: "success" },
+				{ sha: "b", createdAt: "t2", state: "inactive" },
 			],
 		});
+	});
+
+	test("requests the selected deployment page with an encoded environment", async () => {
+		const { deploys, calls } = harness({ "deployments?": [] });
+		await deploys.listDeployments(ref, "production / primary", 20, 2);
+		expect(calls[0]?.url).toContain("environment=production%20%2F%20primary&per_page=20&page=2");
 	});
 
 	test("lists pending commits newest first, by their title line", async () => {
@@ -64,6 +70,50 @@ describe("GitHubDeploys", () => {
 				],
 			},
 		});
+	});
+
+	test("reads the workflow contract and sends the exact commit as an explicit input", async () => {
+		const { deploys, calls } = harness({
+			"contents/.github/workflows": {
+				encoding: "base64",
+				content: Buffer.from("name: Deploy").toString("base64"),
+			},
+		});
+		expect(await deploys.readWorkflow(ref, "deploy.yml", "main")).toEqual({
+			ok: true,
+			value: "name: Deploy",
+		});
+		await deploys.dispatch(ref, "deploy.yml", "main", { factory_sha: "a".repeat(40) });
+		expect(calls[1]?.body).toBe(
+			JSON.stringify({ ref: "main", inputs: { factory_sha: "a".repeat(40) } }),
+		);
+	});
+
+	test("rejects malformed history and workflow status instead of assuming none are active", async () => {
+		const { deploys } = harness({ "deployments?": {}, "actions/workflows": {}, "compare/": {} });
+		expect((await deploys.listDeployments(ref, "production", 5)).ok).toBe(false);
+		expect((await deploys.listRuns(ref, "deploy.yml", 100)).ok).toBe(false);
+		expect((await deploys.compare(ref, "base", "main")).ok).toBe(false);
+	});
+	test("reads run display titles independently of the workflow definition SHA", async () => {
+		const { deploys } = harness({
+			"actions/workflows": {
+				workflow_runs: [
+					{
+						id: 1,
+						status: "completed",
+						conclusion: "success",
+						head_sha: "definition",
+						display_title: "Factory deploy target",
+						created_at: "today",
+						html_url: "https://example.test/run",
+					},
+				],
+			},
+		});
+		const result = await deploys.listRuns(ref, "deploy.yml", 100);
+		expect(result.ok && result.value[0]?.displayTitle).toBe("Factory deploy target");
+		expect(result.ok && result.value[0]?.sha).toBe("definition");
 	});
 
 	test("starts the workflow on the requested branch", async () => {

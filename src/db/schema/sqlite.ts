@@ -285,14 +285,11 @@ export const events = sqliteTable(
 			.notNull()
 			.references(() => runs.id, { onDelete: "cascade" }),
 		sandboxEventSeq: integer("sandbox_event_seq").notNull(),
+		runtimeEventSeq: integer("runtime_event_seq"),
 		ts: text("ts").notNull(),
 		kind: text("kind").notNull(),
 		stream: text("stream", { enum: EVENT_STREAMS }),
-		// Parse-boundary provenance (warren-5a07) — `"agent"` marks an
-		// unattributed line re-parsed off a transport the agent can write
-		// to; absent reads as warren-authored in the in-memory stream view.
-		// Nullable: historical rows predate the column and read as unknown
-		// — never fold NULL into a real bucket (mixed-semantics rule).
+		// Parse-boundary provenance (warren-5a07); historical NULL remains unknown.
 		origin: text("origin"),
 		payloadJson: text("payload_json", { mode: "json" }).notNull(),
 	},
@@ -444,7 +441,9 @@ export type ProjectRow = typeof projects.$inferSelect;
 export type ProjectInsert = typeof projects.$inferInsert;
 export type RunRow = typeof runs.$inferSelect;
 export type RunInsert = typeof runs.$inferInsert;
-export type EventRow = typeof events.$inferSelect;
+export type EventRow = Omit<typeof events.$inferSelect, "runtimeEventSeq"> & {
+	runtimeEventSeq?: number | null;
+};
 export type EventInsert = typeof events.$inferInsert;
 export type TriggerRow = typeof triggers.$inferSelect;
 export type TriggerInsert = typeof triggers.$inferInsert;

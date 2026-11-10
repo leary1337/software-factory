@@ -69,6 +69,8 @@ import {
 	resolveLocalStateRoots,
 } from "./paths.ts";
 import { buildLocalSandboxProfile } from "./profile.ts";
+import { recoverLocalHome } from "./recover-home.ts";
+import { archiveLocalWorkspace } from "./recovery.ts";
 import { LocalRunStore, toNormalizedEvent } from "./run-store.ts";
 
 /**
@@ -199,6 +201,7 @@ export class LocalEngine {
 		});
 		const manifest: LocalRunManifest = {
 			version: 1,
+			runtimeId: spec.runtimeId,
 			sandboxId,
 			runId: spec.runId,
 			branch: spec.branch,
@@ -207,7 +210,14 @@ export class LocalEngine {
 			source: workspace.source,
 			createdAt: new Date().toISOString(),
 		};
-		await writeLocalRunManifest(this.roots, manifest).catch(() => {});
+		try {
+			await writeLocalRunManifest(this.roots, manifest);
+		} catch (error) {
+			this.store.remove(record);
+			await reclaimDirs();
+			unpinWorkspaceGit(workspacePath);
+			throw error;
+		}
 
 		// Fire-and-forget: the drive loop terminalizes the record itself.
 		record.driveDone = driveLocalRun(this.store, record, spec, profile, this.deps.drive ?? {});
@@ -266,7 +276,10 @@ export class LocalEngine {
 				cursor = event.seq;
 				yield toNormalizedEvent(event);
 			}
-			if (this.store.isTerminal(record)) return;
+			if (this.store.isTerminal(record)) {
+				await record.driveDone;
+				return;
+			}
 			await this.store.waitForChange(record);
 		}
 	}
@@ -324,19 +337,7 @@ export class LocalEngine {
 		};
 	}
 
-	/**
-	 * Graceful stop: latch the cancel, kill the live child, and terminalize the
-	 * record as `cancelled` immediately (warren-8a6e). Idempotent — an
-	 * already-terminal run resolves cleanly, matching burrow's cancel. A ghost
-	 * run rethrows `RuntimeRunNotFoundError` (the domain terminalizes the row).
-	 *
-	 * Immediate terminalization matters: `cancelRun` re-reads `status()` and
-	 * only inline-reaps when the phase is already terminal. Waiting on the
-	 * drive loop (or the 30s watchdog cancel-reconcile tick) left the warren
-	 * row `running` for the full grace window after a local cancel. The drive
-	 * loop still owns teardown of the child; it no-ops its own terminalize
-	 * once the record is already terminal.
-	 */
+	/** Latch cancellation before killing, then drain streams and credential cleanup. */
 	async cancel(handle: RunHandle, _reason?: string): Promise<void> {
 		const record = this.store.getByRunId(handle.providerRunId);
 		if (record === undefined) {
@@ -345,7 +346,10 @@ export class LocalEngine {
 				{ recoveryHint: "the run is unknown to the backend; terminalize the warren row" },
 			);
 		}
-		if (this.store.isTerminal(record)) return;
+		if (this.store.isTerminal(record)) {
+			await record.driveDone;
+			return;
+		}
 		record.cancelRequested = true;
 		// Terminalize BEFORE killing the child. Order matters (warren-8a6e):
 		// killing first can let a late agent `result` envelope land, the bridge
@@ -359,6 +363,7 @@ export class LocalEngine {
 			errorMessage: "cancelled",
 		});
 		record.proc?.cancel();
+		await record.driveDone;
 	}
 
 	/**
@@ -373,7 +378,11 @@ export class LocalEngine {
 		const manifest = await readLocalRunManifest(this.roots, handle.sandboxId);
 		// warren-3c1e: reap's host git runs only against the SEALED git dir. Also
 		// the post-restart re-pin (warren-8926).
-		if (manifest !== null) await sealLocalRun(this.roots, handle.sandboxId, manifest, record?.proc);
+		if (manifest !== null) {
+			if (!record) await recoverLocalHome(manifest, this.deps.drive?.registry);
+			await sealLocalRun(this.roots, handle.sandboxId, manifest, record?.proc);
+		}
+		await record?.driveDone;
 		if (record !== undefined) {
 			return { workspacePath: record.workspacePath, branch: record.branch };
 		}
@@ -386,12 +395,7 @@ export class LocalEngine {
 		);
 	}
 
-	/**
-	 * Run the workspace-dependent half of reap over the run's live workspace —
-	 * the SAME host-side merge functions as the burrow-backed mode, reached via
-	 * `finalizeLocalWorkspace` with the store-resolved path and host-FS tracker
-	 * reads (the workspace is a local worktree; no daemon file API remains).
-	 */
+	/** Finalize the sealed workspace through the shared reap pipeline. */
 	async finalize(handle: RunHandle, intent: FinalizeIntent): Promise<FinalizeResult> {
 		const info = await this.workspaceInfo(handle);
 		if (info.workspacePath === null) {
@@ -432,6 +436,16 @@ export class LocalEngine {
 		const manifest = await readLocalRunManifest(this.roots, handle.sandboxId);
 		const workspacePath = record?.workspacePath ?? manifest?.workspacePath ?? null;
 		const homePath = record?.homePath ?? manifest?.homePath ?? null;
+		let recoveryPath: string | undefined;
+		if (manifest !== null) {
+			await recoverLocalHome(manifest, this.deps.drive?.registry);
+			await sealLocalRun(this.roots, handle.sandboxId, manifest, record?.proc);
+			recoveryPath = await archiveLocalWorkspace(
+				this.roots,
+				manifest,
+				record?.phase !== "succeeded",
+			);
+		}
 
 		if (workspacePath !== null) {
 			const source = manifest?.source;
@@ -445,6 +459,7 @@ export class LocalEngine {
 		await removeRunGitDirs(this.roots, handle.sandboxId);
 		if (homePath !== null) {
 			await rm(homePath, { recursive: true, force: true }).catch(() => {});
+			await rm(`${homePath}.lifecycle.json`, { force: true });
 		}
 		await removeLocalRunManifest(this.roots, handle.sandboxId).catch(() => {});
 
@@ -452,10 +467,8 @@ export class LocalEngine {
 		const deletedMessages = record?.inbox.length ?? 0;
 		if (record !== undefined) this.store.remove(record);
 		return {
-			// No archive: the durable event copy lives in warren's own events
-			// table (the domain bridge wrote it), so there is no daemon-side
-			// ephemeral store left to archive.
-			archived: false,
+			archived: recoveryPath !== undefined,
+			...(recoveryPath !== undefined ? { recoveryPath } : {}),
 			deletedEvents,
 			deletedMessages,
 			deletedRuns: record !== undefined ? 1 : 0,
@@ -463,12 +476,7 @@ export class LocalEngine {
 	}
 }
 
-/**
- * Callback-only env keys the sandboxed harness must never inherit
- * (warren-f737). Mirrors the K8s agent-child scrub in `../k8s/agent-io.ts`
- * (warren-ccef): only an in-sandbox entrypoint may hold the run-scoped
- * callback token, and the local and docker paths have none.
- */
+/** Callback credentials belong to Warren, never the sandboxed harness. */
 const SANDBOX_SCRUBBED_ENV_KEYS: readonly string[] = ["WARREN_API_TOKEN", "WARREN_API_URL"];
 
 /** Drop the callback-only keys from a composed sandbox env. Pure for tests. */

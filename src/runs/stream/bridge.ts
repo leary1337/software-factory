@@ -62,7 +62,7 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 		else input.signal.addEventListener("abort", onAbort, { once: true });
 	}
 
-	const resumeSeq = (await repos.events.maxSeqForRun(runId)) ?? 0;
+	const resumeSeq = (await repos.events.maxRuntimeSeqForRun(runId)) ?? 0;
 
 	// Runtime-provider seam (warren-1f56, warren-1fce). The bridge's backend
 	// touchpoints — the event stream, the run-state poller, and the budget-cap
@@ -167,7 +167,12 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 	// Shape-sniffed in `extractClaudeUsage`; persisted on terminal only when
 	// no pi usage was observed (pi path wins for parity). warren-1247: a
 	// resumed bridge seeds both from the persisted events up to the cursor.
-	const { piUsage, claudeUsage } = await seedResumeUsage(repos, runId, resumeSeq, input.logger);
+	const { piUsage, claudeUsage } = await seedResumeUsage(
+		repos,
+		runId,
+		(await repos.events.maxSeqForRun(runId)) ?? 0,
+		input.logger,
+	);
 	const appendGuard = newAppendGuard();
 	const capInput: EnforceBudgetCapInput = {
 		runId,
@@ -253,6 +258,7 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 				{
 					runId,
 					sandboxEventSeq: event.seq,
+					runtimeEventSeq: event.seq,
 					ts: toIsoString(event.ts),
 					kind: event.kind,
 					stream: normalizeStream(event.stream),
