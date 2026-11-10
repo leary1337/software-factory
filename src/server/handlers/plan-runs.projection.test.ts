@@ -162,6 +162,8 @@ describe("plan-run public wire projection (warren-8793)", () => {
 		const child = body.children[0] as Record<string, unknown>;
 		expect(child).not.toHaveProperty("failureReason");
 		expect(child).not.toHaveProperty("reviewSteps");
+		expect(child).not.toHaveProperty("reviewMerge");
+		expect(child).not.toHaveProperty("metrics");
 		expect(child.state).toBe("failed");
 		expect(JSON.stringify(body)).not.toContain("/data/projects");
 	});
@@ -178,6 +180,7 @@ describe("plan-run public wire projection (warren-8793)", () => {
 			planRun: Record<string, unknown>;
 			children: Record<string, unknown>[];
 		};
+		expect(body.children[0]).toHaveProperty("metrics");
 		expect(body.planRun.promptTemplate).toBe("work on sd {seed_id} SECRET-TEMPLATE");
 		expect(body.planRun.dispatcherHandle).toBe("@operator");
 		expect(body.planRun.failureReason).toContain("/data/projects/x/seedy");

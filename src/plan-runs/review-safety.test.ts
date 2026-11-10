@@ -141,8 +141,14 @@ test("retries merge after an interrupted completion and publishes the report onc
 		...h.input,
 		mergePassedPr: async () => {
 			merges++;
-			if (merges === 1) throw new Error("transport");
-			return true;
+			if (merges === 1)
+				return {
+					kind: "retry" as const,
+					reason: "network",
+					detail: "Network unavailable.",
+					nextAction: "Wait for the automatic retry.",
+				};
+			return { kind: "merged" as const };
 		},
 		commentOnPr: async () => {
 			comments++;
@@ -164,7 +170,7 @@ test("refuses a report for a different commit", async () => {
 			...h.input,
 			mergePassedPr: async () => {
 				merges++;
-				return true;
+				return { kind: "merged" as const };
 			},
 		},
 		h.run,
@@ -180,7 +186,7 @@ test("finishes report delivery after the PR merged during an interrupted tick", 
 	let comments = 0;
 	const input = {
 		...h.input,
-		mergePassedPr: async () => true,
+		mergePassedPr: async () => ({ kind: "merged" as const }),
 		commentOnPr: async () => {
 			comments++;
 			if (comments === 1) throw new Error("connection lost");
@@ -204,7 +210,12 @@ test("stops merge retries and exposes owner attention after three refusals", asy
 		...h.input,
 		mergePassedPr: async () => {
 			merges++;
-			return false;
+			return {
+				kind: "retry" as const,
+				reason: "network",
+				detail: "Network unavailable.",
+				nextAction: "Wait for the automatic retry.",
+			};
 		},
 	};
 	for (let tick = 0; tick < 6; tick++)
@@ -236,7 +247,7 @@ test.each(["PASS", "CHANGES", "finished CHANGES"])(
 			getReviewHead: async () => nextSha,
 			mergePassedPr: async () => {
 				merges++;
-				return true;
+				return { kind: "merged" as const };
 			},
 			spawn: async (arg: CoordinatorSpawnInput) => {
 				spawned.push(arg);
@@ -388,7 +399,7 @@ test("refuses an agent PASS without an independent runtime witness", async () =>
 			...h.input,
 			mergePassedPr: async () => {
 				merges++;
-				return true;
+				return { kind: "merged" as const };
 			},
 		},
 		h.run,
@@ -407,7 +418,7 @@ test("accepts a pending reviewer gate only after an independent successful execu
 			...h.input,
 			mergePassedPr: async () => {
 				merges++;
-				return true;
+				return { kind: "merged" as const };
 			},
 		},
 		h.run,

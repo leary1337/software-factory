@@ -16,11 +16,13 @@ import { LoginPage } from "@/pages/login.tsx";
 import { OperationsPage } from "@/pages/operations.tsx";
 import { PlanRunDetailPage } from "@/pages/plan-run-detail.tsx";
 import { PlanRunsPage } from "@/pages/plan-runs.tsx";
+import { ProductionPage } from "@/pages/production.tsx";
 import { ProjectDetailPage } from "@/pages/project-detail.tsx";
 import { ProjectsPage } from "@/pages/projects.tsx";
 import { RunDetailPage } from "@/pages/run-detail/index.tsx";
 import { RunsPage } from "@/pages/runs.tsx";
 import { SetupLandingRoute, SetupPage } from "@/pages/setup.tsx";
+import { TasksPage } from "@/pages/tasks.tsx";
 import {
 	TelemetryBehaviorTab,
 	TelemetryEconomicsTab,
@@ -78,13 +80,7 @@ function LifecycleStreamBridge() {
 	return null;
 }
 
-/**
- * Direction C route skeleton (warren-4ed7 / pl-7e38 step 2). The IA
- * follows the canvas index (docs/ui-revamp/README.md): Operations is the
- * index route. Pages whose Direction C redesign has not landed mount the
- * existing legacy page inside the new shell — the co-mounted migration —
- * and stubs name the issue that builds the coming page.
- */
+/** Task-first workspace; technical routes remain available under More. */
 export function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -101,7 +97,7 @@ export function App() {
 									</AuthGate>
 								}
 							>
-								{/* Operations is the index route (c-operations), except
+								{/* Tasks is the index destination, except
 								    on a zero-project instance where an undismissed
 								    operator lands on the first-run setup checklist
 								    instead (warren-a911 / pl-26f3 step 9). Spectators
@@ -114,6 +110,15 @@ export function App() {
 									element={
 										<OperatorRoute capability="admin">
 											<SetupPage />
+										</OperatorRoute>
+									}
+								/>
+								<Route path="/tasks" element={<TasksPage />} />
+								<Route
+									path="/production"
+									element={
+										<OperatorRoute capability="readOperator">
+											<ProductionPage />
 										</OperatorRoute>
 									}
 								/>
@@ -185,7 +190,7 @@ export function App() {
 								<Route path="/events" element={<EventExplorerPage />} />
 								<Route path="/instance" element={<InstancePage />} />
 							</Route>
-							<Route path="*" element={<Navigate to="/operations" replace />} />
+							<Route path="*" element={<Navigate to="/tasks" replace />} />
 						</Routes>
 					</HashRouter>
 				</ToastProvider>

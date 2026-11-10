@@ -1,10 +1,10 @@
 /**
  * The `RuntimeProvider` contract — the seam that decouples warren's domain from
  * its execution backend. Spec: `docs/design/runtime-provider-contract.md`.
- * Types-only; the domain must never leak a burrow-id, pod name, socket, host
- * path, or `SandboxProfile` across the seam.
+ * Types-only; domain intent never exposes provider implementation details.
  */
 
+import type { AcceptanceCriterion, AcceptancePolicy } from "../core/acceptance-evidence.ts";
 import type {
 	AcceptedRuntimeId,
 	EventOrigin,
@@ -39,8 +39,6 @@ export interface RunHandle {
 export interface RunSpec {
 	runId: string;
 
-	// Workspace materialization INPUTS (never a pre-built result — the provider
-	// materializes: burrow internally, K8s in an init container).
 	originUrl: string;
 	branch: string;
 	/**
@@ -48,7 +46,6 @@ export interface RunSpec {
 	 * (`default_branch ?? "main"`); the K8s init container needs it explicit.
 	 */
 	baseBranch: string;
-	/** optional burrow worktree optimization; K8s ignores it. */
 	hostClonePathHint?: string;
 
 	/** OPTIONAL project identity (warren `projects.id`) — K8s stamps it on the
@@ -67,12 +64,14 @@ export interface RunSpec {
 	agentImage?: string;
 
 	runtimeId: AcceptedRuntimeId;
-	/** system section already prepended by the domain */
 	prompt: string;
-	/** e.g. `{ frontmatter }` — provider carries to runtime */
 	metadata?: Record<string, unknown>;
 	mode: "batch" | "conversation";
-	qualityGate?: { command: string; commit: string };
+	qualityGate?: {
+		command: string;
+		commit: string;
+		acceptance?: AcceptancePolicy & { criteria: readonly AcceptanceCriterion[] };
+	};
 
 	// Isolation INTENT (provider maps to SandboxProfile | pod securityContext+resources).
 	network: "none" | "restricted" | "open";

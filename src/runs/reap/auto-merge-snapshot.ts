@@ -11,6 +11,9 @@ import type { ReapExec } from "./types.ts";
 
 export interface AutoMergeSnapshot {
 	headCommit?: string;
+	baseCommit?: string;
+	/** True only when the tested head already contains the fetched base. */
+	baseIsAncestor?: boolean;
 	config: AutoMergeConfig | undefined;
 	changedPaths: ChangedPaths;
 }
@@ -41,6 +44,8 @@ export async function readAutoMergeSnapshot(
 		return {
 			config,
 			headCommit: head,
+			baseCommit: base,
+			baseIsAncestor: await includesBase(exec, cwd, base, head),
 			changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head),
 		};
 	} catch {
@@ -50,6 +55,16 @@ export async function readAutoMergeSnapshot(
 	} finally {
 		await rm(cwd, { recursive: true, force: true }).catch(() => {});
 	}
+}
+
+async function includesBase(
+	exec: ReapExec,
+	cwd: string,
+	base: string,
+	head: string,
+): Promise<boolean> {
+	const result = await exec.run("git", ["merge-base", base, head], { cwd, timeoutMs: 10_000 });
+	return result.stdout.trim() === base;
 }
 
 async function fetchCommit(

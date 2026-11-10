@@ -28,6 +28,7 @@
  */
 
 import { load } from "js-yaml";
+import { AcceptanceConfigSchema } from "../../warren-config/acceptance-config.ts";
 import { warrenConfigRelativePath } from "../../warren-config/config.ts";
 import { type AutoMergeConfig, PrConfigSchema } from "../../warren-config/pr-config.ts";
 import { assessAutoMergeDiff } from "./auto-merge-diff-safety.ts";
@@ -166,10 +167,23 @@ export function parseBaseAutoMergeConfig(raw: string): AutoMergeConfig | undefin
 	const parsed = PrConfigSchema.safeParse(record.pr);
 	if (!parsed.success) return undefined;
 	const config = parsed.data.autoMerge;
-	if (config === undefined || record.qualityGate === undefined) return config;
-	if (typeof record.qualityGate !== "string" || !record.qualityGate.trim()) return undefined;
+	if (config === undefined) return undefined;
+	const acceptance =
+		record.acceptance === undefined
+			? undefined
+			: AcceptanceConfigSchema.safeParse(record.acceptance);
+	if (acceptance && !acceptance.success) return undefined;
+	if (
+		record.qualityGate !== undefined &&
+		(typeof record.qualityGate !== "string" || !record.qualityGate.trim())
+	)
+		return undefined;
+	const commands = [
+		typeof record.qualityGate === "string" ? record.qualityGate : "",
+		...(acceptance?.success ? acceptance.data.checks.map((check) => check.command) : []),
+	];
 	return {
 		...config,
-		protectedPaths: [...config.protectedPaths, ...qualityGateProtectedPaths(record.qualityGate)],
+		protectedPaths: [...config.protectedPaths, ...commands.flatMap(qualityGateProtectedPaths)],
 	};
 }

@@ -35,6 +35,7 @@
 
 import { formatError } from "../core/errors.ts";
 import { renderPlanRunPrompt } from "../core/plan-run-prompt.ts";
+import type { ReviewMergeResult } from "../core/review-merge.ts";
 import { type Issue, IssueNotFoundError } from "../core/wire.ts";
 import type { Repos } from "../db/repos/index.ts";
 import type { PlanRunChildRow, PlanRunChildState, PlanRunRow } from "../db/schema.ts";
@@ -71,13 +72,13 @@ export interface CoordinatorSpawnResult {
 
 export type CoordinatorSpawnFn = (input: CoordinatorSpawnInput) => Promise<CoordinatorSpawnResult>;
 
-/** Merge a PR that passed review. Returns whether it merged; transient failures may throw for retry. */
+/** Merge a reviewed PR, retaining policy refusals and retryable transport failures. */
 export type CoordinatorMergeFn = (
 	prUrl: string,
 	branch: string,
 	reviewedCommit: string,
 	projectId: string,
-) => Promise<boolean>;
+) => Promise<ReviewMergeResult>;
 
 /** Idempotent PR comment; failures propagate so delivery can retry. */
 export type CoordinatorCommentFn = (prUrl: string, body: string, key: string) => Promise<void>;
@@ -119,6 +120,7 @@ export const PLAN_RUN_EVENT_KINDS = [
 	"plan_run.review_finished",
 	"plan_run.review_decided",
 	"plan_run.review_merge_attempt",
+	"plan_run.review_merge_result",
 	"plan_run.review_merged",
 	"plan_run.review_comment_attempt",
 	"plan_run.review_commented",

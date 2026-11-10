@@ -1,7 +1,9 @@
 /** Host-owned quality-gate execution. Repository commands run only in the sandbox. */
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
 import type { RunSpec } from "../contract.ts";
+import { runAcceptanceChecks } from "./acceptance-checks.ts";
 import { stopAgentProcess } from "./git-pin.ts";
+import { QualityGateFailure } from "./quality-gate-failure.ts";
 import { prepareQualityGateWorkspace } from "./quality-gate-workspace.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 
@@ -96,12 +98,21 @@ export async function runIndependentQualityGate(
 				stderr,
 			},
 		});
-		if (exitCode !== 0) throw new Error(`Independent quality gate failed (exit ${exitCode})`);
+		if (exitCode !== 0) throw new QualityGateFailure(gate.commit, exitCode);
+		clearTimeout(timer);
+		await runAcceptanceChecks(
+			store,
+			record,
+			gate,
+			workspace,
+			deps.spawn,
+			startedAt + (profile.timeoutMs ?? 1_200_000),
+		);
 	} finally {
 		clearTimeout(timer);
 		clearInterval(heartbeat);
-		// Preserve the disposable tree if teardown cannot prove that writers stopped.
-		await stopAgentProcess(proc);
+		// Acceptance checks replace record.proc; teardown must prove the latest writer stopped.
+		await stopAgentProcess(record.proc);
 		await workspace.cleanup();
 	}
 }

@@ -1,7 +1,5 @@
 /**
  * Zod schemas for the per-project `.warren/` config files.
- *
- * Files (warren-5840 reorg):
  *   triggers.yaml    array of trigger entries (YAML for cron readability)
  *   config.yaml      per-project defaults (canonical, YAML)
  *   preview.yaml     hoisted preview block (PreviewConfigSchema at top level)
@@ -45,8 +43,10 @@ import { parseDurationMs } from "../preview/duration.ts";
 // warren-2b75: one agent-name grammar, owned by the registry and shared
 // here so role names and registry names can never drift apart.
 import { AGENT_NAME_PATTERN } from "../registry/agent-name.ts";
+import { AcceptanceConfigSchema } from "./acceptance-config.ts";
 import { CiFixerConfigSchema, HealerConfigSchema } from "./feature-loop-config.ts";
 import { MigrationsConfigSchema } from "./migrations-config.ts";
+import { PlanRunBudgetConfigSchema } from "./plan-run-budget-config.ts";
 import { DeployConfigSchema, PrConfigSchema } from "./pr-config.ts";
 import { AdmissionConfigSchema, ResourcesConfigSchema } from "./resources-config.ts";
 import { TrackerConfigSchema } from "./tracker-config.ts";
@@ -391,16 +391,15 @@ export const DefaultsConfigSchema = z
 		resources: ResourcesConfigSchema.optional(),
 		// warren-b6f2: per-project admission control (K8s, design §3.3).
 		admission: AdmissionConfigSchema.optional(),
-		// Project-wide default spend cap (USD), the weakest source in the
-		// warren-a63d cap chain: dispatch override (a trigger entry's cap or a
-		// POST /runs body field — one slot, mutually exclusive sources) > agent
-		// frontmatter > this. Resolved by resolveCapOverride (src/runs/cost-cap.ts)
-		// and enforced mid-run by the event bridge.
+		// Per-run fallback cap: dispatch override > agent frontmatter > project.
+		// resolveCapOverride owns precedence; the event bridge observes usage.
 		maxCostUsd: MaxCostUsdSchema.optional(),
+		planRunBudget: PlanRunBudgetConfigSchema.optional(),
 		// warren-05ea: opt-in polling CI-fixer; missing block → poller skips it.
 		ciFixer: CiFixerConfigSchema.optional(),
 		// warren-3db0: opt-in closed-loop healer; missing block → intake skips it.
 		healer: HealerConfigSchema.optional(),
+		acceptance: AcceptanceConfigSchema.optional(),
 		qualityGate: z.string().min(1, "qualityGate must be non-empty if provided").optional(),
 		// warren-540f: free-text per-project onboarding context injected into
 		// every dispatched agent's prompt by composeDispatchPrompt. This is where

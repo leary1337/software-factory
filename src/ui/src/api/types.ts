@@ -1,7 +1,8 @@
-import type { ReviewStepSummary } from "./review-types.ts";
+import type { PlanRunBudgetSummary } from "../../../core/plan-run-budget.ts";
+import type { TaskMetrics } from "../../../core/task-metrics.ts";
+import type { ReviewMergeResult, ReviewStepSummary } from "./review-types.ts";
 
-// Wire-side response shapes for warren's HTTP API. The ENUM VOCABULARY (run / plan-run / preview lifecycle states, the
-// failure-cause discriminator, run mode, clone kind, event stream) is NOT
+// HTTP response shapes; wire enums are NOT
 // declared here. It is defined once in `src/core/wire.ts` — warren's
 // dependency-free kernel — and re-exported below, so the UI and the server
 // can never drift the way they did before warren-b229 (a `RunFailureReason`
@@ -657,6 +658,9 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	reviewMerge?: ReviewMergeResult | null;
+	metrics?: TaskMetrics;
+	budget?: PlanRunBudgetSummary | null;
 	reviewSteps?: ReviewStepSummary[];
 	planRunId: string;
 	seq: number;
@@ -696,9 +700,7 @@ export interface CreatePlanRunResponse {
 	children: PlanRunChildRow[];
 }
 
-/**
- * Plan details include dispatched implementation runs and operator review history.
- */
+/** Plan details include implementation runs and operator review history. */
 export interface PlanRunDetailResponse {
 	planRun: PlanRunRow;
 	children: PlanRunChildRow[];
@@ -711,14 +713,7 @@ export interface CancelPlanRunResponse {
 	alreadyTerminal: boolean;
 }
 
-/* ----------------------------------------------------------------------- */
-/* Run-analytics token types (warren-3be4 / pl-d1a2 step 3).               */
-/*                                                                          */
-/* Mirrors the server-side shapes from src/runs/analytics/run-metrics.ts   */
-/* and src/server/handlers/runs/analytics.ts. Kept in sync by hand —       */
-/* src/ui is excluded from the root tsconfig and the boundary is the HTTP  */
-/* wire, not a TS import (mx-1bd551).                                       */
-/* ----------------------------------------------------------------------- */
+/* Run analytics token aggregates. */
 
 /**
  * Aggregate token counts by kind (input, output, cache-read, cache-write)

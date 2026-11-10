@@ -40,6 +40,15 @@ class LocalForge extends FakeForge {
 			).stdout.trim();
 		return result;
 	}
+	async readMergeProtection(_ref: RepoRef, branch: string) {
+		return {
+			ok: true as const,
+			value: {
+				baseCommit: (await fixtureGitOrThrow(this.remote, ["rev-parse", branch])).stdout.trim(),
+				requiresUpToDate: true,
+			},
+		};
+	}
 	override async mergePullRequest(
 		ref?: RepoRef,
 		pr?: PullRequestRef,
@@ -69,7 +78,10 @@ function nextVerdict(verdicts: string[]): string {
 	return verdicts.shift() ?? "PASS";
 }
 
-export async function runtimeChain(verdicts: string[]) {
+export async function runtimeChain(
+	verdicts: string[],
+	qualityGate = "test -f .warren/config.yaml && test -f change-1.txt",
+) {
 	const root = await realpath(await mkdtemp(join(tmpdir(), "factory-chain-")));
 	const remote = join(root, "remote.git");
 	const host = join(root, "host");
@@ -78,7 +90,7 @@ export async function runtimeChain(verdicts: string[]) {
 	await mkdir(join(host, ".warren"));
 	await writeFile(
 		join(host, ".warren/config.yaml"),
-		"qualityGate: test -f .warren/config.yaml && test -f change-1.txt\nagent:\n  skipGitHooks: true\npr:\n  autoMerge:\n    method: squash\n",
+		`qualityGate: ${qualityGate}\nagent:\n  skipGitHooks: true\npr:\n  autoMerge:\n    method: squash\n`,
 	);
 	await fixtureGitOrThrow(host, ["add", "."]);
 	await fixtureGitOrThrow(host, [
@@ -131,6 +143,11 @@ export async function runtimeChain(verdicts: string[]) {
 			let script: string;
 			if (role === "reviewer") {
 				const verdict = nextVerdict(verdicts);
+				const text = JSON.stringify({
+					kind: "text",
+					stream: "stdout",
+					payload: { text: "Review completed." },
+				});
 				const envelope = JSON.stringify({
 					kind: "state_change",
 					stream: "system",
@@ -144,7 +161,7 @@ export async function runtimeChain(verdicts: string[]) {
 						? "exit 1"
 						: verdict === "WAIT"
 							? "sleep 30"
-							: `sha=$(git rev-parse HEAD); printf '%s\\n' '${envelope.replace("REVIEW_SHA", "'\"$sha\"'")}'`;
+							: `sha=$(git rev-parse HEAD); printf '%s\\n' '${text}' '${envelope.replace("REVIEW_SHA", "'\"$sha\"'")}'`;
 			} else {
 				script = `set -e; echo ${role} > change-${roles.length}.txt; git add change-${roles.length}.txt; git commit -m ${role}; printf '%s\\n' '{"kind":"state_change","stream":"system","payload":{"type":"result","result":"Committed."}}'`;
 			}
