@@ -130,6 +130,10 @@ export class LocalRunStore {
 		return record;
 	}
 
+	list(): readonly LocalRunRecord[] {
+		return [...this.byRunId.values()];
+	}
+
 	getByRunId(providerRunId: string): LocalRunRecord | undefined {
 		return this.byRunId.get(providerRunId);
 	}

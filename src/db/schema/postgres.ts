@@ -193,6 +193,7 @@ export const events = pgTable(
 			.notNull()
 			.references(() => runs.id, { onDelete: "cascade" }),
 		sandboxEventSeq: integer("sandbox_event_seq").notNull(),
+		runtimeEventSeq: integer("runtime_event_seq"),
 		ts: text("ts").notNull(),
 		kind: text("kind").notNull(),
 		stream: text("stream", { enum: EVENT_STREAMS }),
@@ -303,7 +304,9 @@ export type ProjectRow = typeof projects.$inferSelect;
 export type ProjectInsert = typeof projects.$inferInsert;
 export type RunRow = typeof runs.$inferSelect;
 export type RunInsert = typeof runs.$inferInsert;
-export type EventRow = typeof events.$inferSelect;
+export type EventRow = Omit<typeof events.$inferSelect, "runtimeEventSeq"> & {
+	runtimeEventSeq?: number | null;
+};
 export type EventInsert = typeof events.$inferInsert;
 export type TriggerRow = typeof triggers.$inferSelect;
 export type TriggerInsert = typeof triggers.$inferInsert;

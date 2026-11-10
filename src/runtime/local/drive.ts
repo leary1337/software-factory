@@ -206,7 +206,13 @@ async function drivePrepared(
 	log(`local-drive: launching '${runtime.runtimeId}' in ${record.workspacePath}`);
 	let proc: SpawnResult;
 	try {
-		proc = await (deps.spawn ?? runSandboxed)(runProfile, runCommand);
+		proc = await (
+			deps.spawn ??
+			((profile, command) =>
+				runSandboxed(profile, command, {
+					lifecyclePath: `${record.homePath}.lifecycle.json`,
+				}))
+		)(runProfile, runCommand);
 	} catch (err) {
 		await proxy?.stop();
 		throw err;

@@ -28,6 +28,7 @@ import { basename, dirname, join } from "node:path";
 import { buildBwrapArgv, SANDBOX_HOME_PATH } from "./bwrap.ts";
 import { prepareSandboxCgroup, resolveSandboxLimits, wrapArgvForCgroup } from "./cgroup.ts";
 import { resolveSandboxEnv } from "./env.ts";
+import { spawnGuardedProcess } from "./guarded-process.ts";
 import { buildSeatbeltArgv, buildSeatbeltProfile } from "./seatbelt.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "./types.ts";
 
@@ -38,6 +39,7 @@ export interface RunSandboxedOptions {
 	sandboxExecBin?: string;
 	/** Defaults to `os.tmpdir()`. Used to host the rendered .sb file on macOS. */
 	tmpRoot?: string;
+	lifecyclePath?: string;
 }
 
 export async function runSandboxed(
@@ -79,14 +81,14 @@ async function spawnDarwin(
 	const cwd = resolveCwd(resolved.workspace, command.cwd);
 
 	const wantsStdin = command.stdin !== undefined;
-	const proc = Bun.spawn(argv, {
+	const guarded = await spawnGuardedProcess({
+		argv,
 		cwd,
 		env,
-		detached: true,
 		stdin: wantsStdin ? "pipe" : "ignore",
-		stdout: "pipe",
-		stderr: "pipe",
+		...(options.lifecyclePath !== undefined ? { lifecyclePath: options.lifecyclePath } : {}),
 	});
+	const proc = guarded.proc;
 
 	await writeStringStdin(proc, command.stdin, command.holdStdin ?? false);
 
@@ -99,13 +101,12 @@ async function spawnDarwin(
 	const exited = proc.exited.finally(cleanup);
 
 	return {
-		pid: proc.pid,
+		pid: guarded.pid,
 		stdout: proc.stdout as ReadableStream<Uint8Array>,
 		stderr: proc.stderr as ReadableStream<Uint8Array>,
 		exited,
 		cancel: () => {
-			killProcessGroup(proc.pid);
-			proc.kill();
+			guarded.cancel();
 			cleanup();
 		},
 		closeStdin: makeCloseStdin(proc),
@@ -170,15 +171,6 @@ async function spawnLinux(
 		writeStdin: makeWriteStdin(proc),
 		...(cgroup ? { oomKilled: () => cgroup.oomKilled() } : {}),
 	};
-}
-
-/** SIGKILL every process in `pgid`'s group; a no-op once the group is empty. */
-function killProcessGroup(pgid: number): void {
-	try {
-		process.kill(-pgid, "SIGKILL");
-	} catch {
-		// ESRCH: the group already exited.
-	}
 }
 
 async function writeStringStdin(

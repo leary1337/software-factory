@@ -225,6 +225,8 @@ export interface RuntimeCapabilities {
 }
 
 export interface TeardownResult {
+	/** Durable bundle containing interrupted or uncommitted workspace changes. */
+	recoveryPath?: string;
 	archived: boolean;
 	deletedEvents: number;
 	deletedMessages: number;
@@ -502,9 +504,7 @@ export interface RuntimeProvider {
 	finalize(handle: RunHandle, intent: FinalizeIntent): Promise<FinalizeResult>;
 
 	/**
-	 * Kill the sandbox/pod, reclaim the workspace, archive+prune the ephemeral
-	 * store. Idempotent, best-effort. The domain calls this ONLY after
-	 * `finalize()`.
+	 * Stop the sandbox and reclaim its workspace only after preserving unfinished work.
 	 */
 	terminate(handle: RunHandle): Promise<TeardownResult>;
 }

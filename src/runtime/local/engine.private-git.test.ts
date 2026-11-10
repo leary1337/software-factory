@@ -292,7 +292,15 @@ describe("LocalEngine: private git metadata in the real sandbox (warren-3c1e)", 
 				}),
 			).rejects.toThrow(/commondir must not exist/);
 			expect(await gitOut(remote, "branch", "--list", "warren/pg3")).toBe("");
-			await engine.terminate(handle);
+			await expect(engine.terminate(handle)).rejects.toThrow(/commondir must not exist/);
+			expect(
+				existsSync(
+					localWorkspacePath(
+						resolveLocalStateRoots({ WARREN_DATA_DIR: dataDir }),
+						handle.sandboxId,
+					),
+				),
+			).toBe(true);
 		},
 		60_000,
 	);

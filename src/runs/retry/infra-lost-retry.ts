@@ -140,6 +140,8 @@ export async function decideInfraLostRetry(
 	// (warren-6de9 shape + the infra-lost cause appended in warren-4af7) —
 	// the run-level hook must not double-dispatch it.
 	if ((await repos.planRuns.findChildByRunId(run.id)) !== null) return no("plan_run_child");
+	if ((await repos.events.payloadKeyHistory("plan_run.review_step", "stepRunId", run.id)).count > 0)
+		return no("plan_run_child");
 	if (run.projectId === null) return no("no_project");
 	// Cumulative spend: the retry inherits the original cap minus what the
 	// first attempt already burned. Null cap ⇒ uncapped ⇒ null remaining.

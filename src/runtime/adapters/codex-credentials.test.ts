@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexAdapter } from "./codex.ts";
-import { codexAuthFile, prepareCodexCredentials } from "./codex-credentials.ts";
+import {
+	codexAuthFile,
+	prepareCodexCredentials,
+	recoverCodexCredentials,
+} from "./codex-credentials.ts";
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -94,6 +98,22 @@ describe("prepareCodexCredentials", () => {
 		await expect(finish()).rejects.toThrow("home was replaced");
 		expect(await readFile(target, "utf8")).toBe(auth("old"));
 		expect(await readFile(source, "utf8")).toBe(auth("old"));
+	});
+
+	test("keeps rotated credentials recoverable when saving the host login fails", async () => {
+		const { source, home, target } = await fixture();
+		const finish = await prepareCodexCredentials(home, source);
+		await writeFile(target, auth("refreshed"));
+		await rename(source, `${source}.saved`);
+		await mkdir(source);
+		await expect(finish()).rejects.toThrow();
+		expect(await readFile(target, "utf8")).toBe(auth("refreshed"));
+		expect(await Bun.file(`${home}.credentials.json`).exists()).toBe(true);
+		await rm(source, { recursive: true });
+		await rename(`${source}.saved`, source);
+		await recoverCodexCredentials(home);
+		expect(await readFile(source, "utf8")).toBe(auth("refreshed"));
+		expect(await Bun.file(target).exists()).toBe(false);
 	});
 
 	test("leases a login to one run and releases it after cleanup", async () => {

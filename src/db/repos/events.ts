@@ -15,6 +15,8 @@ import type { DrizzleAdapter } from "./drizzle-adapter.ts";
 export interface AppendEventInput {
 	runId: string;
 	sandboxEventSeq: number;
+	/** Provider cursor, independent of Warren-authored events in the transcript. */
+	runtimeEventSeq?: number;
 	ts: string;
 	kind: string;
 	stream?: EventStream | null;
@@ -63,7 +65,14 @@ export class EventsRepo {
 				.insert(this.events)
 				.values({
 					runId: input.runId,
-					sandboxEventSeq: input.sandboxEventSeq,
+					sandboxEventSeq:
+						input.runtimeEventSeq === undefined
+							? input.sandboxEventSeq
+							: sql`(
+						SELECT CASE WHEN coalesce(max(sandbox_event_seq), 0) >= ${input.sandboxEventSeq}
+						THEN coalesce(max(sandbox_event_seq), 0) + 1 ELSE ${input.sandboxEventSeq} END
+						FROM events WHERE run_id = ${input.runId})`,
+					runtimeEventSeq: input.runtimeEventSeq ?? null,
 					ts: input.ts,
 					kind: input.kind,
 					stream: input.stream ?? null,
@@ -169,6 +178,21 @@ export class EventsRepo {
 		);
 		const raw = row?.max ?? null;
 		return raw === null ? null : Number(raw);
+	}
+
+	/** Resume the provider from its own cursor; system events never advance it. */
+	async maxRuntimeSeqForRun(runId: string): Promise<number | null> {
+		const row = await this.adapter.pickOne<{ max: number | null }>(
+			this.db
+				.select({
+					max: sql<number | null>`max(coalesce(${this.events.runtimeEventSeq},
+				CASE WHEN ${this.events.kind} IN ('text', 'thinking', 'tool_use', 'tool_result', 'state_change', 'telemetry', 'stderr')
+				THEN ${this.events.sandboxEventSeq} END))`,
+				})
+				.from(this.events)
+				.where(eq(this.events.runId, runId)),
+		);
+		return row?.max === null || row?.max === undefined ? null : Number(row.max);
 	}
 
 	/**

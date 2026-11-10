@@ -298,6 +298,24 @@ describe("infra-lost run auto-retry (warren-4af7)", () => {
 		expect(decision.skip).toBe("budget_exhausted");
 	});
 
+	for (const step of ["review", "rework"]) {
+		test(`keeps lost ${step} under the plan coordinator without an unlinked retry`, async () => {
+			const parent = await h.run({ seedId: "warren-a" });
+			const original = await h.run({ seedId: "warren-a" });
+			await h.repos.events.append({
+				runId: parent.id,
+				sandboxEventSeq: 1,
+				ts: NOW.toISOString(),
+				kind: "plan_run.review_step",
+				stream: "system",
+				payload: { step, stepRunId: original.id },
+			});
+			await hookFor(h)(original.id);
+			expect(h.spawnCalls).toHaveLength(0);
+			expect((await decideInfraLostRetry(h.repos, original)).skip).toBe("plan_run_child");
+		});
+	}
+
 	test("plan-run child infra-lost → run-level hook stands down; coordinator shape covers it", async () => {
 		const original = await h.run({ seedId: "warren-a" });
 		const { planRun } = await h.repos.planRuns.create({

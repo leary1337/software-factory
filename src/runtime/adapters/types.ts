@@ -108,6 +108,8 @@ export interface AgentRuntimeAdapter {
 	createEventParser?(frontmatter?: AgentFrontmatter): (line: string) => AdapterRuntimeEvent[];
 	/** Prepare private HOME; return a cleanup that preserves refreshed credentials. */
 	prepareHome?(homePath: string): Promise<() => Promise<void>>;
+	/** Finish durable HOME cleanup after the owning server has restarted. */
+	recoverHome?(homePath: string): Promise<void>;
 
 	/**
 	 * Fold pending steering messages into the spawn's stdin payload

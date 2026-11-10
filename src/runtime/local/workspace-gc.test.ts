@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fixtureGitOrThrow } from "../../workspace/git/test-fixture.ts";
 import { readLocalRunManifest, writeLocalRunManifest } from "./manifest.ts";
 import { resolveLocalStateRoots } from "./paths.ts";
 import { createLocalWorkspaceDestroyer } from "./workspace-gc.ts";
@@ -29,6 +30,17 @@ describe("createLocalWorkspaceDestroyer", () => {
 			const workspacePath = join(dir, "ws");
 			const homePath = join(dir, "home");
 			await mkdir(workspacePath, { recursive: true });
+			await fixtureGitOrThrow(workspacePath, ["init", "-b", "main"]);
+			await fixtureGitOrThrow(workspacePath, [
+				"-c",
+				"user.name=Test",
+				"-c",
+				"user.email=test@example.invalid",
+				"commit",
+				"--allow-empty",
+				"-m",
+				"init",
+			]);
 			await mkdir(homePath, { recursive: true });
 			await writeFile(join(workspacePath, "artifact.txt"), "x");
 			await writeLocalRunManifest(roots, {
@@ -46,7 +58,7 @@ describe("createLocalWorkspaceDestroyer", () => {
 			const outcome = await destroy("local-run_1");
 			expect(outcome).toEqual({
 				status: "destroyed",
-				archived: false,
+				archived: true,
 				deletedEvents: 0,
 				deletedRuns: 0,
 			});
@@ -64,6 +76,17 @@ describe("createLocalWorkspaceDestroyer", () => {
 			const roots = resolveLocalStateRoots({ WARREN_DATA_DIR: dir });
 			const workspacePath = join(dir, "ws");
 			await mkdir(workspacePath, { recursive: true });
+			await fixtureGitOrThrow(workspacePath, ["init", "-b", "main"]);
+			await fixtureGitOrThrow(workspacePath, [
+				"-c",
+				"user.name=Test",
+				"-c",
+				"user.email=test@example.invalid",
+				"commit",
+				"--allow-empty",
+				"-m",
+				"init",
+			]);
 			await writeLocalRunManifest(roots, {
 				version: 1,
 				sandboxId: "local-run_2",

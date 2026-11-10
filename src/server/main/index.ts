@@ -64,6 +64,7 @@ import { bootPlanRunCoordinatorWiring } from "./plan-run-wiring.ts";
 import { bootPreviewSurface } from "./preview-wiring.ts";
 import { wireInfraLostRetry } from "./retry-wiring.ts";
 import { resolveBootRuntimeProvider } from "./runtime-wiring.ts";
+import { serveUntilSignal } from "./shutdown.ts";
 import { bootstrapOperatorToken } from "./token-bootstrap.ts";
 import { bootToolCallsBackfill } from "./tool-calls-backfill-wiring.ts";
 import { closeDatabase, defaultSpawn, redactDbUrl, resolvePgPoolMax } from "./utils.ts";
@@ -472,7 +473,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
  * policy kicks in.
  */
 if (import.meta.main) {
-	bootServer().catch(async (err) => {
+	serveUntilSignal(() => bootServer()).catch(async (err) => {
 		const message = err instanceof Error ? err.message : String(err);
 		await captureBootFailure(err);
 		console.error(`warren: ${message}`);

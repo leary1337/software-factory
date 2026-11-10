@@ -25,6 +25,7 @@ export interface LostRunTeardownInput {
 	/** Append + publish a `stream:'system'` event on the run. */
 	readonly emit: (kind: string, payload: Record<string, unknown>) => Promise<void>;
 	readonly log: BoundBridgeLogger;
+	readonly recordRecovery?: (path: string) => Promise<void>;
 }
 
 /**
@@ -34,8 +35,8 @@ export interface LostRunTeardownInput {
  * nothing outside `LocalProvider` speaks the burrow dialect. Best-effort: every
  * failure degrades to a `reap.workspace_destroy_failed` event, never throws.
  */
-export async function teardownLostRunWorkspace(input: LostRunTeardownInput): Promise<void> {
-	await terminateLostWorkspace(input, input.runtimeProvider);
+export async function teardownLostRunWorkspace(input: LostRunTeardownInput): Promise<boolean> {
+	return terminateLostWorkspace(input, input.runtimeProvider);
 }
 
 /**
@@ -49,7 +50,7 @@ export async function teardownLostRunWorkspace(input: LostRunTeardownInput): Pro
 async function terminateLostWorkspace(
 	input: LostRunTeardownInput,
 	provider: RuntimeProvider,
-): Promise<void> {
+): Promise<boolean> {
 	const { sandbox } = input;
 	const handle: RunHandle = {
 		runId: input.runId,
@@ -58,18 +59,22 @@ async function terminateLostWorkspace(
 	};
 	try {
 		const result = await provider.terminate(handle);
+		if (result.recoveryPath) await input.recordRecovery?.(result.recoveryPath);
 		await input.emit("reap.workspace_destroyed", {
 			sandboxId: sandbox.id,
 			archived: result.archived,
+			...(result.recoveryPath !== undefined ? { recoveryPath: result.recoveryPath } : {}),
 			deletedEvents: result.deletedEvents,
 			deletedMessages: result.deletedMessages,
 			deletedRuns: result.deletedRuns,
 		});
+		return true;
 	} catch (err) {
 		await input.emit("reap.workspace_destroy_failed", {
 			sandboxId: sandbox.id,
 			step: "destroy",
 			message: err instanceof Error ? err.message : String(err),
 		});
+		return false;
 	}
 }
