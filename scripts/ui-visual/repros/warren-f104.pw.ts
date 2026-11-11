@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import type { PlanRunDetailResponse } from "../../../src/ui/src/api/types.ts";
-import { harnessCases, openCase } from "../harness.ts";
+import { harnessCases, openCase, screenshotCase } from "../harness.ts";
 
 // warren-f104: compact dated history, mobile cost placement and totals across attempts.
 const { fixture, cases } = harnessCases();
@@ -116,21 +116,25 @@ async function installCosts(page: Page) {
 for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 	test.describe(`warren-f104 ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
+		let data: Awaited<ReturnType<typeof installCosts>>;
 		test.beforeEach(async ({ page }) => {
-			await installCosts(page);
+			data = await installCosts(page);
 		});
 
 		test("keeps the latest report compact while retaining the full report on demand", async ({
 			page,
-		}) => {
+		}, info) => {
 			await openCase(page, { ...c, url: `${c.url}?task=1` }, fixture);
 			const history = page.getByRole("region", { name: "Execution history", exact: true });
+			await expect(history).toHaveCount(1);
 			const latest = history.locator("ol > li").first();
 			expect(
 				await latest.evaluate((element) => element.getBoundingClientRect().height),
 			).toBeLessThan(320);
 			await expect(latest).toContainText("Review passed");
 			await expect(page.getByText(new RegExp(REPORT_END))).not.toBeVisible();
+			await expect(latest.locator(`time[datetime="${START}"]`)).toBeVisible();
+			await screenshotCase(page, { ...c, name: `compact-history.${c.viewport}.${c.theme}` }, info);
 			await page.getByText("Report for UI/UX review 1", { exact: true }).press("Enter");
 			await expect(page.getByText(new RegExp(REPORT_END))).toBeVisible();
 		});
@@ -176,6 +180,90 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 			await expect(card).toContainText("$1.23");
 			await card.getByText("Cost calculation", { exact: true }).click();
 			await expect(card).toContainText("$9.798800");
+			await card.getByRole("link", { name: TITLE, exact: true }).click();
+			const attempts = page.getByRole("region", { name: "Attempt costs", exact: true });
+			await expect(attempts).toContainText("Across 2 loaded attempts: $9.80");
+			await attempts.getByText("Attempt history (2)", { exact: true }).click();
+			await attempts.getByRole("link", { name: /Cancelled/ }).click();
+			await expect(page.getByRole("region", { name: "Task cost", exact: true })).toContainText(
+				"$1.23",
+			);
+			await expect(attempts).toContainText("Across 2 loaded attempts: $9.80");
+		});
+
+		test("keeps unknown attempt costs explicit and recovers an unavailable attempt", async ({
+			page,
+		}) => {
+			const oldChild = data.old.children[0];
+			if (!oldChild?.metrics) throw new Error("Missing older metrics");
+			const metrics = oldChild.metrics;
+			oldChild.metrics = undefined;
+			await openCase(page, { ...c, url: `${c.url}?task=1` }, fixture);
+			const panel = page.getByRole("region", { name: "Attempt costs", exact: true });
+			await expect(panel).toContainText("Across 2 loaded attempts: $8.56 + unknown");
+			await page.route("**/plan-runs/old-workout-attempt", (route) =>
+				route.fulfill({ status: 503, json: { error: "Unavailable" } }),
+			);
+			await page.reload();
+			await expect(panel).toContainText("The loaded subtotal may omit costs.");
+			await expect(panel).toContainText("Across 1 loaded attempt: $8.56");
+			oldChild.metrics = metrics;
+			await page.route("**/plan-runs/old-workout-attempt", (route) =>
+				route.fulfill({ json: data.old }),
+			);
+			await panel.getByRole("button", { name: "Retry attempt costs" }).click();
+			await expect(panel).toContainText("Across 2 loaded attempts: $9.80");
+		});
+
+		test("recovers step dates and never invents a duration for a finished step without an end", async ({
+			page,
+		}) => {
+			const run = data.detail.runs[0];
+			if (!run) throw new Error("Missing run");
+			await page.route("**/runs/history-ui-review", (route) =>
+				route.fulfill({ status: 503, json: { error: "Unavailable" } }),
+			);
+			await openCase(page, { ...c, url: `${c.url}?task=1` }, fixture);
+			const latest = page
+				.getByRole("region", { name: "Execution history", exact: true })
+				.locator("ol > li")
+				.first();
+			await expect(latest).toContainText("Timing unavailable.");
+			await page.route("**/runs/history-ui-review", (route) =>
+				route.fulfill({
+					json: {
+						run: {
+							...run,
+							id: "history-ui-review",
+							state: "succeeded",
+							startedAt: START,
+							endedAt: null,
+						},
+					},
+				}),
+			);
+			await latest.getByRole("button", { name: "Retry timing for UI/UX review 1" }).click();
+			await expect(latest).toContainText("End time unavailable");
+			await expect(latest).toContainText("Duration: Unknown");
+			await expect(latest).not.toContainText("in progress");
+		});
+
+		test("loads execution timing only for the visible history page", async ({ page }) => {
+			const child = data.detail.children[0];
+			if (!child?.reviewSteps?.[0]) throw new Error("Missing review");
+			const step = child.reviewSteps[0];
+			child.reviewSteps = Array.from({ length: 12 }, (_, index) => ({
+				...step,
+				runId: `history-${index}`,
+			}));
+			const requested = new Set<string>();
+			page.on("request", (request) => {
+				if (/\/runs\/history-\d+$/.test(request.url())) requested.add(request.url());
+			});
+			await openCase(page, { ...c, url: `${c.url}?task=1` }, fixture);
+			expect(requested.size).toBe(8);
+			await page.getByRole("button", { name: "Show more steps (4 remaining)" }).click();
+			await expect.poll(() => requested.size).toBe(12);
 		});
 	});
 }

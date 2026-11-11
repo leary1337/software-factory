@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { AttemptCosts } from "./attempt-costs.tsx";
 import { costText, taskCost } from "./cost-summary.ts";
 import { planProgressText } from "./plan-progress-summary.ts";
 import { TaskActivity } from "./task-activity.tsx";
@@ -98,32 +99,9 @@ export function TaskCard({ task }: { task: TaskItem }) {
 					</a>
 				) : null}
 			</div>
-			{task.attempts.length > 1 ? <TaskAttemptHistory task={task} /> : null}
+			{task.attempts.length > 1 ? (
+				<AttemptCosts attempts={task.attempts} selected={task.current} />
+			) : null}
 		</article>
-	);
-}
-
-function TaskAttemptHistory({ task }: { task: TaskItem }) {
-	return (
-		<details className="border-(--color-border) border-t pt-3 text-sm">
-			<summary className="cursor-pointer font-medium">
-				Attempt history ({task.attempts.length})
-			</summary>
-			<ul className="mt-3 space-y-3">
-				{task.attempts.map((attempt) => (
-					<li key={taskUrl(attempt)} className="space-y-1">
-						<Link className="text-(--color-primary) hover:underline" to={taskUrl(attempt)}>
-							{taskStatus(attempt.child, attempt.detail.planRun).label} ·{" "}
-							{new Date(attempt.detail.planRun.createdAt).toLocaleString()}
-						</Link>
-						<p className="break-words text-(--color-text-2) text-xs">
-							{attempt.detail.planRun.planName ?? "Plan attempt"}
-							{attempt === task.current ? " · Current" : ""} · Task cost:{" "}
-							{costText(taskCost(attempt.child))}
-						</p>
-					</li>
-				))}
-			</ul>
-		</details>
 	);
 }

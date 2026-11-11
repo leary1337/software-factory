@@ -15,6 +15,7 @@ import { ChildWalkPanel } from "./plan-run-detail/child-walk.tsx";
 import { DetailRail } from "./plan-run-detail/detail-rail.tsx";
 import { TaskDetail } from "./plan-run-detail/task-detail.tsx";
 import { PlanStateLabel } from "./plan-runs/plan-state-label.tsx";
+import { PlanCostPanel } from "./tasks/cost-panel.tsx";
 import { PlanProgress } from "./tasks/plan-progress.tsx";
 
 /**
@@ -146,6 +147,7 @@ export function PlanRunDetailPage() {
 
 			{refreshWarning}
 			<PlanProgress plan={planRun} tasks={children} />
+			<PlanCostPanel>{children}</PlanCostPanel>
 
 			{/* items-start: the child walk sizes to its rows rather than
 			    stretching to the rail's height (warren-dac1). */}

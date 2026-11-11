@@ -9,6 +9,7 @@ import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
 import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
+import { AttemptCostPanel } from "./attempt-cost-panel.tsx";
 import { DeploymentIncident } from "./deployment-incident.tsx";
 import { TaskHistory } from "./task-history.tsx";
 
@@ -66,7 +67,12 @@ export function TaskDetail({
 				<DeploymentIncident planRunId={detail.planRun.id} runId={child.runId} />
 			) : null}
 			<TaskCostPanel child={child} run={run} />
-			<TaskHistory key={`${child.planRunId}:${child.seq}`} child={child} run={run} />
+			<AttemptCostPanel
+				key={`attempts:${child.planRunId}:${child.seq}`}
+				detail={detail}
+				child={child}
+			/>
+			<TaskHistory key={`history:${child.planRunId}:${child.seq}`} child={child} run={run} />
 			{child.metrics ? (
 				<details className="rounded border border-(--color-border) p-4">
 					<summary className="cursor-pointer font-medium text-sm">Task totals</summary>

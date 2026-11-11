@@ -1,7 +1,6 @@
 import type { PlanRunDetailResponse, RunRow } from "@/api/types.ts";
 import { formatTimestamp } from "@/lib/utils.ts";
-import { CostNotes } from "../tasks/cost-panel.tsx";
-import { costText, implementationLimitText, planCost } from "../tasks/cost-summary.ts";
+import { implementationLimitText } from "../tasks/cost-summary.ts";
 
 export function DetailRail({
 	detail,
@@ -11,19 +10,9 @@ export function DetailRail({
 	projectLabel: string;
 }) {
 	const { planRun, children, runs } = detail;
-	const cost = planCost(children);
 	const delivered = collectDeliveredPrs(children, runs);
 	return (
 		<aside className="flex w-full min-w-0 flex-col gap-4 lg:w-80">
-			<section
-				aria-label="Plan cost"
-				className="space-y-3 rounded-lg border border-(--color-border) bg-(--color-surface) p-4"
-			>
-				<h2 className="font-semibold text-base">Plan cost</h2>
-				<p className="text-(--color-text-2) text-xs">All tasks · this attempt</p>
-				<p className="font-semibold text-lg">{costText(cost)}</p>
-				<CostNotes cost={cost} />
-			</section>
 			<RailCard title="Plan definition">
 				<Facts
 					rows={[

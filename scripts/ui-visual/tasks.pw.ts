@@ -73,6 +73,7 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await expect(page.getByRole("heading", { name: "Execution history" })).toBeVisible();
 			await expect(page.getByText("Action required", { exact: true })).toBeVisible();
 			await expect(page.getByText("A protected migration changed.", { exact: true })).toBeVisible();
+			await page.getByText("Report for Review 1", { exact: true }).press("Enter");
 			await expect(
 				page.getByText("The history stays readable on a phone", { exact: true }),
 			).toBeVisible();
