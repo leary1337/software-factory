@@ -1,6 +1,7 @@
 import type { PlanRunChildRow } from "@/api/types.ts";
 
 export function TaskProgress({ child }: { child: PlanRunChildRow }) {
+	if (child.state === "skipped" || child.state === "pending") return null;
 	const index =
 		child.state === "merged"
 			? 3

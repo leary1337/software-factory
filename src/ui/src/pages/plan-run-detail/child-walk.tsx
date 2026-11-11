@@ -11,6 +11,7 @@ import {
 import { formatPlanRunFailureReason } from "@/lib/labels.ts";
 import { relativeTime } from "@/lib/utils.ts";
 import { CHILD_SQUARE_COLOR } from "../plan-runs/walk-state.ts";
+import { planProgressText } from "../tasks/plan-progress-summary.ts";
 
 /**
  * The Child walk panel of the walk inspector (warren-2520): one row per
@@ -48,8 +49,6 @@ export function ChildWalkPanel({
 		const gate = childRows.find((c) => c.state !== "merged" && c.state !== "skipped");
 		return gate === undefined ? null : gate.seq;
 	}, [childRows]);
-
-	const mergedCount = childRows.filter((c) => c.state === "merged").length;
 
 	return (
 		<section className="flex min-w-0 flex-1 flex-col rounded border border-(--color-border) bg-(--color-surface)">
@@ -101,14 +100,9 @@ export function ChildWalkPanel({
 				</>
 			)}
 
-			<footer className="flex h-[37px] shrink-0 items-center gap-2.5 px-3.5">
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 tracking-[0.05em]">
-					RE-DISPATCHING THIS PLAN RESUMES FROM THE NEXT OPEN CHILD
-				</span>
-				<div className="min-w-0 flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
-					{mergedCount} / {childRows.length} merged
-				</span>
+			<footer className="space-y-2 px-3.5 py-3 text-(--color-text-2) text-xs">
+				<p>{planProgressText(childRows, planRun.state)}</p>
+				<p>Starting this plan again resumes from the next open task.</p>
 			</footer>
 		</section>
 	);
@@ -151,7 +145,7 @@ function childStatusLine(
 		};
 	}
 	if (child.state === "pending" && gateSeq !== null && gateSeq < child.seq) {
-		return { text: `waits on child ${gateSeq}`, danger: false };
+		return { text: `Waiting for task ${gateSeq} to finish`, danger: false };
 	}
 	return null;
 }
@@ -187,12 +181,15 @@ const REVIEW_STAGE_LABELS: Record<
 };
 
 export function childStateLabel(child: PlanRunChildRow): string {
+	if (child.state === "skipped") return "previously closed";
+	if (child.state === "merged") return "delivered";
 	return child.reviewStage ? REVIEW_STAGE_LABELS[child.reviewStage].label : child.state;
 }
 
 /** Child state → card tone (mirrors CHILD_SQUARE_COLOR). */
 function childTone(child: PlanRunChildRow): InventoryCardTone {
-	if (child.reviewStage) return REVIEW_STAGE_LABELS[child.reviewStage].tone;
+	if (child.state === "pr_open" && child.reviewStage)
+		return REVIEW_STAGE_LABELS[child.reviewStage].tone;
 	switch (child.state) {
 		case "merged":
 			return "success";
@@ -294,9 +291,10 @@ function ChildRow({
 	gateSeq: number | null;
 	isGate: boolean;
 }) {
-	const color = child.reviewStage
-		? REVIEW_STAGE_LABELS[child.reviewStage].color
-		: CHILD_SQUARE_COLOR[child.state];
+	const color =
+		child.state === "pr_open" && child.reviewStage
+			? REVIEW_STAGE_LABELS[child.reviewStage].color
+			: CHILD_SQUARE_COLOR[child.state];
 	// The pending dot is an unfilled rail (border-strong); as text that fails
 	// WCAG contrast, so the label falls back to tertiary text (warren-b629).
 	const labelColor = child.state === "pending" ? "var(--color-text-3)" : color;

@@ -2,11 +2,11 @@ import { Link } from "react-router-dom";
 import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
 import { Alert } from "@/components/ui/alert.tsx";
 import { ReviewReport } from "../run-detail/review-report.tsx";
+import { TaskActivity } from "../tasks/task-activity.tsx";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
-import { childStateLabel } from "./child-walk.tsx";
 import { DeploymentIncident } from "./deployment-incident.tsx";
 
 export function TaskDetail({
@@ -18,6 +18,7 @@ export function TaskDetail({
 }) {
 	const run = detail.runs.find((entry) => entry.id === child.runId);
 	const steps = child.reviewSteps ?? [];
+	const status = taskStatus(child, detail.planRun);
 	let reviews = 0;
 	let reworks = 0;
 	let uiReviews = 0;
@@ -37,7 +38,7 @@ export function TaskDetail({
 					{child.title ?? `Task ${child.seq}`}
 				</h1>
 				<span className="rounded border border-(--color-border) px-2 py-1 text-xs">
-					{childStateLabel(child)}
+					{status.label}
 				</span>
 				{run?.prUrl ? (
 					<a
@@ -53,11 +54,15 @@ export function TaskDetail({
 			<TaskProgress child={child} />
 			<Alert
 				className="text-(--color-fg)"
-				title="Next action"
-				variant={child.reviewStage === "needs_attention" ? "warning" : "info"}
+				title={status.group === "attention" ? "Action required" : "Current status"}
+				variant={status.group === "attention" ? "warning" : "info"}
 			>
-				{taskStatus(child, detail.planRun).action}
+				{status.action}
 			</Alert>
+			<p className="text-(--color-text-2) text-sm">
+				Task {child.seq} of {detail.children.length}
+			</p>
+			{status.group === "active" ? <TaskActivity child={child} /> : null}
 			<TaskMergeStatus child={child} />
 			<TaskBudgetPanel child={child} />
 			{child.failureReason === "deployment_incident" ? (

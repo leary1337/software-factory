@@ -2,14 +2,14 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
-import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
 import { OperatorOnly } from "@/components/operator-only.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
-import { TaskProgress } from "./tasks/task-progress.tsx";
+import { groupTaskAttempts } from "./tasks/task-attempts.ts";
+import { TaskCard } from "./tasks/task-card.tsx";
 import { TASK_GROUPS, taskStatus } from "./tasks/task-status.ts";
 
 export function TasksPage() {
@@ -30,11 +30,14 @@ export function TasksPage() {
 			Number(active(b.state)) - Number(active(a.state)) || b.createdAt.localeCompare(a.createdAt)
 		);
 	});
+	const visiblePlans = ordered.filter(
+		(plan, index) => index < limit || plan.state === "running" || plan.state === "queued",
+	);
 	const details = useQueries({
-		queries: ordered.slice(0, limit).map((plan) => ({
+		queries: visiblePlans.map((plan) => ({
 			queryKey: ["plan-runs", plan.id],
 			queryFn: ({ signal }: { signal: AbortSignal }) => planRunsApi.get(plan.id, signal),
-			refetchInterval: 15_000,
+			refetchInterval: plan.state === "running" || plan.state === "queued" ? 5000 : 45_000,
 		})),
 	});
 	const names = new Map(
@@ -52,10 +55,12 @@ export function TasksPage() {
 				}))
 			: [],
 	);
-	const matched = tasks.filter(({ child, detail, project }) =>
-		`${child.title ?? ""} ${project} ${detail.planRun.planName ?? ""}`
-			.toLowerCase()
-			.includes(search.toLowerCase()),
+	const matched = groupTaskAttempts(tasks).filter((task) =>
+		task.attempts.some(({ child, detail, project }) =>
+			`${child.title ?? ""} ${project} ${detail.planRun.planName ?? ""}`
+				.toLowerCase()
+				.includes(search.toLowerCase()),
+		),
 	);
 	const failed = details.filter((query) => query.isError);
 	return (
@@ -101,7 +106,7 @@ export function TasksPage() {
 			) : null}
 			{failed.length > 0 ? (
 				<Alert variant="danger" title="Some tasks could not be loaded">
-					This list is incomplete.{" "}
+					Some task states may be missing or out of date. Last known tasks remain visible.{" "}
 					<Button
 						variant="outline"
 						onClick={() => {
@@ -114,7 +119,7 @@ export function TasksPage() {
 			) : null}
 			{!plans.isLoading &&
 			!plans.isError &&
-			details.every((query) => !query.isLoading) &&
+			details.every((query) => !query.isLoading && !query.isError) &&
 			matched.length === 0 ? (
 				<Alert title="No tasks to show">
 					{search
@@ -124,7 +129,7 @@ export function TasksPage() {
 			) : null}
 			{TASK_GROUPS.map(({ key, title }) => {
 				const rows = matched.filter(
-					({ child, detail }) => taskStatus(child, detail.planRun).group === key,
+					({ current }) => taskStatus(current.child, current.detail.planRun).group === key,
 				);
 				return rows.length ? (
 					<section key={key} aria-label={title} className="space-y-3">
@@ -133,17 +138,17 @@ export function TasksPage() {
 						</h2>
 						<div className="grid gap-3 xl:grid-cols-2">
 							{rows.map((row) => (
-								<TaskCard key={`${row.detail.planRun.id}-${row.child.seq}`} {...row} />
+								<TaskCard key={row.key} task={row} />
 							))}
 						</div>
 					</section>
 				) : null;
 			})}
-			{ordered.length > limit ? (
+			{ordered.length > visiblePlans.length ? (
 				<div className="space-y-2">
 					<p className="text-(--color-text-2) text-sm">
-						Showing tasks from {Math.min(limit, ordered.length)} of {ordered.length} plans, with
-						active plans first. Search covers loaded tasks.
+						Showing tasks from {visiblePlans.length} of {ordered.length} plans. All active plans are
+						included. Search and attempt history cover loaded plans.
 					</p>
 					<Button variant="outline" onClick={() => setLimit(limit + 12)}>
 						Load more plans
@@ -151,54 +156,5 @@ export function TasksPage() {
 				</div>
 			) : null}
 		</div>
-	);
-}
-
-function TaskCard({
-	child,
-	detail,
-	project,
-}: {
-	child: PlanRunChildRow;
-	detail: PlanRunDetailResponse;
-	project: string;
-}) {
-	const status = taskStatus(child, detail.planRun);
-	const run = detail.runs.find((entry) => entry.id === child.runId);
-	const latest = child.reviewSteps?.at(-1);
-	const url = `/plan-runs/${encodeURIComponent(detail.planRun.id)}?task=${child.seq}`;
-	return (
-		<article className="min-w-0 space-y-3 rounded-lg border border-(--color-border) bg-(--color-surface) p-4">
-			<div className="flex flex-wrap justify-between gap-2 text-(--color-text-2) text-xs">
-				<span className="break-all">{project}</span>
-				<span>{status.label}</span>
-			</div>
-			<h3 className="break-words font-semibold text-base">
-				<Link className="hover:underline" to={url}>
-					{child.title ?? `Task ${child.seq + 1}`}
-				</Link>
-			</h3>
-			<p className="text-(--color-text-2) text-sm">{status.action}</p>
-			{status.group === "attention" && latest?.summary?.reason ? (
-				<p className="line-clamp-3 break-words text-sm">{latest.summary.reason}</p>
-			) : null}
-			<TaskProgress child={child} />
-			<div className="flex flex-wrap items-center gap-4 text-sm">
-				<Link to={url} className="font-medium text-(--color-primary)">
-					Open task →
-				</Link>
-				<Link
-					to={`/plan-runs/${encodeURIComponent(detail.planRun.id)}`}
-					className="text-(--color-text-2)"
-				>
-					{detail.planRun.planName ?? "View plan"}
-				</Link>
-				{run?.prUrl ? (
-					<a href={run.prUrl} target="_blank" rel="noreferrer" className="text-(--color-text-2)">
-						Pull request ↗
-					</a>
-				) : null}
-			</div>
-		</article>
 	);
 }

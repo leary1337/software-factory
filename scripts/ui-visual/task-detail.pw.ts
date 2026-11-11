@@ -34,8 +34,16 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 			});
 			await route.fulfill({ response, json: body });
 		});
+		await page.route("**/runs/rework-one", (route) =>
+			route.fulfill({
+				json: { run: { id: "rework-one", state: "running", startedAt: fixture.frozenNow } },
+			}),
+		);
 		await openCase(page, c, fixture);
-		await page.getByRole("link", { name: /Refine onboarding/ }).click();
+		await page
+			.getByRole("region", { name: "Plan progress", exact: true })
+			.getByRole("link", { name: "Refine onboarding", exact: true })
+			.click();
 		await expect(
 			page.getByRole("heading", { name: "Refine onboarding", exact: true }),
 		).toBeVisible();

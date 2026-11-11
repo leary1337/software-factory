@@ -143,7 +143,7 @@ function ChildrenCell({
 		);
 	}
 	return (
-		<div className="flex min-w-0 flex-1 items-center gap-2" title={counts.title}>
+		<div className="flex min-w-0 flex-1 flex-col items-start gap-2 py-2" title={counts.title}>
 			<span className="flex shrink-0 gap-[3px]" aria-hidden>
 				{childRows.map((c) => (
 					<span
@@ -153,7 +153,7 @@ function ChildrenCell({
 					/>
 				))}
 			</span>
-			<span className="truncate font-mono text-(--color-text-3) text-[9px] leading-3">
+			<span className="text-(--color-text-2) text-xs leading-4">
 				{childSummary(state, childRows)}
 			</span>
 		</div>

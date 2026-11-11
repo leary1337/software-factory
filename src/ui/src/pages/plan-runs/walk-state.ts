@@ -1,5 +1,7 @@
 import type { PlanRunChildState, PlanRunRow, PlanRunState, RunRow } from "@/api/types.ts";
 
+import { planProgressText } from "../tasks/plan-progress-summary.ts";
+
 /**
  * Direction C walk-inventory state helpers (warren-23b2 / pl-7e38 step
  * 6). Colour mappings use only token variables so the dark and light
@@ -58,42 +60,21 @@ export function planRunElapsed(planRun: PlanRunRow, now: number): string {
 	return formatElapsedMs(end - start);
 }
 
-/**
- * The caption under the child squares, e.g. `3 / 7 merged · gated on
- * PR merge` or `9 / 9 merged`. Only facts the API carries — never a
- * fabricated PR number.
- */
+/** The attempt summary keeps tracker closures separate from confirmed delivery. */
 export function childSummary(
 	state: PlanRunState,
-	children: readonly { state: PlanRunChildState }[],
+	children: readonly { state: PlanRunChildState; seq?: number }[],
 ): string {
-	if (children.length === 0) return "—";
-	const merged = children.filter((c) => c.state === "merged").length;
-	const base = `${merged} / ${children.length} merged`;
-	const clause = walkClause(state, children);
-	return clause === null ? base : `${base} · ${clause}`;
-}
-
-function walkClause(
-	state: PlanRunState,
-	children: readonly { state: PlanRunChildState }[],
-): string | null {
-	switch (state) {
-		case "queued":
-			return "awaiting dispatch";
-		case "succeeded":
-			return null;
-		case "failed":
-			return "failed";
-		case "cancelled":
-			return "cancelled";
-		case "running": {
-			const gated = children.some((c) => c.state === "pr_open");
-			if (gated) return "gated on PR merge";
-			const active = children.findIndex((c) => c.state === "dispatched" || c.state === "running");
-			return active === -1 ? "in flight" : `child ${active + 1} running`;
-		}
-	}
+	if (children.length === 0) return "No tasks";
+	const index = children.findIndex(
+		(child) => child.state !== "merged" && child.state !== "skipped",
+	);
+	const current = children[index];
+	const position =
+		current && (state === "running" || state === "queued")
+			? `Task ${current.seq ?? index + 1} of ${children.length} · `
+			: "";
+	return `${position}${planProgressText(children, state)}`;
 }
 
 /**

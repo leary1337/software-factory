@@ -1,6 +1,6 @@
 import type { PlanRunChildRow, PlanRunRow } from "@/api/types.ts";
 
-export type TaskGroup = "attention" | "active" | "waiting" | "complete";
+export type TaskGroup = "attention" | "active" | "waiting" | "complete" | "closed" | "stopped";
 
 interface TaskStatus {
 	group: TaskGroup;
@@ -9,22 +9,8 @@ interface TaskStatus {
 }
 
 export function taskStatus(child: PlanRunChildRow, plan: PlanRunRow): TaskStatus {
-	if (child.state === "merged")
-		return { group: "complete", label: "Completed", action: "The change has been delivered." };
-	if (child.state === "skipped")
-		return { group: "complete", label: "Skipped", action: "This task was skipped by the plan." };
-	if (child.failureReason === "deployment_incident")
-		return {
-			group: "attention",
-			label: "Production incident",
-			action: "Inspect production, repair or roll back, then resume verification.",
-		};
-	if (plan.state === "cancelled" || plan.state === "failed")
-		return {
-			group: "attention",
-			label: "Plan stopped",
-			action: "Inspect the plan before resuming work.",
-		};
+	const terminal = terminalStatus(child, plan);
+	if (terminal) return terminal;
 	const merge = mergeStatus(child);
 	if (merge) return merge;
 	if (child.budget?.awaitingDispatch)
@@ -72,10 +58,12 @@ export function taskStatus(child: PlanRunChildRow, plan: PlanRunRow): TaskStatus
 }
 
 export const TASK_GROUPS: { key: TaskGroup; title: string }[] = [
+	{ key: "active", title: "Current work" },
 	{ key: "attention", title: "Needs attention" },
-	{ key: "active", title: "In progress" },
 	{ key: "waiting", title: "Waiting" },
 	{ key: "complete", title: "Completed" },
+	{ key: "closed", title: "Previously closed" },
+	{ key: "stopped", title: "Stopped attempts" },
 ];
 
 function mergeStatus(child: PlanRunChildRow): TaskStatus | null {
@@ -86,4 +74,34 @@ function mergeStatus(child: PlanRunChildRow): TaskStatus | null {
 		label: merge.kind === "blocked" ? "Merge needs attention" : "Merge retry pending",
 		action: merge.nextAction,
 	};
+}
+
+function terminalStatus(child: PlanRunChildRow, plan: PlanRunRow): TaskStatus | null {
+	if (child.state === "merged")
+		return { group: "complete", label: "Completed", action: "The change has been delivered." };
+	if (child.state === "skipped")
+		return {
+			group: "closed",
+			label: "Previously closed",
+			action: "Closed in the tracker before dispatch. Delivery is not confirmed by this status.",
+		};
+	if (child.failureReason === "deployment_incident")
+		return {
+			group: "attention",
+			label: "Production incident",
+			action: "Inspect production, repair or roll back, then resume verification.",
+		};
+	if (plan.state === "cancelled" || (plan.state === "failed" && child.state === "pending"))
+		return {
+			group: "stopped",
+			label: plan.state === "cancelled" ? "Cancelled" : "Not started",
+			action: "This attempt stopped. Its history remains available.",
+		};
+	if (plan.state === "failed")
+		return {
+			group: "attention",
+			label: "Plan stopped",
+			action: "Inspect the plan before resuming work.",
+		};
+	return null;
 }

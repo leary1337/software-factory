@@ -62,7 +62,7 @@ describe("taskStatus", () => {
 				{ ...child, state: "dispatched", reviewStage: "reviewing" },
 				{ ...plan, state: "cancelled" },
 			).group,
-		).toBe("attention");
+		).toBe("stopped");
 	});
 	test("preserves completed tasks when a later task stops the plan", () => {
 		expect(taskStatus({ ...child, state: "merged" }, { ...plan, state: "failed" }).group).toBe(

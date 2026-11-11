@@ -6,6 +6,7 @@ import type { CancelPlanRunResponse, PlanRunDetailResponse } from "@/api/types.t
 import { isTerminalPlanRunState } from "@/api/types.ts";
 import { OperatorOnly } from "@/components/operator-only.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
 import { formatPlanRunFailureReason } from "@/lib/labels.ts";
@@ -13,13 +14,14 @@ import { ChildWalkPanel } from "./plan-run-detail/child-walk.tsx";
 import { DetailRail } from "./plan-run-detail/detail-rail.tsx";
 import { TaskDetail } from "./plan-run-detail/task-detail.tsx";
 import { PLAN_RUN_STATE_COLOR, summarizeCost } from "./plan-runs/walk-state.ts";
+import { PlanProgress } from "./tasks/plan-progress.tsx";
 
 /**
  * Plan run detail — the Direction C walk inspector (warren-2520 /
  * pl-7e38 step 8, from docs/ui-revamp/screens/plan-run-detail.jsx).
  * Child-by-child gate state in the main panel, the source plan
- * definition + prompt + delivered PRs in the right rail. No summary
- * cards; the walk is the product.
+ * definition + prompt + delivered PRs in the right rail. Attempt progress
+ * separates confirmed delivery from tracker closures.
  *
  * Keeps the legacy page's data behavior: one `GET /plan-runs/:id`
  * round-trip under the `["plan-runs", id]` key (shared with the
@@ -62,10 +64,13 @@ export function PlanRunDetailPage() {
 	if (detail.isLoading) {
 		return <Spinner label="Loading plan run" />;
 	}
-	if (detail.isError) {
+	if (detail.isError && !detail.data) {
 		return (
 			<Alert variant="danger" title="Failed to load plan run">
-				{formatError(detail.error)}
+				{formatError(detail.error)}{" "}
+				<Button variant="outline" onClick={() => void detail.refetch()}>
+					Retry
+				</Button>
 			</Alert>
 		);
 	}
@@ -73,15 +78,20 @@ export function PlanRunDetailPage() {
 	const { planRun, children, runs } = detail.data;
 
 	const project = projects.data?.projects.find((p) => p.id === planRun.projectId);
-	const projectLabel = project
-		? project.gitUrl.replace(/^https:\/\/github\.com\//, "") || project.gitUrl
-		: planRun.projectId;
+	const projectLabel = project?.gitUrl.replace(/^https:\/\/github\.com\//, "") || planRun.projectId;
 	const canCancel = ACTIVE_STATES.has(planRun.state);
 	const cost = summarizeCost(runs);
+	const refreshWarning = (
+		<PlanRefreshWarning isError={detail.isError} retry={() => void detail.refetch()} />
+	);
+
 	if (search.has("task")) {
 		const child = children.find((entry) => entry.seq === Number(search.get("task")));
 		return child ? (
-			<TaskDetail detail={detail.data} child={child} />
+			<>
+				{refreshWarning}
+				<TaskDetail detail={detail.data} child={child} />
+			</>
 		) : (
 			<Alert title="Task not found" variant="warning">
 				<Link to={`/plan-runs/${encodeURIComponent(id)}`}>Back to plan</Link>
@@ -133,6 +143,9 @@ export function PlanRunDetailPage() {
 					</span>
 				</Alert>
 			) : null}
+
+			{refreshWarning}
+			<PlanProgress plan={planRun} tasks={children} />
 
 			{/* items-start: the child walk sizes to its rows rather than
 			    stretching to the rail's height (warren-dac1). */}
@@ -188,4 +201,15 @@ function CancelStatus({
 		);
 	}
 	return null;
+}
+
+function PlanRefreshWarning({ isError, retry }: { isError: boolean; retry: () => void }) {
+	return isError ? (
+		<Alert variant="warning" title="Plan updates unavailable">
+			Showing the last known task states.{" "}
+			<Button variant="outline" onClick={retry}>
+				Retry plan
+			</Button>
+		</Alert>
+	) : null;
 }
