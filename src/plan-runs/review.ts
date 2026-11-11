@@ -165,9 +165,16 @@ function resultFromEvents(events: readonly { payloadJson: unknown }[]): string |
 
 async function reviewHeadChanged(
 	input: HandleInFlightInput,
-	last: ReviewStepRecord | undefined,
+	steps: readonly ReviewStepRecord[],
 	prUrl: string,
 ): Promise<boolean | null> {
+	const tail = steps.at(-1);
+	// An operator may recover an interrupted rework and push its fixes. Compare
+	// that head with the last review pin; rework rows do not carry a review pin.
+	const last =
+		tail?.step === "rework" && tail.state === "failed"
+			? [...steps].reverse().find((step) => step.step !== "rework")
+			: tail;
 	if (
 		!last ||
 		last.step === "rework" ||
@@ -206,7 +213,7 @@ export async function advanceReview(
 	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
 	const steps = await loadSteps(input.repos, run.id);
 	const last = steps.at(-1);
-	const stale = await reviewHeadChanged(input, last, prUrl);
+	const stale = await reviewHeadChanged(input, steps, prUrl);
 	if (stale === null) return { kind: "result", result: { kind: "waiting_for_run" } };
 	if (stale) return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
 	if (events.some((event) => event.kind === "plan_run.review_finished")) {

@@ -52,6 +52,9 @@ protocol, within the same budget. It keeps its old attempts and cost. Missing
 historical temporary files are not claimed to have been recovered: the fresh
 review must produce portable reproductions. Changing the PR head triggers a new
 review; unchanged exhausted loops remain stopped.
+This also covers an interrupted rework: after its recovered fixes are pushed,
+the new head is compared with the last review pin and reviewed within the
+remaining budget. A failed rework with an unchanged head stays stopped.
 
 The independent replay is implemented for the local runtime. Other providers
 without the runtime evidence cannot satisfy this protocol. Infrastructure or

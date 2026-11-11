@@ -225,7 +225,7 @@ test("stops merge retries and exposes owner attention after three refusals", asy
 	expect(await loadReviewStage(h.repos, "implementer", h.run.id)).toBe("needs_attention");
 });
 
-test.each(["PASS", "CHANGES", "finished CHANGES"])(
+test.each(["PASS", "CHANGES", "finished CHANGES", "failed rework"])(
 	"pins a fresh review when the PR head moves after %s",
 	async (scenario) => {
 		const h = await harness();
@@ -233,6 +233,24 @@ test.each(["PASS", "CHANGES", "finished CHANGES"])(
 			scenario === "PASS" ? REPORT : REPORT.replace("VERDICT: PASS", "VERDICT: CHANGES"),
 		);
 		let merges = 0;
+		if (scenario === "failed rework") {
+			const rework = await h.repos.runs.create({
+				agentName: "rework",
+				projectId: h.planRun.projectId,
+				prompt: "fix",
+				trigger: "plan-run",
+				renderedAgentJson: {},
+			});
+			await h.repos.runs.markRunning(rework.id);
+			await h.repos.runs.attachStats(rework.id, { costUsd: 0 });
+			await h.repos.runs.finalize(rework.id, "failed", new Date(), "crashed");
+			await h.input.emit(h.run.id, "plan_run.review_step", {
+				step: "rework",
+				stepRunId: rework.id,
+			});
+			await h.input.emit(h.run.id, "plan_run.review_finished", { outcome: "broken" });
+			expect(await advanceReview(h.input, h.run, "https://github.com/o/r/pull/1")).toBeNull();
+		}
 		if (scenario === "finished CHANGES") {
 			await h.input.emit(h.run.id, "plan_run.review_decided", {
 				outcome: "changes_left",
