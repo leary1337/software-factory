@@ -55,6 +55,8 @@ review; unchanged exhausted loops remain stopped.
 This also covers an interrupted rework: after its recovered fixes are pushed,
 the new head is compared with the last review pin and reviewed within the
 remaining budget. A failed rework with an unchanged head stays stopped.
+Each completed review has its own comment delivery key. Delivery retries are
+deduplicated, while a later review publishes its current verdict on the PR.
 
 The independent replay is implemented for the local runtime. Other providers
 without the runtime evidence cannot satisfy this protocol. Infrastructure or
