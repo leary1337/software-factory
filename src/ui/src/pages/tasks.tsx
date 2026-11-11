@@ -1,5 +1,4 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
 import { OperatorOnly } from "@/components/operator-only.tsx";
@@ -7,14 +6,17 @@ import { Alert } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
+import { useListParams } from "@/hooks/use-list-params.ts";
 import { formatError } from "@/lib/format-error.ts";
 import { groupTaskAttempts } from "./tasks/task-attempts.ts";
 import { TaskCard } from "./tasks/task-card.tsx";
 import { TASK_GROUPS, taskStatus } from "./tasks/task-status.ts";
 
 export function TasksPage() {
-	const [search, setSearch] = useState("");
-	const [limit, setLimit] = useState(12);
+	const { params, update } = useListParams();
+	const search = params.get("q") ?? "";
+	const requestedLimit = Number(params.get("limit"));
+	const limit = Number.isSafeInteger(requestedLimit) && requestedLimit >= 12 ? requestedLimit : 12;
 	const plans = useQuery({
 		queryKey: ["plan-runs", "tasks"],
 		queryFn: ({ signal }) => planRunsApi.list({}, signal),
@@ -83,7 +85,7 @@ export function TasksPage() {
 				type="search"
 				placeholder="Search by task, project or plan"
 				value={search}
-				onChange={(event) => setSearch(event.target.value)}
+				onChange={(event) => update({ q: event.target.value })}
 			/>
 			{plans.isLoading || details.some((query) => query.isLoading) ? (
 				<Spinner label="Loading tasks" />
@@ -150,7 +152,7 @@ export function TasksPage() {
 						Showing tasks from {visiblePlans.length} of {ordered.length} plans. All active plans are
 						included. Search and attempt history cover loaded plans.
 					</p>
-					<Button variant="outline" onClick={() => setLimit(limit + 12)}>
+					<Button variant="outline" onClick={() => update({ limit: String(limit + 12) })}>
 						Load more plans
 					</Button>
 				</div>

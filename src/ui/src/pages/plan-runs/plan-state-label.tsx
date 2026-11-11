@@ -1,20 +1,13 @@
-import type { PlanRunState } from "@/api/types.ts";
+import type { PlanRunChildRow, PlanRunState } from "@/api/types.ts";
+import { planStatus } from "./plan-status.ts";
 
-const TONES: Record<PlanRunState, string> = {
-	queued: "text-(--color-warning)",
-	running: "text-(--color-info)",
-	succeeded: "text-(--color-success)",
-	failed: "text-(--color-danger)",
-	cancelled: "text-(--color-text-2)",
-};
-const LABELS: Record<PlanRunState, string> = {
-	queued: "Queued",
-	running: "Running",
-	succeeded: "Completed",
-	failed: "Stopped",
-	cancelled: "Cancelled",
-};
-
-export function PlanStateLabel({ state }: { state: PlanRunState }) {
-	return <span className={`font-medium text-sm ${TONES[state]}`}>{LABELS[state]}</span>;
+export function PlanStateLabel({
+	state,
+	tasks,
+}: {
+	state: PlanRunState;
+	tasks?: readonly PlanRunChildRow[];
+}) {
+	const status = planStatus(state, tasks);
+	return <span className={`font-medium text-sm ${status.tone}`}>{status.label}</span>;
 }

@@ -57,7 +57,7 @@ async function installBlockedPlan(page: Page) {
 			},
 		],
 	}));
-	await page.route("**/plan-runs", (route) =>
+	await page.route(/\/plan-runs(?:\?.*)?$/, (route) =>
 		route.fulfill({ json: { planRuns: [detail.planRun] } }),
 	);
 	await page.route(`**/plan-runs/${fixture.ids.planRun.id}`, (route) =>
@@ -89,7 +89,12 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(0);
 			await page.goBack();
 			await expect
-				.poll(() => main.evaluate((element) => Math.abs(element.scrollTop - before)))
+				.poll(async () => Math.abs((await main.evaluate((element) => element.scrollTop)) - before))
+				.toBeLessThan(3);
+			await link.click();
+			await page.getByRole("link", { name: "← Back to plan", exact: true }).click();
+			await expect
+				.poll(async () => Math.abs((await main.evaluate((element) => element.scrollTop)) - before))
 				.toBeLessThan(3);
 		});
 
@@ -108,6 +113,51 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await expect(page.getByRole("searchbox", { name: "Search tasks" })).toHaveValue(TITLE);
 		});
 
+		test("keeps plan filters and sorting through task details and an explicit return", async ({
+			page,
+		}) => {
+			await openCase(page, { ...c, url: "/#/plan-runs" }, fixture);
+			await page.getByRole("combobox", { name: "State filter" }).selectOption("running");
+			await page.getByRole("searchbox", { name: "Search plans" }).fill("Workout");
+			await page.getByRole("button", { name: "Plan", exact: true }).click();
+			await page.getByRole("link", { name: "Workout reliability", exact: true }).click();
+			await page
+				.getByRole("region", { name: "Plan progress", exact: true })
+				.getByRole("link", { name: TITLE })
+				.click();
+			await page.getByRole("link", { name: "← Back to plan", exact: true }).click();
+			await page.getByRole("link", { name: "← Back to plans", exact: true }).click();
+			await expect(page.getByRole("searchbox", { name: "Search plans" })).toHaveValue("Workout");
+			await expect(page.getByRole("combobox", { name: "State filter" })).toHaveValue("running");
+			await expect(page.getByRole("button", { name: "Plan ↑", exact: true })).toHaveAttribute(
+				"aria-pressed",
+				"true",
+			);
+			await page.reload();
+			await expect(page.getByRole("searchbox", { name: "Search plans" })).toHaveValue("Workout");
+			await expect(page.getByRole("combobox", { name: "State filter" })).toHaveValue("running");
+			await expect(page.getByRole("button", { name: "Plan ↑", exact: true })).toHaveAttribute(
+				"aria-pressed",
+				"true",
+			);
+		});
+
+		test("returns to the same place in the searched task list", async ({ page }) => {
+			await openCase(page, c, fixture);
+			await page.getByRole("searchbox", { name: "Search tasks" }).fill("Workout");
+			const link = page.getByRole("link", { name: "Workout step 6", exact: true });
+			await link.scrollIntoViewIfNeeded();
+			const main = page.locator("main");
+			const before = await main.evaluate((element) => element.scrollTop);
+			expect(before).toBeGreaterThan(100);
+			await link.click();
+			await page.getByRole("link", { name: "All tasks", exact: true }).click();
+			await expect(page.getByRole("searchbox", { name: "Search tasks" })).toHaveValue("Workout");
+			await expect
+				.poll(async () => Math.abs((await main.evaluate((element) => element.scrollTop)) - before))
+				.toBeLessThan(3);
+		});
+
 		test("uses the delivery phase and the same waiting status on tasks and plans", async ({
 			page,
 		}) => {
@@ -118,10 +168,14 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await expect(card.getByText(LABEL, { exact: true })).toBeVisible();
 			await expect(card.locator('[aria-current="step"]')).toHaveText("Delivery");
 			await card.getByRole("link", { name: TITLE, exact: true }).click();
+			await expect(page.getByRole("heading", { name: TITLE, exact: true, level: 1 })).toBeVisible();
 			await expect(page.getByText(LABEL, { exact: true })).toBeVisible();
 			await expect(page.locator('[aria-current="step"]')).toHaveText("Delivery");
 			await page.getByRole("link", { name: "← Back to plan", exact: true }).click();
 			await expect(page.locator("main > div > header")).toContainText(LABEL);
+			await expect(page.getByRole("region", { name: "Plan progress", exact: true })).toContainText(
+				BLOCKER,
+			);
 			await page.goto(`${fixture.baseUrl}/#/plan-runs`);
 			await expect(page.getByRole("article").getByText(LABEL, { exact: true })).toBeVisible();
 		});
@@ -139,6 +193,7 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await card.getByRole("link", { name: TITLE, exact: true }).click();
 			await expect(page.getByText(NEXT, { exact: true })).toHaveCount(1);
 			await expect(page.getByText(BLOCKER, { exact: true })).toHaveCount(1);
+			await page.screenshot({ path: test.info().outputPath("blocked-task.png") });
 		});
 	});
 }
