@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { costText, taskCost } from "./cost-summary.ts";
 import { planProgressText } from "./plan-progress-summary.ts";
 import { TaskActivity } from "./task-activity.tsx";
 import { type TaskItem, taskUrl } from "./task-attempts.ts";
@@ -31,6 +32,9 @@ export function TaskCard({ task }: { task: TaskItem }) {
 			{status.group === "attention" && latest?.summary?.reason ? (
 				<p className="line-clamp-3 break-words text-sm">{latest.summary.reason}</p>
 			) : null}
+			<p className="text-(--color-text-2) text-xs">
+				Task cost · this attempt: {costText(taskCost(child))}
+			</p>
 			<TaskProgress child={child} />
 			{status.group === "active" ? <TaskActivity child={child} /> : null}
 			{task.active.length > 1 ? (
@@ -117,7 +121,8 @@ function TaskAttemptHistory({ task }: { task: TaskItem }) {
 						</Link>
 						<p className="break-words text-(--color-text-2) text-xs">
 							{attempt.detail.planRun.planName ?? "Plan attempt"}
-							{attempt === task.current ? " · Current" : ""}
+							{attempt === task.current ? " · Current" : ""} · Task cost:{" "}
+							{costText(taskCost(attempt.child))}
 						</p>
 					</li>
 				))}

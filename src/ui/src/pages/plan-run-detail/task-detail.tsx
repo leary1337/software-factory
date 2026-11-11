@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom";
 import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
 import { Alert } from "@/components/ui/alert.tsx";
-import { ReviewReport } from "../run-detail/review-report.tsx";
+import { TaskCostPanel } from "../tasks/cost-panel.tsx";
 import { TaskActivity } from "../tasks/task-activity.tsx";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
 import { DeploymentIncident } from "./deployment-incident.tsx";
+import { TaskHistory } from "./task-history.tsx";
 
 export function TaskDetail({
 	detail,
@@ -17,11 +18,7 @@ export function TaskDetail({
 	child: PlanRunChildRow;
 }) {
 	const run = detail.runs.find((entry) => entry.id === child.runId);
-	const steps = child.reviewSteps ?? [];
 	const status = taskStatus(child, detail.planRun);
-	let reviews = 0;
-	let reworks = 0;
-	let uiReviews = 0;
 	return (
 		<div className="flex min-h-full flex-col gap-4 px-3.5 py-6 md:px-6">
 			<Link
@@ -72,58 +69,8 @@ export function TaskDetail({
 					{child.failureReason}
 				</Alert>
 			) : null}
-			<section className="rounded border border-(--color-border) bg-(--color-surface) p-4">
-				<h2 className="mb-3 font-semibold text-base">Execution history</h2>
-				{run ? (
-					<div className="mb-3 flex flex-wrap gap-2 text-sm">
-						<Link
-							className="text-(--color-primary) hover:underline"
-							to={`/runs/${encodeURIComponent(run.id)}`}
-						>
-							Implementation
-						</Link>
-						<span>Execution: {run.state}</span>
-					</div>
-				) : (
-					<p className="text-(--color-text-2) text-sm">Implementation has not started.</p>
-				)}
-				{steps.map((step) => {
-					const label =
-						step.step === "review"
-							? `Review ${++reviews}`
-							: step.step === "ui_review"
-								? `UI/UX review ${++uiReviews}`
-								: `Rework ${++reworks}`;
-					return (
-						<article
-							key={step.runId}
-							className="mt-3 space-y-2 border-(--color-border) border-t pt-3"
-						>
-							<div className="flex flex-wrap gap-2 text-sm">
-								<Link
-									className="text-(--color-primary) hover:underline"
-									to={`/runs/${encodeURIComponent(step.runId)}`}
-								>
-									{label}
-								</Link>
-								<span>Execution: {step.executionState}</span>
-							</div>
-							{step.summary ? (
-								<ReviewReport summary={step.summary} executionState={step.executionState} />
-							) : null}
-						</article>
-					);
-				})}
-				{child.reviewSteps === undefined ? (
-					<p className="mt-2 text-(--color-text-2) text-sm">
-						Detailed review history is available to the operator.
-					</p>
-				) : steps.length === 0 ? (
-					<p className="mt-2 text-(--color-text-2) text-sm">
-						No review steps have been recorded yet.
-					</p>
-				) : null}
-			</section>
+			<TaskCostPanel child={child} run={run} />
+			<TaskHistory key={`${child.planRunId}:${child.seq}`} child={child} run={run} />
 			{child.metrics ? (
 				<details className="rounded border border-(--color-border) p-4">
 					<summary className="cursor-pointer font-medium text-sm">Task totals</summary>

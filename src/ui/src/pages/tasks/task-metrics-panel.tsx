@@ -1,4 +1,5 @@
 import type { PlanRunChildRow } from "@/api/types.ts";
+import { costText, taskCost } from "./cost-summary.ts";
 
 function duration(ms: number | null): string {
 	if (ms === null) return "Unknown";
@@ -18,10 +19,7 @@ export function TaskMetricsPanel({ child }: { child: PlanRunChildRow }) {
 		["Active execution time", duration(metrics.activeMs)],
 		["Time to delivery", duration(metrics.deliveryMs)],
 		["Tokens reported", metrics.totalTokens?.toLocaleString() ?? "Unknown"],
-		[
-			"Reported cost / API estimate",
-			metrics.costUsd === null ? "Unknown" : `$${metrics.costUsd.toFixed(2)}`,
-		],
+		["Reported cost / API estimate", costText(taskCost(child))],
 		["Reworks", String(metrics.reworkCount)],
 		[
 			"Accepted without rework",

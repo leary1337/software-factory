@@ -162,7 +162,7 @@ describe("every mutation site sits behind the one gate (warren-f53e)", () => {
 		// warren-23b2: the Direction C walk inventory's Dispatch plan link is
 		// the page's only operator affordance, wrapped in the one gate.
 		const page = read("pages", "plan-runs.tsx");
-		expect(page).toMatch(/<OperatorOnly>\s*<Link\s+to="\/dispatch\/plan"/);
+		expect(page).toMatch(/<OperatorOnly>\s*<Button asChild>\s*<Link\s+to="\/dispatch\/plan"/);
 	});
 
 	test("project + registry mutation is gated on admin, not dispatch", () => {
