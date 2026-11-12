@@ -42,3 +42,14 @@ checks still stop delivery, even for delegated paths.
 
 The delegation authorizes merging code, not executing production operations.
 Production changes still need the project's actual prerequisites and evidence.
+
+For long restore/replay or training tasks, set `[sandbox] timeout_minutes` in
+`burrow.toml`; the Codex adapter default is 20 minutes. Commit working code before
+long experiments. Interrupted local work is captured in Warren's recovery bundle.
+
+The forge credential must read both GitHub Checks and commit statuses, in
+addition to the repository/PR permissions needed for delivery. A token that can
+push branches may still receive 403 for either CI API. Verify those permissions
+before starting an unattended plan. After correcting a delivery-only refusal,
+retry review: Warren reuses a verified PASS on the same commit and retries
+publication. A changed head or missing gate witness requires a fresh review.

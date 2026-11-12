@@ -742,3 +742,18 @@ Explicit protectedPaths, скрипты проверок и конфигурац
 заблокированным, а gate терял разрешённый каталог данных. После исправления они
 проходят. Тесты также проверяют отсутствие делегирования для standalone runs,
 защиту policy/config, изоляцию project ids и отказ symlink/traversal.
+
+
+### warren-f112 — Retry verified delivery without repeating successful review
+
+Status: completed. Hockey step03 had independent PASS, a real two-restore replay
+and green CI, but the configured forge token lacked Checks/status read access.
+The delivery failure stopped the plan; retry previously discarded a valid review
+and repeated the expensive verifier. Recovery now starts a new delivery attempt
+while retaining the pinned review and runtime gate. Live head, base policy and CI
+are verified again. Changed heads and absent gate witnesses still rerun review.
+
+Reproduction: two HTTP recovery regressions failed before the change. Tests cover
+unchanged/changed heads, missing witness, concurrent duplicate requests and no
+premature advancement of the next task. Project timeout and credential scope are
+documented in `docs/project-inputs.md`.
