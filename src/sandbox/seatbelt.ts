@@ -76,6 +76,9 @@ export function buildSeatbeltProfile(
 	lines.push("(allow sysctl-read)");
 	lines.push("(allow mach-lookup)");
 	lines.push("(allow ipc-posix-shm)");
+	// Python multiprocessing uses named semaphores for locks and worker queues.
+	// Worker processes must reopen their parent's semaphores.
+	lines.push("(allow ipc-posix-sem (semaphore-owner same-sandbox))");
 	lines.push("(allow iokit-open)");
 	// stat / getcwd traversal must succeed across the host fs even when data
 	// reads are denied — otherwise tools like /bin/sh fail to even resolve cwd.
