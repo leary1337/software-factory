@@ -54,6 +54,7 @@ export interface DeployOverview {
 	readonly workflow: string;
 	readonly environment: string;
 	readonly branch: string;
+	readonly candidateSha: string | null;
 	readonly current: DeployRecord | null;
 	readonly currentState: DeploymentCurrentState;
 	readonly behind: { readonly count: number; readonly changes: PendingChanges["commits"] } | null;
@@ -117,9 +118,10 @@ async function buildOverview(
 ): Promise<DeployOverview> {
 	const { deploys, ref, workflow, environment, branch, projectId } = target;
 	const errors: string[] = [];
-	const [listed, runs] = await Promise.all([
+	const [listed, runs, candidate] = await Promise.all([
 		loadDeploymentHistory(deploys, ref, environment),
 		deploys.listRuns(ref, workflow, 100),
+		deploys.resolveCommit(ref, branch),
 	]);
 	const release = unwrapOr(
 		listed,
@@ -142,6 +144,7 @@ async function buildOverview(
 		workflow,
 		environment,
 		branch,
+		candidateSha: unwrapOr(candidate, null, errors),
 		current,
 		currentState,
 		behind,

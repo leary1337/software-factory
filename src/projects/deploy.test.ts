@@ -122,6 +122,7 @@ describe("project deployment", () => {
 	test("compares the sixth successful release and filters bookkeeping changes", async () => {
 		const result = await getProjectDeployOverview(deps, projectId);
 		expect(result.configured && result.current?.sha).toBe("live");
+		expect(result.configured && result.candidateSha).toBe("a".repeat(40));
 		expect(result.configured && result.behind).toEqual({
 			count: 2,
 			changes: [{ sha: "feature", title: "Add feature" }],

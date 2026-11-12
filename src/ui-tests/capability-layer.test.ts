@@ -136,6 +136,9 @@ describe("every mutation site sits behind the one gate (warren-f53e)", () => {
 		"refresh-projects-cta.tsx",
 		"use-dispatch-state.ts",
 		"walk-state.ts",
+		"run-actions.tsx",
+		"plan-actions.tsx",
+		"use-new-task.ts",
 	]);
 
 	test("no file calls useMutation without importing OperatorOnly", () => {
@@ -155,6 +158,17 @@ describe("every mutation site sits behind the one gate (warren-f53e)", () => {
 		const projects = read("pages", "projects.tsx");
 		expect(projects).toMatch(
 			/<OperatorOnly capability="admin">\s*<RefreshProjectsCTA \/>\s*<\/OperatorOnly>/,
+		);
+	});
+
+	test("gates every workspace mutation leaf at its caller", () => {
+		const panel = read("pages", "workspace", "task-panel.tsx");
+		expect(panel).toMatch(/<OperatorOnly>\s*<RunActions[\s\S]*?\/>\s*<\/OperatorOnly>/);
+		expect(panel).toMatch(/<OperatorOnly>\s*<PlanActions[\s\S]*?\/>\s*<\/OperatorOnly>/);
+		const header = read("pages", "workspace", "workspace-header.tsx");
+		expect(header).toMatch(/<OperatorOnly>\s*<NewTask[\s\S]*?\/>\s*<\/OperatorOnly>/);
+		expect(read("pages", "workspace", "new-task.tsx")).toContain(
+			"useNewTask(projects, projectId, onClose)",
 		);
 	});
 

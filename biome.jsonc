@@ -73,8 +73,6 @@
 				"src/ui/src/**/*.tsx",
 				"!src/ui/src/components/ui/**",
 				"!src/ui/src/components/add-project-dialog.tsx",
-				"!src/ui/src/components/console/console-bottom-nav.tsx",
-				"!src/ui/src/components/console/console-sidebar.tsx",
 				"!src/ui/src/pages/dispatch-plan.tsx",
 				"!src/ui/src/pages/dispatch-plan/walk-form.tsx",
 				"!src/ui/src/pages/dispatch/dispatch-form.tsx",

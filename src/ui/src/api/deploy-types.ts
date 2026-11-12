@@ -13,6 +13,7 @@ export interface ProjectDeployOverview {
 	workflow: string;
 	environment: string;
 	branch: string;
+	candidateSha?: string | null;
 	current: ProjectDeployRecord | null;
 	currentState: DeploymentCurrentState;
 	behind: { count: number; changes: Array<{ sha: string; title: string }> } | null;

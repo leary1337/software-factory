@@ -218,6 +218,6 @@ export function SetupLandingRoute() {
 			</div>
 		);
 	}
-	if (decision === "console") return <Navigate to="/tasks" replace />;
+	if (decision === "console") return <Navigate to="/overview" replace />;
 	return <SetupPage />;
 }

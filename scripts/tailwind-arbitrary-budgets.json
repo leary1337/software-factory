@@ -2,9 +2,7 @@
 	"_comment": "Tailwind arbitrary-value budgets (scripts/check-tailwind-arbitrary.ts, warren-7bc4). Per-file counts of prefix-[value] literals under src/ui/src. The ratchet only goes down: lower a number with `bun run check:tailwind-arbitrary --update`, never raise one. A file absent from `budgets` must have zero hits.",
 	"budgets": {
 		"src/ui/src/components/add-project-dialog.tsx": 3,
-		"src/ui/src/components/console/console-bottom-nav.tsx": 9,
 		"src/ui/src/components/console/console-shell.tsx": 7,
-		"src/ui/src/components/console/console-sidebar.tsx": 31,
 		"src/ui/src/components/console/console-topbar.tsx": 7,
 		"src/ui/src/components/cost-basis-note.tsx": 1,
 		"src/ui/src/components/ui/inventory-card.tsx": 23,

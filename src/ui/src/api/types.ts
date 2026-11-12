@@ -1,4 +1,5 @@
 import type { PlanRunBudgetSummary } from "../../../core/plan-run-budget.ts";
+import type { ProductionVerification } from "../../../core/production-verification.ts";
 import type { TaskMetrics } from "../../../core/task-metrics.ts";
 import type { ReviewMergeResult, ReviewStepSummary } from "./review-types.ts";
 
@@ -658,6 +659,7 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	productionVerification?: ProductionVerification | null;
 	reviewMerge?: ReviewMergeResult | null;
 	metrics?: TaskMetrics;
 	budget?: PlanRunBudgetSummary | null;
