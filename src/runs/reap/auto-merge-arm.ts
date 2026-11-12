@@ -98,6 +98,11 @@ export async function runAutoMergeArm(input: RunAutoMergeArmInput): Promise<void
 /** One arm attempt: resolve the policy inputs, decide, then arm or report. */
 async function armOnce(input: RunAutoMergeArmInput): Promise<void> {
 	const { config, changedPaths } = await readAutoMergeSnapshot(input);
+	// Warren verification is available only in the reviewed plan coordinator.
+	if (config?.verification === "warren") {
+		await safeEmit(input, "reap.auto_merge_skipped", { reason: "review_required" });
+		return;
+	}
 	const decision = decideAutoMerge({
 		config,
 		forgeCanArm: input.forge.capabilities.autoMergeArm,

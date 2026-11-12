@@ -7,6 +7,8 @@ import { type AutoMergeSnapshot, readAutoMergeSnapshot } from "../runs/reap/auto
 import type { ReapExec } from "../runs/reap/types.ts";
 import type { CoordinatorMergeFn } from "./coordinator.ts";
 import { blockedMerge, mergeForgeProblem, policyMergeProblem } from "./review-merge-problems.ts";
+import type { publishReviewedHead } from "./review-publish.ts";
+import { mergeWithWarren, waitingMerge } from "./review-warren-merge.ts";
 
 export function createReviewHeadReader(forge: Forge) {
 	return async (url: string): Promise<string | null> => {
@@ -23,6 +25,7 @@ interface ReviewSnapshotDeps {
 	repos: Pick<Repos, "projects">;
 	exec: ReapExec;
 	readSnapshot?: typeof readAutoMergeSnapshot;
+	publishHead?: typeof publishReviewedHead;
 }
 
 export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeFn {
@@ -59,6 +62,7 @@ export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeF
 				"Restore the project checkout and retry verification.",
 			);
 		return mergeSnapshot(
+			deps,
 			deps.forge,
 			target.ref,
 			target.pr,
@@ -66,11 +70,13 @@ export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeF
 			reviewedCommit,
 			branch,
 			pr.value.baseBranch,
+			projectId,
 		);
 	};
 }
 
 async function mergeSnapshot(
+	deps: ReviewSnapshotDeps,
 	forge: Forge,
 	ref: RepoRef,
 	pr: PullRequestRef,
@@ -78,6 +84,7 @@ async function mergeSnapshot(
 	reviewedCommit: string,
 	branch: string,
 	baseBranch: string,
+	projectId: string,
 ): Promise<ReviewMergeResult> {
 	if (!snapshot.headCommit)
 		return blockedMerge(
@@ -86,12 +93,38 @@ async function mergeSnapshot(
 			"Check repository access and retry verification before merging.",
 		);
 	if (snapshot.headCommit !== reviewedCommit) return staleHead();
+	if (snapshot.config?.verification === "warren" && snapshot.baseCommit === reviewedCommit)
+		return waitingMerge(
+			"merge_confirmation_pending",
+			"The reviewed head is already published; waiting for PR confirmation.",
+		);
 	const policy = decideAutoMerge({
 		...snapshot,
-		forgeCanArm: forge.capabilities.autoMergeArm,
+		forgeCanArm: snapshot.config?.verification === "warren" || forge.capabilities.autoMergeArm,
 		ciFixerRun: false,
 	});
 	if (policy.decision !== "arm") return policyMergeProblem(policy);
+	if (snapshot.config?.verification === "warren") {
+		const project = await deps.repos.projects.require(projectId);
+		if (!project.localPath)
+			return blockedMerge(
+				"snapshot_unavailable",
+				"Project checkout unavailable.",
+				"Restore the checkout.",
+			);
+		return mergeWithWarren({
+			forge,
+			ref,
+			pr,
+			snapshot,
+			project: { gitUrl: project.gitUrl, localPath: project.localPath },
+			exec: deps.exec,
+			branch,
+			baseBranch,
+			head: reviewedCommit,
+			publishHead: deps.publishHead,
+		});
+	}
 	const safety = await verifyBase(forge, ref, baseBranch, snapshot);
 	if (safety) return safety;
 	const merged = await forge.mergePullRequest(ref, pr, {
