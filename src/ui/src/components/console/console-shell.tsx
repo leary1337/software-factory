@@ -122,7 +122,7 @@ export function ConsoleShell() {
 						className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-(--color-border) border-r bg-(--color-sidebar) shadow-lg md:hidden"
 					>
 						<DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
-						<div className="relative">
+						<div className="relative flex min-h-0 flex-1 flex-col">
 							<ConsoleSidebarBody stats={stats} onNavigate={() => setMobileNavOpen(false)} />
 						</div>
 						<DialogPrimitive.Close asChild>

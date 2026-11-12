@@ -47,8 +47,13 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 			for (const row of rows) {
 				expect.soft(await labelLeft(row), await row.innerText()).toBeCloseTo(reference, 0);
 				expect.soft((await row.boundingBox())?.height, await row.innerText()).toBe(44);
+				if (await row.locator("svg").count()) {
+					expect.soft((await row.locator("svg").boundingBox())?.x).toBeCloseTo(reference - 28, 0);
+				}
 			}
 			const theme = sidebar.getByRole("button", { name: /^Theme:/ });
+			const themeBox = await theme.boundingBox();
+			expect((themeBox?.y ?? 0) + (themeBox?.height ?? 0)).toBeLessThanOrEqual(c.size.height);
 			for (let i = 0; i < 3; i++) {
 				await theme.click();
 				expect(await labelLeft(theme)).toBeCloseTo(reference, 0);
