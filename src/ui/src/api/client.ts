@@ -447,6 +447,11 @@ export const planRunsApi = {
 		}),
 	resume: (id: string) =>
 		request<unknown>(`/plan-runs/${encodeURIComponent(id)}/resume`, { method: "POST", body: {} }),
+	retryReview: (id: string, seq: number) =>
+		request<{ requested: boolean }>(
+			`/plan-runs/${encodeURIComponent(id)}/children/${encodeURIComponent(seq)}/retry-review`,
+			{ method: "POST", body: {} },
+		),
 	events: (id: string, opts: StreamRunEventsOptions = {}) => streamPlanRunEvents(id, opts),
 };
 

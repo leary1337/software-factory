@@ -30,7 +30,12 @@ export { parseVerdict } from "./review-result.ts";
 import type { RunRow } from "../db/schema.ts";
 import type { CoordinatorRepos } from "./coordinator.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
-import { currentReviewEvents, finishReview, pendingReviewDelivery } from "./review-delivery.ts";
+import {
+	currentReviewEvents,
+	finishReview,
+	hasPendingReviewRetry,
+	pendingReviewDelivery,
+} from "./review-delivery.ts";
 
 export const REVIEWED_AGENT = "implementer";
 
@@ -75,6 +80,7 @@ export async function loadReviewStage(
 ): Promise<ReviewStage | null> {
 	if (agentName !== REVIEWED_AGENT) return null;
 	const events = await repos.events.listByRun(runId);
+	if (hasPendingReviewRetry(events)) return "reviewing";
 	const finished = currentReviewEvents(events).find(
 		(event) => event.kind === "plan_run.review_finished",
 	);
@@ -211,6 +217,8 @@ export async function advanceReview(
 ): Promise<HandleInFlightDecision | null> {
 	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
 	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
+	if (hasPendingReviewRetry(events))
+		return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
 	const steps = await loadSteps(input.repos, run.id);
 	const last = steps.at(-1);
 	const stale = await reviewHeadChanged(input, steps, prUrl);

@@ -29,7 +29,11 @@ import {
 } from "../../plan-runs/index.ts";
 import { loadProductionVerification } from "../../plan-runs/production-verification.ts";
 import { loadReviewStage } from "../../plan-runs/review.ts";
-import { loadReviewMergeResult, loadReviewSummaries } from "../../plan-runs/review-summary.ts";
+import {
+	loadReviewFailure,
+	loadReviewMergeResult,
+	loadReviewSummaries,
+} from "../../plan-runs/review-summary.ts";
 import { loadTaskMetrics } from "../../plan-runs/task-metrics-load.ts";
 import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
@@ -221,6 +225,8 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 									(deps.now?.() ?? new Date()).getTime(),
 								),
 								budget: budgets.get(child.seq) ?? null,
+								reviewFailure:
+									child.runId !== null ? await loadReviewFailure(deps.repos, child.runId) : null,
 								reviewSteps:
 									child.runId !== null ? await loadReviewSummaries(deps.repos, child.runId) : [],
 							}),

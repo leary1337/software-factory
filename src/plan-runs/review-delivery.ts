@@ -22,8 +22,21 @@ export interface ReviewDelivery {
 export function currentReviewEvents(events: Events): Events {
 	const reversedIndex = [...events]
 		.reverse()
-		.findIndex((event) => event.kind === "plan_run.review_step");
-	return reversedIndex < 0 ? events : events.slice(events.length - reversedIndex);
+		.findIndex(
+			(event) =>
+				event.kind === "plan_run.review_step" || event.kind === "plan_run.review_retry_requested",
+		);
+	if (reversedIndex < 0) return events;
+	const index = events.length - reversedIndex - 1;
+	return events.slice(index + (events[index]?.kind === "plan_run.review_step" ? 1 : 0));
+}
+
+export function hasPendingReviewRetry(events: Events): boolean {
+	const current = currentReviewEvents(events);
+	return (
+		current.some((event) => event.kind === "plan_run.review_retry_requested") &&
+		!current.some((event) => event.kind === "plan_run.review_decided")
+	);
 }
 
 export async function pendingReviewDelivery(

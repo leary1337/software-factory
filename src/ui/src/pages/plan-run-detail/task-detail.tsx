@@ -11,6 +11,7 @@ import { taskStatus } from "../tasks/task-status.ts";
 import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
 import { AttemptCostPanel } from "./attempt-cost-panel.tsx";
 import { DeploymentIncident } from "./deployment-incident.tsx";
+import { RetryReview } from "./retry-review.tsx";
 import { TaskHistory } from "./task-history.tsx";
 
 export function TaskDetail({
@@ -58,6 +59,11 @@ export function TaskDetail({
 			>
 				<TaskStatusMessage status={status} />
 			</Alert>
+			<RetryReview
+				key={`${child.planRunId}:${child.seq}:${child.reviewStage}:${child.reviewFailure}`}
+				plan={detail.planRun}
+				child={child}
+			/>
 			<p className="text-(--color-text-2) text-sm">
 				Task {child.seq} of {detail.children.length}
 			</p>

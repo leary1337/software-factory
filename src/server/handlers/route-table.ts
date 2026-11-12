@@ -35,6 +35,7 @@ import {
 	resumePlanRunHandler,
 	streamPlanRunEventsHandler,
 } from "./plan-runs.ts";
+import { retryPlanRunReviewHandler } from "./plan-runs-retry-review.ts";
 import { getProjectDeployHandler, startProjectDeployHandler } from "./projects.deploy.ts";
 import { configMigrateProjectHandler, initProjectHandler } from "./projects.init.ts";
 import {
@@ -376,6 +377,12 @@ const ROUTE_TABLE: readonly RouteEntry[] = [
 	{ method: "GET", pattern: "/plan-runs/:id", policy: "readPublic", build: getPlanRunHandler },
 	{
 		method: "POST",
+		pattern: "/plan-runs/:id/children/:seq/retry-review",
+		policy: "dispatch",
+		build: retryPlanRunReviewHandler,
+	},
+	{
+		method: "POST",
 		pattern: "/plan-runs/:id/cancel",
 		policy: "dispatch",
 		build: cancelPlanRunHandler,
@@ -465,33 +472,10 @@ const AUTH_EXEMPT_PATHS: ReadonlySet<string> = new Set(
 );
 
 /**
- * Auth predicate for the request gate (server.ts).
- *
- * Exempt:
- *   - Every `anonymous`-policy route: `/healthz` (liveness probes can't
- *     carry a token and the response is non-sensitive, `{ok: true}`) and
- *     `/version` (just the package version string, which the UI fetches
- *     before the user logs in — keeping it exempt avoids a chicken-and-egg
- *     on the login screen).
- *   - Every non-API path — the SPA shell (`/`), its static assets
- *     (`/assets/<hash>`), and React Router deep links must be reachable
- *     from a fresh browser. Otherwise the user can't load `Login.tsx`
- *     to enter their bearer token (chicken-and-egg, warren-d2a5).
- *
- * Auth-required:
- *   - Every other API path, and beyond the gate its declared `RoutePolicy`
- *     decides whether the admitted actor may proceed. `/metrics` is
- *     deliberately NOT exempt (warren-682a): behind a public Ingress the
- *     scrape surface leaks operational shape (run counts, pod phases, queue
- *     depth). In-cluster Prometheus scrapes it with the bearer via the
- *     ServiceMonitor's `authorization` credentials
- *     (deploy/k8s/servicemonitor.yaml). `/readyz` stays gated because its
- *     body reveals which checks failed (sensitive in a misconfigured
- *     deploy). `POST /runs/:id/preview/login` is gated too (warren-e1b0) —
- *     it used to be exempt so a browser could hand the bearer over in a
- *     `?token=` query string; the handshake now carries the bearer in the
- *     `Authorization` header like every other `/runs/*` route, so the
- *     exemption is gone.
+ * Anonymous routes and non-API paths (SPA assets/deep links) need no bearer.
+ * Every other API route requires authentication and its declared capability.
+ * Metrics and readiness expose operator diagnostics and remain gated; preview
+ * login uses an Authorization header rather than a token in its URL.
  */
 export function isAuthExempt(pathname: string): boolean {
 	if (AUTH_EXEMPT_PATHS.has(pathname)) return true;

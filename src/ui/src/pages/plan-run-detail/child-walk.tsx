@@ -4,6 +4,7 @@ import { costText, taskCost } from "../tasks/cost-summary.ts";
 import { planProgressText } from "../tasks/plan-progress-summary.ts";
 import { taskExecutionId } from "../tasks/task-attempts.ts";
 import { taskStatus } from "../tasks/task-status.ts";
+import { RetryReview } from "./retry-review.tsx";
 
 export function ChildWalkPanel({
 	planRun,
@@ -115,6 +116,13 @@ function ChildRow({
 					<span className="text-(--color-text-2)">{child.retryCount} implementation retries</span>
 				) : null}
 			</div>
+			{current ? (
+				<RetryReview
+					key={`${child.reviewStage}:${child.reviewFailure}`}
+					plan={plan}
+					child={child}
+				/>
+			) : null}
 		</li>
 	);
 }

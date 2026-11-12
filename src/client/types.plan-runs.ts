@@ -59,6 +59,7 @@ export interface PlanRunChildRow {
 	metrics?: TaskMetrics;
 	budget?: PlanRunBudgetSummary | null;
 	reviewSteps?: ReviewStepSummary[];
+	reviewFailure?: string | null;
 	planRunId: string;
 	seq: number;
 	seedId: string;

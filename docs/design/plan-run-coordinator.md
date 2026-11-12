@@ -194,6 +194,17 @@ resumable.
 
 **Server API.**
 
+An active implementer plan whose current PR needs attention can request a fresh
+review with `POST /plan-runs/:id/children/:seq/retry-review`. This dispatch-only
+action records `plan_run.review_retry_requested` under the coordinator lock;
+duplicate requests while pending are idempotent. The next tick pins the existing
+PR's current head and uses the usual reviewer dispatch, quality gate and budget
+checks. Past attempts, findings and rework usage remain intact. Running reviews,
+other children and terminal plans return 409. Dispatch failures expose their
+scrubbed cause through the operator-only `reviewFailure` field, including when
+no reviewer run could be created. The plan/task views and workspace task panel
+offer Retry review after the operator fixes the reported cause.
+
 ```
 POST   /plan-runs                 dispatch (rejects without project.hasSeeds)
 GET    /plan-runs                 list (filter by project / state)

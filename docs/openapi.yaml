@@ -501,6 +501,32 @@ paths:
           required: true
           schema:
             type: string
+  /plan-runs/{id}/children/{seq}/retry-review:
+    post:
+      operationId: retryPlanRunReviewHandler
+      tags:
+        - plan-runs
+      summary: POST /plan-runs/:id/children/:seq/retry-review
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: seq
+          in: path
+          required: true
+          schema:
+            type: string
   /plan-runs/{id}/events:
     get:
       operationId: streamPlanRunEventsHandler

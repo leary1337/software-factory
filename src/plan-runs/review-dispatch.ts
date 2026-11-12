@@ -1,4 +1,6 @@
+import { formatError } from "../core/errors.ts";
 import type { RunRow } from "../db/schema.ts";
+import { instanceEnvSecretPattern, scrubSecrets } from "../observability/event-scrub.ts";
 import { recordLearningEvidence } from "../runs/learning-evidence.ts";
 import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
@@ -95,7 +97,7 @@ export async function spawnReviewStep(
 			run,
 			prUrl,
 			"broken",
-			`The ${decision.step} run did not start.`,
+			`The ${decision.step} run did not start: ${scrubSecrets(formatError(err), instanceEnvSecretPattern())}. Fix the cause, then retry review on this task.`,
 		);
 	}
 }

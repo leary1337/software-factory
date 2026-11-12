@@ -38,6 +38,7 @@
 				"failureReason": null,
 				"retryCount": 0,
 				"title": null,
+				"productionVerification": null,
 				"reviewMerge": null,
 				"metrics": {
 					"runCount": 0,
@@ -62,9 +63,9 @@
 					"postMergeIncidentCount": 0
 				},
 				"budget": null,
+				"reviewFailure": null,
 				"reviewSteps": [],
-				"reviewStage": null,
-				"productionVerification": null
+				"reviewStage": null
 			},
 			{
 				"planRunId": "planRun_golden7d84",
@@ -80,6 +81,7 @@
 				"failureReason": null,
 				"retryCount": 0,
 				"title": null,
+				"productionVerification": null,
 				"reviewMerge": null,
 				"metrics": {
 					"runCount": 0,
@@ -104,9 +106,9 @@
 					"postMergeIncidentCount": 0
 				},
 				"budget": null,
+				"reviewFailure": null,
 				"reviewSteps": [],
-				"reviewStage": null,
-				"productionVerification": null
+				"reviewStage": null
 			}
 		],
 		"runs": []
