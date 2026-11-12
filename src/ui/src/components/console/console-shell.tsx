@@ -1,6 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ConsoleBottomNav } from "@/components/console/console-bottom-nav.tsx";
 import { ConsoleSidebar, ConsoleSidebarBody } from "@/components/console/console-sidebar.tsx";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { WarrenLogo } from "@/components/warren-logo.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
+import { WorkspaceNavigation } from "./workspace-navigation.tsx";
 
 /**
  * The Direction C operator-console shell (warren-4ed7, pl-7e38 step 2):
@@ -56,6 +57,7 @@ export function ConsoleShell() {
 	const stats = useConsoleStats();
 	const location = useLocation();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
+	const scrollRef = useRef<HTMLElement>(null);
 
 	// Close the drawer on route change so a mobile → desktop resize never
 	// leaves a stale open flag (same pattern the legacy layout used).
@@ -95,14 +97,16 @@ export function ConsoleShell() {
 					<ConsoleTopbar stats={stats} />
 				</div>
 
-				{/* biome-ignore lint/a11y/noNoninteractiveTabindex: warren-f009 keyboard users must be able to focus this scroll container. */}
-				<main tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-					{/* Boundary sits INSIDE the chrome so a page-level throw costs
-					    the page, not the shell (warren-1f12). */}
-					<ErrorBoundary resetKey={location.pathname}>
-						<Outlet />
-					</ErrorBoundary>
-				</main>
+				<WorkspaceNavigation scrollRef={scrollRef}>
+					{/* biome-ignore lint/a11y/noNoninteractiveTabindex: warren-f009 keyboard users must be able to focus this scroll container. */}
+					<main ref={scrollRef} tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+						{/* Boundary sits INSIDE the chrome so a page-level throw costs
+						    the page, not the shell (warren-1f12). */}
+						<ErrorBoundary resetKey={location.pathname}>
+							<Outlet />
+						</ErrorBoundary>
+					</main>
+				</WorkspaceNavigation>
 
 				{/* Mobile bottom tab bar (warren-4d4a): in-flow sibling of <main>,
 				    so pages scroll above it and nothing hides under the bar. */}

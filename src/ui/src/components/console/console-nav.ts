@@ -8,12 +8,13 @@ export interface ConsoleNavItem {
 }
 
 export const WORKLOADS_NAV: readonly ConsoleNavItem[] = [
-	{ index: "01", label: "Tasks", to: "/tasks" },
-	{ index: "02", label: "Plans", to: "/plan-runs" },
-	{ index: "03", label: "Projects", to: "/projects" },
-	{ index: "04", label: "Production", to: "/production", capability: "readOperator" },
+	{ index: "01", label: "Overview", to: "/overview" },
+	{ index: "02", label: "Kanban", to: "/kanban" },
+	{ index: "03", label: "Production", to: "/production", capability: "readOperator" },
 ];
 export const INFRASTRUCTURE_NAV: readonly ConsoleNavItem[] = [
+	{ index: "04", label: "Plans", to: "/plan-runs" },
+	{ index: "05", label: "Projects", to: "/projects" },
 	{ index: "06", label: "Runs", to: "/runs" },
 	{ index: "07", label: "Operations", to: "/operations" },
 	{ index: "08", label: "Agents", to: "/agents" },

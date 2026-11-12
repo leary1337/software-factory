@@ -66,6 +66,8 @@ export function caseName(pageId: string, viewport: ViewportName, theme: ThemeNam
 /** Every screen route in `src/ui/src/app.tsx`, in nav order. */
 export const PAGES: readonly PageSpec[] = [
 	{ id: "operations", route: "/operations", path: at("/operations") },
+	{ id: "overview", route: "/overview", path: at("/overview") },
+	{ id: "kanban", route: "/kanban", path: at("/kanban") },
 	{ id: "tasks", route: "/tasks", path: at("/tasks") },
 	{ id: "production", route: "/production", path: at("/production") },
 	{ id: "runs", route: "/runs", path: at("/runs") },

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { projectsApi } from "@/api/client.ts";
 import type { ProjectDeployOverview } from "@/api/deploy-types.ts";
 import { OperatorOnly } from "@/components/operator-only.tsx";
@@ -13,30 +13,31 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog.tsx";
+import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { formatError } from "@/lib/format-error.ts";
 import { relativeTime } from "@/lib/utils.ts";
 
 const PANEL =
-	"flex min-w-0 flex-col rounded-sm border border-(--color-border) bg-(--color-surface)";
+	"flex min-w-0 flex-col rounded-xl border border-(--color-border) bg-(--color-surface)";
 const PANEL_HEAD =
 	"flex min-h-10 shrink-0 flex-wrap items-center gap-2.5 border-b border-b-(--color-border) px-3.5 py-2";
 const MONO = "font-mono text-xs leading-4";
 const NOTE = "font-mono text-xs leading-3 text-(--color-text-3)";
 
 function behindLabel(overview: ProjectDeployOverview): string {
-	if (overview.currentState === "unknown") return "Current release unknown";
-	if (overview.current === null) return "Not deployed yet";
-	if (overview.behind === null) return "Unknown";
-	if (overview.behind.count === 0) return "Up to date";
-	return `Behind by ${overview.behind.count} commit${overview.behind.count === 1 ? "" : "s"}`;
+	if (overview.currentState === "unknown") return "Текущий Release неизвестен";
+	if (overview.current === null) return "Ещё не опубликовано";
+	if (overview.behind === null) return "Нет данных";
+	if (overview.behind.count === 0) return "Deployed";
+	return `Ready to deploy · ${overview.behind.count} commits`;
 }
 
 function releaseLabel(overview: ProjectDeployOverview): string {
 	const { current, currentState, environment } = overview;
-	if (currentState === "unknown") return "Could not establish which release is live.";
+	if (currentState === "unknown") return "Не удалось определить опубликованный Release.";
 	return current === null
-		? `nothing live on ${environment} yet`
-		: `live ${current.sha.slice(0, 7)} · ${relativeTime(current.createdAt)}`;
+		? `В ${environment} пока нет Release`
+		: `Release ${current.sha.slice(0, 7)} · ${relativeTime(current.createdAt)}`;
 }
 
 function ChangeList({ overview }: { overview: ProjectDeployOverview }) {
@@ -71,23 +72,24 @@ function ConfirmDeploy(props: {
 						Deploy {overview.branch} to {overview.environment}?
 					</DialogTitle>
 					<DialogDescription>
-						This starts {overview.workflow} in GitHub Actions. {behindLabel(overview)}.
+						Будет запущен {overview.workflow} в GitHub Actions для актуального commit ветки{" "}
+						{overview.branch}. Сейчас: {overview.candidateSha?.slice(0, 7) ?? "SHA неизвестен"}.
 					</DialogDescription>
 				</DialogHeader>
 				{overview.activePlan !== null ? (
 					<Alert className="text-(--color-fg)" variant="warning">
-						A plan is still running: {overview.activePlan.merged} of {overview.activePlan.total}{" "}
-						tickets merged. This deploys an in-between state.
+						План ещё выполняется: Merged {overview.activePlan.merged} из {overview.activePlan.total}
+						. Этот Deploy опубликует промежуточный результат.
 					</Alert>
 				) : null}
 				<ChangeList overview={overview} />
 				{error ? <p className="text-(--color-destructive) text-sm">{formatError(error)}</p> : null}
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
-						Cancel
+						Отмена
 					</Button>
 					<Button onClick={onConfirm} disabled={pending}>
-						{pending ? "Starting…" : "Deploy"}
+						{pending ? "Запускается…" : "Deploy"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -98,9 +100,13 @@ function ConfirmDeploy(props: {
 function Overview({
 	overview,
 	onDeploy,
+	compact,
+	requested,
 }: {
 	overview: ProjectDeployOverview;
 	onDeploy: () => void;
+	compact: boolean;
+	requested: boolean;
 }) {
 	const { activeRun, history, error } = overview;
 	return (
@@ -113,7 +119,11 @@ function Overview({
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex min-w-0 flex-col gap-0.5">
 					<span className="font-semibold text-sm leading-5">{behindLabel(overview)}</span>
-					<span className={NOTE}>{releaseLabel(overview)}</span>
+					<span className="text-(--color-text-2) text-sm">{releaseLabel(overview)}</span>
+					<span className="text-(--color-text-3) text-xs">
+						Следующий Release · {overview.candidateSha?.slice(0, 7) ?? "SHA неизвестен"} ·{" "}
+						{overview.branch}
+					</span>
 				</div>
 				{activeRun !== null ? (
 					<a
@@ -125,63 +135,106 @@ function Overview({
 						Deploying · {activeRun.status} ↗
 					</a>
 				) : (
-					<Button
-						onClick={onDeploy}
-						disabled={
-							overview.behind?.count === 0 || overview.currentState === "unknown" || error !== null
-						}
-					>
-						Deploy
-					</Button>
+					<OperatorOnly capability="dispatch">
+						<Button
+							onClick={onDeploy}
+							disabled={
+								requested ||
+								overview.behind?.count === 0 ||
+								overview.currentState === "unknown" ||
+								error !== null
+							}
+						>
+							{requested ? "Deploy запрошен…" : "Deploy"}
+						</Button>
+					</OperatorOnly>
 				)}
 			</div>
-			<ChangeList overview={overview} />
-			{history.length > 0 ? (
-				<ul className="flex flex-col gap-1 border-t border-t-(--color-border) pt-2.5">
-					{history.map((deploy) => (
-						<li
-							key={`${deploy.sha}-${deploy.createdAt}`}
-							className={`${NOTE} flex justify-between gap-3`}
-						>
-							<span>
-								{deploy.sha.slice(0, 7)} · {relativeTime(deploy.createdAt)}
-							</span>
-							<span>{deploy.state}</span>
-						</li>
-					))}
-				</ul>
+			{activeRun === null && overview.latestRun?.status === "completed" ? (
+				<a
+					className={`${MONO} text-(--color-primary)`}
+					href={overview.latestRun.url}
+					target="_blank"
+					rel="noreferrer"
+				>
+					Workflow · {overview.latestRun.conclusion ?? "completed"} ↗
+				</a>
 			) : null}
+			<details open={compact ? undefined : true}>
+				<summary className="cursor-pointer text-sm">Состав Release и история</summary>
+				<div className="mt-3 space-y-3">
+					<ChangeList overview={overview} />
+					{history.length > 0 ? (
+						<ul className="flex flex-col gap-1 border-t border-t-(--color-border) pt-2.5">
+							{history.map((deploy) => (
+								<li
+									key={`${deploy.sha}-${deploy.createdAt}`}
+									className={`${NOTE} flex justify-between gap-3`}
+								>
+									<span>
+										{deploy.sha.slice(0, 7)} · {relativeTime(deploy.createdAt)}
+									</span>
+									<span>{deploy.state}</span>
+								</li>
+							))}
+						</ul>
+					) : null}
+				</div>
+			</details>
 		</div>
 	);
 }
 
-export function DeployPanel({ projectId }: { projectId: string }) {
+export function DeployPanel({
+	projectId,
+	title = "Production",
+	compact = false,
+}: {
+	projectId: string;
+	title?: string;
+	compact?: boolean;
+}) {
 	const qc = useQueryClient();
+	const caps = useCapabilities();
+	const [requested, setRequested] = useState<{ previousRunId: number | null } | null>(null);
 	const [confirming, setConfirming] = useState(false);
 	const queryKey = ["project-deploy", projectId];
 	const overview = useQuery({
 		queryKey,
+		enabled: caps.can("readOperator"),
 		queryFn: ({ signal }) => projectsApi.deployOverview(projectId, signal),
 		retry: false,
 		refetchInterval: (q) => {
 			const data = q.state.data;
-			return data?.configured && data.activeRun !== null ? 10_000 : 60_000;
+			return requested || (data?.configured && data.activeRun !== null) ? 10_000 : 60_000;
 		},
 	});
 	const deploy = useMutation({
-		mutationFn: () => projectsApi.startDeploy(projectId),
-		onSuccess: () => {
+		mutationFn: async () => {
+			const previousRunId = overview.data?.configured
+				? (overview.data.latestRun?.id ?? null)
+				: null;
+			await projectsApi.startDeploy(projectId);
+			return { previousRunId };
+		},
+		onSuccess: (request) => {
 			setConfirming(false);
+			setRequested(request);
 			void qc.invalidateQueries({ queryKey });
 		},
 	});
 
 	const data = overview.data;
+	useEffect(() => {
+		if (!requested || !data?.configured) return;
+		if (data.activeRun || (data.latestRun && data.latestRun.id !== requested.previousRunId))
+			setRequested(null);
+	}, [data, requested]);
 	return (
-		<OperatorOnly capability="dispatch">
+		<OperatorOnly capability="readOperator">
 			<section className={PANEL} aria-label="Production">
 				<div className={PANEL_HEAD}>
-					<h2 className="font-semibold text-(--color-text) text-xs leading-4">Production</h2>
+					<h2 className="font-semibold text-(--color-text) text-sm leading-5">{title}</h2>
 					{data?.configured ? (
 						<span className={`${NOTE} break-all`}>
 							{data.environment} · {data.workflow}
@@ -191,30 +244,35 @@ export function DeployPanel({ projectId }: { projectId: string }) {
 				{overview.isError ? (
 					<div className="flex flex-col items-start gap-3 p-3.5">
 						<Alert className="text-(--color-fg)" variant="warning">
-							Could not load production: {formatError(overview.error)}
+							Не удалось загрузить Production: {formatError(overview.error)}
 						</Alert>
 						<Button
 							variant="outline"
 							onClick={() => void overview.refetch()}
 							disabled={overview.isFetching}
 						>
-							Retry
+							Повторить
 						</Button>
 					</div>
 				) : null}
 				{data === undefined && !overview.isError ? (
 					<p role="status" className="p-3.5 text-sm">
-						Loading production…
+						Загрузка Production…
 					</p>
 				) : null}
 				{data !== undefined && !data.configured && !overview.isError ? (
 					<p className="p-3.5 text-(--color-text-3) text-sm">
-						Deployment is not configured for this project.
+						Deploy для этого проекта не настроен.
 					</p>
 				) : null}
 				{data?.configured && !overview.isError ? (
 					<>
-						<Overview overview={data} onDeploy={() => setConfirming(true)} />
+						<Overview
+							overview={data}
+							compact={compact}
+							requested={requested !== null}
+							onDeploy={() => setConfirming(true)}
+						/>
 						<ConfirmDeploy
 							overview={data}
 							open={confirming}

@@ -1,13 +1,17 @@
 import { Link } from "react-router-dom";
 import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
+import { useWorkspaceReturn } from "@/components/console/workspace-navigation.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
-import { ReviewReport } from "../run-detail/review-report.tsx";
+import { TaskCostPanel } from "../tasks/cost-panel.tsx";
+import { TaskActivity } from "../tasks/task-activity.tsx";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
-import { childStateLabel } from "./child-walk.tsx";
+import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
+import { AttemptCostPanel } from "./attempt-cost-panel.tsx";
 import { DeploymentIncident } from "./deployment-incident.tsx";
+import { TaskHistory } from "./task-history.tsx";
 
 export function TaskDetail({
 	detail,
@@ -17,19 +21,15 @@ export function TaskDetail({
 	child: PlanRunChildRow;
 }) {
 	const run = detail.runs.find((entry) => entry.id === child.runId);
-	const steps = child.reviewSteps ?? [];
-	let reviews = 0;
-	let reworks = 0;
-	let uiReviews = 0;
+	const status = taskStatus(child, detail.planRun);
+	const backToPlan = useWorkspaceReturn(`/plan-runs/${encodeURIComponent(detail.planRun.id)}`);
+	const backToTasks = useWorkspaceReturn("/tasks");
 	return (
 		<div className="flex min-h-full flex-col gap-4 px-3.5 py-6 md:px-6">
-			<Link
-				to={`/plan-runs/${encodeURIComponent(detail.planRun.id)}`}
-				className="text-(--color-primary) text-sm hover:underline"
-			>
+			<Link {...backToPlan} className="text-(--color-primary) text-sm hover:underline">
 				← Back to plan
 			</Link>
-			<Link to="/tasks" className="text-(--color-primary) text-sm">
+			<Link {...backToTasks} className="text-(--color-primary) text-sm">
 				All tasks
 			</Link>
 			<header className="flex flex-wrap items-center gap-3">
@@ -37,7 +37,7 @@ export function TaskDetail({
 					{child.title ?? `Task ${child.seq}`}
 				</h1>
 				<span className="rounded border border-(--color-border) px-2 py-1 text-xs">
-					{childStateLabel(child)}
+					{status.label}
 				</span>
 				{run?.prUrl ? (
 					<a
@@ -50,75 +50,29 @@ export function TaskDetail({
 					</a>
 				) : null}
 			</header>
-			<TaskProgress child={child} />
+			<TaskProgress child={child} plan={detail.planRun} />
 			<Alert
 				className="text-(--color-fg)"
-				title="Next action"
-				variant={child.reviewStage === "needs_attention" ? "warning" : "info"}
+				title={status.group === "attention" ? "Action required" : "Current status"}
+				variant={status.group === "attention" ? "warning" : "info"}
 			>
-				{taskStatus(child, detail.planRun).action}
+				<TaskStatusMessage status={status} />
 			</Alert>
-			<TaskMergeStatus child={child} />
+			<p className="text-(--color-text-2) text-sm">
+				Task {child.seq} of {detail.children.length}
+			</p>
+			{status.group === "active" ? <TaskActivity child={child} /> : null}
 			<TaskBudgetPanel child={child} />
 			{child.failureReason === "deployment_incident" ? (
 				<DeploymentIncident planRunId={detail.planRun.id} runId={child.runId} />
-			) : child.failureReason ? (
-				<Alert className="text-(--color-fg)" title="Task stopped" variant="danger">
-					{child.failureReason}
-				</Alert>
 			) : null}
-			<section className="rounded border border-(--color-border) bg-(--color-surface) p-4">
-				<h2 className="mb-3 font-semibold text-base">Execution history</h2>
-				{run ? (
-					<div className="mb-3 flex flex-wrap gap-2 text-sm">
-						<Link
-							className="text-(--color-primary) hover:underline"
-							to={`/runs/${encodeURIComponent(run.id)}`}
-						>
-							Implementation
-						</Link>
-						<span>Execution: {run.state}</span>
-					</div>
-				) : (
-					<p className="text-(--color-text-2) text-sm">Implementation has not started.</p>
-				)}
-				{steps.map((step) => {
-					const label =
-						step.step === "review"
-							? `Review ${++reviews}`
-							: step.step === "ui_review"
-								? `UI/UX review ${++uiReviews}`
-								: `Rework ${++reworks}`;
-					return (
-						<article
-							key={step.runId}
-							className="mt-3 space-y-2 border-(--color-border) border-t pt-3"
-						>
-							<div className="flex flex-wrap gap-2 text-sm">
-								<Link
-									className="text-(--color-primary) hover:underline"
-									to={`/runs/${encodeURIComponent(step.runId)}`}
-								>
-									{label}
-								</Link>
-								<span>Execution: {step.executionState}</span>
-							</div>
-							{step.summary ? (
-								<ReviewReport summary={step.summary} executionState={step.executionState} />
-							) : null}
-						</article>
-					);
-				})}
-				{child.reviewSteps === undefined ? (
-					<p className="mt-2 text-(--color-text-2) text-sm">
-						Detailed review history is available to the operator.
-					</p>
-				) : steps.length === 0 ? (
-					<p className="mt-2 text-(--color-text-2) text-sm">
-						No review steps have been recorded yet.
-					</p>
-				) : null}
-			</section>
+			<TaskCostPanel child={child} run={run} />
+			<AttemptCostPanel
+				key={`attempts:${child.planRunId}:${child.seq}`}
+				detail={detail}
+				child={child}
+			/>
+			<TaskHistory key={`history:${child.planRunId}:${child.seq}`} child={child} run={run} />
 			{child.metrics ? (
 				<details className="rounded border border-(--color-border) p-4">
 					<summary className="cursor-pointer font-medium text-sm">Task totals</summary>
@@ -134,30 +88,5 @@ export function TaskDetail({
 				</details>
 			) : null}
 		</div>
-	);
-}
-
-function TaskMergeStatus({ child }: { child: PlanRunChildRow }) {
-	if (child.prMergedAt || child.failureReason === "deployment_incident") return null;
-	return (
-		<>
-			{child.reviewMerge && child.reviewMerge.kind !== "merged" ? (
-				<Alert
-					title="Merge status"
-					variant={child.reviewMerge.kind === "blocked" ? "warning" : "info"}
-					className="text-(--color-fg)"
-				>
-					<p>{child.reviewMerge.detail}</p>
-					<p className="mt-2 font-medium">{child.reviewMerge.nextAction}</p>
-					{child.reviewMerge.paths?.length ? (
-						<ul className="mt-2 list-inside list-disc break-all">
-							{child.reviewMerge.paths.map((path) => (
-								<li key={path}>{path}</li>
-							))}
-						</ul>
-					) : null}
-				</Alert>
-			) : null}
-		</>
 	);
 }

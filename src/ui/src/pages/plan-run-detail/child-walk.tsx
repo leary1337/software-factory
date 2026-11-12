@@ -1,31 +1,9 @@
-import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { PlanRunChildRow, PlanRunRow, RunRow } from "@/api/types.ts";
-import {
-	CardFigure,
-	CardFigureNote,
-	InventoryCardList,
-	type InventoryCardTone,
-	InventoryRowCard,
-} from "@/components/ui/inventory-card.tsx";
-import { formatPlanRunFailureReason } from "@/lib/labels.ts";
-import { relativeTime } from "@/lib/utils.ts";
-import { CHILD_SQUARE_COLOR } from "../plan-runs/walk-state.ts";
-
-/**
- * The Child walk panel of the walk inspector (warren-2520): one row per
- * child seed, in dispatch order, with the gate state the coordinator
- * tracks — merged / pr_open / failed / pending — plus the linked run,
- * PR chip, and merge timing. Everything renders from the
- * `GET /plan-runs/:id` payload; nothing is derived that the API doesn't
- * carry.
- */
-
-/** PR short label (`PR #612`) from the forge URL tail — null when unparseable. */
-function prNumberFromUrl(url: string): string | null {
-	const m = url.match(/\/pull\/(\d+)$/);
-	return m === null ? null : `PR #${m[1]}`;
-}
+import { costText, taskCost } from "../tasks/cost-summary.ts";
+import { planProgressText } from "../tasks/plan-progress-summary.ts";
+import { taskExecutionId } from "../tasks/task-attempts.ts";
+import { taskStatus } from "../tasks/task-status.ts";
 
 export function ChildWalkPanel({
 	planRun,
@@ -36,372 +14,107 @@ export function ChildWalkPanel({
 	childRows: PlanRunChildRow[];
 	runs: RunRow[];
 }) {
-	const runIndex = useMemo(() => {
-		const m = new Map<string, RunRow>();
-		for (const r of runs) m.set(r.id, r);
-		return m;
-	}, [runs]);
-
-	// The gate child: the first child that hasn't cleared its PR merge
-	// (or been skipped). Pending children after it wait on it.
-	const gateSeq = useMemo(() => {
-		const gate = childRows.find((c) => c.state !== "merged" && c.state !== "skipped");
-		return gate === undefined ? null : gate.seq;
-	}, [childRows]);
-
-	const mergedCount = childRows.filter((c) => c.state === "merged").length;
-
+	const children = [...childRows].sort((a, b) => a.seq - b.seq);
+	const gate = children.find((child) => child.state !== "merged" && child.state !== "skipped");
+	const isOpen = planRun.state === "running" || planRun.state === "queued";
+	const runIndex = new Map(runs.map((run) => [run.id, run]));
 	return (
-		<section className="flex min-w-0 flex-1 flex-col rounded border border-(--color-border) bg-(--color-surface)">
-			<header className="flex h-[41px] shrink-0 items-center gap-2.5 border-(--color-border) border-b px-3.5">
-				<h2 className="font-semibold text-(--color-text) text-[12px] leading-4">Child walk</h2>
-				<span className="flex h-5 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-text-2) text-[9px] leading-3">
-					{childRows.length} CHILD{childRows.length === 1 ? "" : "REN"}
-				</span>
-				<div className="min-w-0 flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 tracking-[0.05em]">
-					ONE AT A TIME · GATED ON PR MERGE
-				</span>
+		<section
+			aria-label="Plan tasks"
+			className="min-w-0 flex-1 overflow-hidden rounded-lg border border-(--color-border) bg-(--color-surface)"
+		>
+			<header className="space-y-1 border-(--color-border) border-b p-4">
+				<h2 className="font-semibold text-base">Tasks in this plan</h2>
+				<p className="text-(--color-text-2) text-xs">{children.length} tasks · executed in order</p>
 			</header>
-
-			{childRows.length === 0 ? (
-				<p className="px-3.5 py-6 text-(--color-text-3) text-[11px] leading-4">
-					No children — the plan had no open child seeds at dispatch.
-				</p>
+			{children.length === 0 ? (
+				<p className="p-4 text-(--color-text-2) text-sm">No tasks were included in this attempt.</p>
 			) : (
-				<>
-					{/* No mobile artboard for plan-run-detail (warren-89aa): the
-					 * child rows degrade to the shared InventoryRowCard pattern
-					 * below md; the table above md is untouched. */}
-					<InventoryCardList>
-						{childRows.map((c) => (
-							<ChildCard
-								key={`${c.planRunId}-${c.seq}`}
-								child={c}
-								run={c.runId !== null ? runIndex.get(c.runId) : undefined}
-								gateSeq={gateSeq}
-								isGate={c.seq === gateSeq && !isTerminalWalk(planRun)}
-							/>
-						))}
-					</InventoryCardList>
-					<div className="hidden md:block">
-						{childRows.map((c) => {
-							const run = c.runId !== null ? runIndex.get(c.runId) : undefined;
-							return (
-								<ChildRow
-									key={`${c.planRunId}-${c.seq}`}
-									child={c}
-									run={run}
-									gateSeq={gateSeq}
-									isGate={c.seq === gateSeq && !isTerminalWalk(planRun)}
-								/>
-							);
-						})}
-					</div>
-				</>
+				<ol className="divide-y divide-(--color-border)">
+					{children.map((child) => (
+						<ChildRow
+							key={child.seq}
+							child={child}
+							plan={planRun}
+							run={child.runId ? runIndex.get(child.runId) : undefined}
+							gate={isOpen ? gate : undefined}
+						/>
+					))}
+				</ol>
 			)}
-
-			<footer className="flex h-[37px] shrink-0 items-center gap-2.5 px-3.5">
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 tracking-[0.05em]">
-					RE-DISPATCHING THIS PLAN RESUMES FROM THE NEXT OPEN CHILD
-				</span>
-				<div className="min-w-0 flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
-					{mergedCount} / {childRows.length} merged
-				</span>
+			<footer className="space-y-2 border-(--color-border) border-t p-4 text-(--color-text-2) text-xs">
+				<p>{planProgressText(childRows, planRun.state)}</p>
+				<p>Starting this plan again resumes from the next open task.</p>
 			</footer>
 		</section>
 	);
 }
 
-function isTerminalWalk(planRun: PlanRunRow): boolean {
-	return (
-		planRun.state === "succeeded" || planRun.state === "failed" || planRun.state === "cancelled"
-	);
-}
-
-/* --------------------------------------------------------------------- */
-/* Mobile arm (warren-89aa): shared InventoryRowCard degradation        */
-/* --------------------------------------------------------------------- */
-
-/** Status line shared by the desktop row and the mobile card arm:
- * failed reason (danger tint) or merge/gate timing, or null when the
- * desktop row fills its spacer instead. */
-function childStatusLine(
-	child: PlanRunChildRow,
-	gateSeq: number | null,
-): { text: string; danger: boolean } | null {
-	if (child.state === "failed") {
-		return {
-			text:
-				child.failureReason == null ? "failed" : formatPlanRunFailureReason(child.failureReason),
-			danger: true,
-		};
-	}
-	if (child.state === "merged") {
-		const at = child.prMergedAt ?? child.endedAt;
-		return { text: at !== null ? `merged ${relativeTime(at)}` : "merged", danger: false };
-	}
-	if (child.state === "pr_open") {
-		return {
-			text: child.reviewStage
-				? REVIEW_STAGE_LABELS[child.reviewStage].detail
-				: `open ${relativeTime(child.updatedAt)} · waiting for merge`,
-			danger: child.reviewStage === "needs_attention",
-		};
-	}
-	if (child.state === "pending" && gateSeq !== null && gateSeq < child.seq) {
-		return { text: `waits on child ${gateSeq}`, danger: false };
-	}
-	return null;
-}
-
-const REVIEW_STAGE_LABELS: Record<
-	NonNullable<PlanRunChildRow["reviewStage"]>,
-	{ label: string; detail: string; tone: InventoryCardTone; color: string }
-> = {
-	reviewing: {
-		label: "in review",
-		detail: "automated review running",
-		tone: "info",
-		color: CHILD_SQUARE_COLOR.running,
-	},
-	reworking: {
-		label: "in rework",
-		detail: "fixing review findings",
-		tone: "info",
-		color: CHILD_SQUARE_COLOR.running,
-	},
-	ready_to_merge: {
-		label: "ready to merge",
-		detail: "review passed · ready to merge",
-		tone: "success",
-		color: CHILD_SQUARE_COLOR.merged,
-	},
-	needs_attention: {
-		label: "needs you",
-		detail: "review did not pass · see the PR comment",
-		tone: "warning",
-		color: CHILD_SQUARE_COLOR.pr_open,
-	},
-};
-
-export function childStateLabel(child: PlanRunChildRow): string {
-	return child.reviewStage ? REVIEW_STAGE_LABELS[child.reviewStage].label : child.state;
-}
-
-/** Child state → card tone (mirrors CHILD_SQUARE_COLOR). */
-function childTone(child: PlanRunChildRow): InventoryCardTone {
-	if (child.reviewStage) return REVIEW_STAGE_LABELS[child.reviewStage].tone;
-	switch (child.state) {
-		case "merged":
-			return "success";
-		case "failed":
-			return "danger";
-		case "pr_open":
-			return "warning";
-		case "dispatched":
-		case "running":
-			return "info";
-		default:
-			return "muted";
-	}
-}
-
-/** Trailing figure column of the mobile child card: gate marker, PR
- * label, retry budget note — each only when present. */
-function childCardFigures(child: PlanRunChildRow, prLabel: string | null, isGate: boolean) {
-	return (
-		<>
-			{isGate ? <CardFigure value="GATE" /> : null}
-			{prLabel !== null ? <CardFigure className="text-(--color-primary)" value={prLabel} /> : null}
-			{child.retryCount > 0 ? (
-				<CardFigureNote value={`${child.retryCount} retry${child.retryCount === 1 ? "" : "s"}`} />
-			) : null}
-		</>
-	);
-}
-
-/** The card's meta line, danger-tinted for a failed child. */
-function ChildCardMeta({
-	status,
-	title,
-}: {
-	status: { text: string; danger: boolean };
-	title: string | null;
-}) {
-	return (
-		<span
-			className={status.danger ? "text-(--color-danger)" : undefined}
-			title={title ?? undefined}
-		>
-			{status.text}
-		</span>
-	);
-}
-
-function ChildCard({
-	child,
-	run,
-	gateSeq,
-	isGate,
-}: {
-	child: PlanRunChildRow;
-	run: RunRow | undefined;
-	gateSeq: number | null;
-	isGate: boolean;
-}) {
-	const prLabel =
-		run?.prUrl !== undefined && run.prUrl !== null ? prNumberFromUrl(run.prUrl) : null;
-	const status = childStatusLine(child, gateSeq);
-	const prUrl = run?.prUrl ?? null;
-	return (
-		<InventoryRowCard
-			tone={childTone(child)}
-			stateLabel={childStateLabel(child)}
-			title={`${String(child.seq).padStart(2, "0")} ${child.title ?? child.seedId}`}
-			titleTo={`/plan-runs/${encodeURIComponent(child.planRunId)}?task=${child.seq}`}
-			subline={child.runId !== null ? child.runId : "not dispatched"}
-			figures={childCardFigures(child, prLabel, isGate)}
-			meta={
-				status !== null ? (
-					<ChildCardMeta status={status} title={child.failureReason ?? null} />
-				) : undefined
-			}
-		>
-			{child.state === "pr_open" && prUrl !== null ? (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer noopener"
-					className="flex h-6 shrink-0 items-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[9px] font-medium text-(--color-text-2) text-[10px] leading-3"
-				>
-					Open PR ↗
-				</a>
-			) : null}
-		</InventoryRowCard>
-	);
-}
-
 function ChildRow({
 	child,
+	plan,
 	run,
-	gateSeq,
-	isGate,
+	gate,
 }: {
 	child: PlanRunChildRow;
+	plan: PlanRunRow;
 	run: RunRow | undefined;
-	gateSeq: number | null;
-	isGate: boolean;
+	gate: PlanRunChildRow | undefined;
 }) {
-	const color = child.reviewStage
-		? REVIEW_STAGE_LABELS[child.reviewStage].color
-		: CHILD_SQUARE_COLOR[child.state];
-	// The pending dot is an unfilled rail (border-strong); as text that fails
-	// WCAG contrast, so the label falls back to tertiary text (warren-b629).
-	const labelColor = child.state === "pending" ? "var(--color-text-3)" : color;
-	const prLabel =
-		run?.prUrl !== undefined && run.prUrl !== null ? prNumberFromUrl(run.prUrl) : null;
-
+	const status = taskStatus(child, plan);
+	const logId = taskExecutionId(child) ?? child.runId;
+	const current = gate?.seq === child.seq;
+	const waitingOnGate = child.state === "pending" && gate && gate.seq < child.seq;
 	return (
-		<div
-			className={`flex min-h-[49px] flex-wrap items-center gap-3 border-(--color-border) border-b px-3.5 py-1.5 ${
-				isGate ? "bg-(--color-surface-raised)" : ""
-			}`}
-		>
-			<span
-				className={`w-[22px] shrink-0 font-mono text-[10px] leading-3 ${
-					isGate ? "text-(--color-text-2)" : "text-(--color-text-3)"
-				}`}
-			>
-				{String(child.seq).padStart(2, "0")}
-			</span>
-			<div className="flex w-[320px] min-w-0 shrink-0 flex-col gap-0.5">
-				<Link
-					to={`/plan-runs/${encodeURIComponent(child.planRunId)}?task=${child.seq}`}
-					className="truncate text-(--color-text) text-[12px] leading-4 hover:underline"
-					title={child.seedId}
+		<li className={`space-y-3 p-4 ${current ? "bg-(--color-surface-raised)" : ""}`}>
+			<div className="grid items-start gap-2 md:grid-cols-3">
+				<div className="min-w-0 space-y-1 md:col-span-2">
+					<p className="text-(--color-text-2) text-xs">
+						Task {child.seq}
+						{current ? " · Current task" : ""}
+					</p>
+					<Link
+						className="wrap-anywhere block font-medium text-sm leading-6 hover:underline"
+						to={`/plan-runs/${encodeURIComponent(child.planRunId)}?task=${child.seq}`}
+					>
+						{child.title ?? `Task ${child.seq}`}
+					</Link>
+				</div>
+				<span
+					className={`text-sm ${status.group === "attention" ? "text-(--color-warning)" : "text-(--color-text-2)"}`}
 				>
-					{child.title ?? child.seedId}
-				</Link>
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
-					{child.runId !== null ? (
-						<Link
-							to={`/runs/${encodeURIComponent(child.runId)}`}
-							className="underline-offset-2 hover:underline"
-						>
-							{child.runId}
-						</Link>
-					) : (
-						"not dispatched"
-					)}
+					{status.label}
 				</span>
 			</div>
-			<span className="flex w-[88px] shrink-0 items-center gap-[7px]">
-				<span
-					className="h-1.5 w-1.5 shrink-0 rounded-full"
-					style={{ backgroundColor: color }}
-					aria-hidden
-				/>
-				<span className="font-mono text-[10px] leading-3" style={{ color: labelColor }}>
-					{childStateLabel(child)}
-				</span>
-			</span>
-			{prLabel !== null ? (
-				<span className="flex h-5 shrink-0 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-primary) text-[9px] leading-3">
-					{prLabel}
-				</span>
-			) : null}
-			{child.retryCount > 0 ? (
-				<span
-					className="flex h-5 shrink-0 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-text-2) text-[9px] leading-3"
-					title={`Automatic re-dispatch used ${child.retryCount} of its budget (warren-6de9)`}
-				>
-					{child.retryCount} retry{child.retryCount === 1 ? "" : "s"}
-				</span>
-			) : null}
-			<ChildStatus child={child} run={run} gateSeq={gateSeq} />
-		</div>
-	);
-}
-
-function ChildStatus({
-	child,
-	run,
-	gateSeq,
-}: {
-	child: PlanRunChildRow;
-	run: RunRow | undefined;
-	gateSeq: number | null;
-}) {
-	// A failed child outranks the timing line: the reason is the evidence
-	// an operator reads first. Raw coordinator text rides the tooltip.
-	const status = childStatusLine(child, gateSeq);
-	const prUrl = run?.prUrl ?? null;
-	return (
-		<>
-			{status !== null ? (
-				<span
-					className={`min-w-0 flex-1 truncate font-mono text-[9px] leading-3 ${
-						status.danger ? "text-(--color-danger)" : "text-(--color-text-3)"
-					}`}
-					title={child.failureReason ?? undefined}
-				>
-					{status.text}
-				</span>
-			) : (
-				<div className="min-w-0 flex-1" />
-			)}
-			{child.state === "pr_open" && prUrl !== null ? (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer noopener"
-					className="flex h-6 shrink-0 items-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[9px] font-medium text-(--color-text-2) text-[10px] leading-3"
-				>
-					Open PR ↗
-				</a>
-			) : null}
-		</>
+			<p className="wrap-anywhere text-(--color-text-2) text-xs">
+				{waitingOnGate
+					? `Waiting for “${gate.title ?? `Task ${gate.seq}`}” to finish.`
+					: status.action}
+			</p>
+			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+				<span className="text-(--color-text-2)">Task cost: {costText(taskCost(child))}</span>
+				{logId ? (
+					<Link
+						className="text-(--color-primary) hover:underline"
+						to={`/runs/${encodeURIComponent(logId)}`}
+					>
+						Execution log
+					</Link>
+				) : null}
+				{run?.prUrl ? (
+					<a
+						className="text-(--color-primary) hover:underline"
+						href={run.prUrl}
+						target="_blank"
+						rel="noreferrer noopener"
+					>
+						Pull request ↗
+					</a>
+				) : null}
+				{child.retryCount > 0 ? (
+					<span className="text-(--color-text-2)">{child.retryCount} implementation retries</span>
+				) : null}
+			</div>
+		</li>
 	);
 }
