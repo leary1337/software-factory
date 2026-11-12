@@ -232,6 +232,9 @@ function canonicalizeProfilePaths(profile: SandboxProfile): SandboxProfile {
 		workspace: realpathOrSelf(profile.workspace),
 		home: realpathOrSelf(profile.home),
 		readOnlyMounts: profile.readOnlyMounts.map(realpathOrSelf),
+		projectInputsPath: profile.projectInputsPath
+			? realpathOrSelf(profile.projectInputsPath)
+			: undefined,
 		toolchainPaths: profile.toolchainPaths.map(realpathOrSelf),
 		sshAuthSock: profile.sshAuthSock ? realpathOrSelf(profile.sshAuthSock) : profile.sshAuthSock,
 	};

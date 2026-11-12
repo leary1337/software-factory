@@ -73,6 +73,7 @@ export const AutoMergeConfigSchema = z
 			method: AutoMergeMethodSchema.default(DEFAULT_AUTO_MERGE_METHOD),
 			verification: z.enum(["forge", "warren"]).optional(),
 			requiredChecks: z.array(z.string().trim().min(1).max(256)).min(1).max(100).optional(),
+			reviewedPaths: z.array(ProtectedPathSchema).max(MAX_AUTO_MERGE_PROTECTED_PATHS).optional(),
 			protectedPaths: z
 				.array(ProtectedPathSchema)
 				.max(
@@ -99,6 +100,10 @@ export const AutoMergeConfigSchema = z
 			value.verification !== "warren" ||
 			(value.method === "merge" && (value.requiredChecks?.length ?? 0) > 0),
 		"Warren verification requires method: merge and explicit requiredChecks",
+	)
+	.refine(
+		(value) => !value.reviewedPaths?.length || value.verification === "warren",
+		"reviewedPaths requires Warren verification and an independent review",
 	);
 
 export type AutoMergeConfig = z.infer<typeof AutoMergeConfigSchema>;

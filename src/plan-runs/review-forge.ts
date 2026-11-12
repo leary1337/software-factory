@@ -100,6 +100,7 @@ async function mergeSnapshot(
 		);
 	const policy = decideAutoMerge({
 		...snapshot,
+		independentlyReviewed: true,
 		forgeCanArm: snapshot.config?.verification === "warren" || forge.capabilities.autoMergeArm,
 		ciFixerRun: false,
 	});

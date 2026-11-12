@@ -40,6 +40,8 @@ export interface SandboxProfile {
 	home: string;
 	/** Additional host paths to mount read-only (e.g. toolchain shared libs). */
 	readOnlyMounts: string[];
+	/** Host-owned, project-scoped data retained in independent verification. */
+	projectInputsPath?: string;
 	network: NetworkPolicy;
 	/** Domains permitted under `network: "restricted"`. */
 	allowedDomains: string[];

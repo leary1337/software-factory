@@ -163,6 +163,8 @@ export function buildSeatbeltProfile(
 	// Emitted after every broad grant: SBPL applies the LAST matching rule, so
 	// the git denies below hold even when the clone sits under /private/tmp.
 	lines.push(...renderWorkspaceGitRules(profile));
+	if (profile.projectInputsPath)
+		lines.push(`(deny file-write* (subpath ${sbString(profile.projectInputsPath)}))`);
 
 	lines.push(...renderUnixSocketRules(profile));
 	lines.push(...renderNetworkRules(profile));
