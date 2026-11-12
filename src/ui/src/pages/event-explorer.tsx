@@ -139,7 +139,7 @@ export function EventExplorerPage() {
 
 	return (
 		<div className="flex min-h-full flex-col gap-4 px-3.5 pt-5 pb-12 md:px-6">
-			<div className="font-mono text-(--color-text-3) text-[10px] leading-3 tracking-[0.06em]">
+			<div className="font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.06em]">
 				OPERATIONS / EVENT EXPLORER
 			</div>
 
@@ -151,7 +151,7 @@ export function EventExplorerPage() {
 						</h1>
 						{follow && <LiveBadge className="hidden md:inline-flex" />}
 					</div>
-					<p className="max-w-prose text-(--color-text-2) text-[13px] leading-[18px]">
+					<p className="max-w-prose text-(--color-text-2) text-sm leading-[18px]">
 						Search, filter, follow, and export run events.
 					</p>
 				</div>
@@ -211,7 +211,7 @@ function LiveBadge({ className }: { className?: string }) {
 			)}
 		>
 			<span className="h-1.5 w-1.5 rounded-full bg-(--color-success)" />
-			<span className="font-mono text-(--color-success) text-[9px] leading-3 tracking-[0.08em]">
+			<span className="font-mono text-(--color-success) text-xs leading-4 tracking-[0.08em]">
 				LIVE
 			</span>
 		</span>
@@ -235,7 +235,7 @@ function FilterStrip({
 					label={f.label}
 					active={state.stream === f.id}
 					onClick={() => patch({ stream: f.id })}
-					className="rounded-sm font-mono text-[10px] leading-3"
+					className="rounded-sm font-mono text-xs leading-4"
 				/>
 			))}
 			<div className="min-w-0 flex-1" />
@@ -244,14 +244,14 @@ function FilterStrip({
 				onChange={(e) => patch({ runId: e.target.value })}
 				placeholder="run id"
 				aria-label="Filter by run id"
-				className={cn(responsiveFormControl, "w-36 font-mono sm:h-7 sm:text-[10px]")}
+				className={cn(responsiveFormControl, "w-36 font-mono sm:h-7 sm:text-xs")}
 			/>
 			<Input
 				value={state.kind}
 				onChange={(e) => patch({ kind: e.target.value })}
 				placeholder="kind"
 				aria-label="Filter by event kind"
-				className={cn(responsiveFormControl, "w-32 font-mono sm:h-7 sm:text-[10px]")}
+				className={cn(responsiveFormControl, "w-32 font-mono sm:h-7 sm:text-xs")}
 			/>
 			{projects !== undefined && (
 				<select
@@ -260,7 +260,7 @@ function FilterStrip({
 					aria-label="Filter by project"
 					className={cn(
 						responsiveFormControl,
-						"max-w-48 rounded-sm border border-(--color-border) bg-(--color-bg) px-2 font-mono text-(--color-text-2) sm:h-7 sm:text-[10px]",
+						"max-w-48 rounded-sm border border-(--color-border) bg-(--color-bg) px-2 font-mono text-(--color-text-2) sm:h-7 sm:text-xs",
 					)}
 				>
 					<option value="">all projects</option>
@@ -280,8 +280,8 @@ function FilterStrip({
 						className={cn(
 							responsiveFormControl,
 							state.rangeId === r.id
-								? "bg-(--color-surface-raised) px-2.5 font-mono text-(--color-text) leading-[17px] sm:h-auto sm:py-1.5 sm:text-[10px] sm:leading-3"
-								: "px-2.5 font-mono text-(--color-text-3) leading-[17px] hover:text-(--color-text-2) sm:h-auto sm:py-1.5 sm:text-[10px] sm:leading-3",
+								? "bg-(--color-surface-raised) px-2.5 font-mono text-(--color-text) leading-[17px] sm:h-auto sm:py-1.5 sm:text-xs sm:leading-4"
+								: "px-2.5 font-mono text-(--color-text-3) leading-[17px] hover:text-(--color-text-2) sm:h-auto sm:py-1.5 sm:text-xs sm:leading-4",
 						)}
 					>
 						{r.label}
@@ -346,7 +346,7 @@ function RowsPanel({
 				/>
 			))}
 			{success && rows.length > 0 && (
-				<div className="flex items-center justify-between px-3 py-2 font-mono text-(--color-text-3) text-[9px] leading-[11px] md:text-[10px] md:leading-3">
+				<div className="flex items-center justify-between px-3 py-2 font-mono text-(--color-text-3) text-xs leading-4 md:text-xs md:leading-4">
 					<span>
 						{offset + 1}–{lastRow} of {total}
 					</span>
@@ -397,29 +397,29 @@ function EventRowView({
 				className="flex w-full flex-col items-start gap-0.5 px-3 py-[7px] text-left hover:bg-(--color-surface-hover) md:flex-row md:gap-2.5"
 			>
 				<div className="flex w-full items-center gap-2 md:contents">
-					<span className="hidden shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3 md:block md:w-12">
+					<span className="hidden shrink-0 font-mono text-(--color-text-3) text-xs leading-4 md:block md:w-12">
 						{row.id}
 					</span>
-					<span className="w-[46px] shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3 md:w-16">
+					<span className="w-[46px] shrink-0 font-mono text-(--color-text-3) text-xs leading-4 md:w-16">
 						{formatEventClock(row.ts)}
 					</span>
 					<span
-						className={`w-[58px] shrink-0 truncate font-mono text-[10px] leading-3 md:w-24 ${streamToneClass(row.stream)}`}
+						className={`w-[58px] shrink-0 truncate font-mono text-xs leading-4 md:w-24 ${streamToneClass(row.stream)}`}
 					>
 						{row.kind}
 					</span>
-					<span className="min-w-0 flex-1 truncate font-mono text-(--color-text-2) text-[10px] leading-[14px]">
+					<span className="min-w-0 flex-1 truncate font-mono text-(--color-text-2) text-xs leading-4">
 						{row.runId} · {summarizeEventPayload(row.payload)}
 					</span>
 				</div>
 				{/* Mobile line 2 (warren-e2e2): the wire row carries no per-event
 				agent/project fields, so the indented metadata line shows seq + run. */}
-				<span className="pl-[54px] font-mono text-(--color-text-3) text-[9px] leading-3 md:hidden">
+				<span className="pl-[54px] font-mono text-(--color-text-3) text-xs leading-4 md:hidden">
 					seq {row.seq} · {row.runId}
 				</span>
 			</button>
 			{expanded && (
-				<pre className="mx-2 mb-2 overflow-x-auto rounded-sm border-(--color-border-strong) border-l px-2.5 py-[7px] font-mono text-(--color-text-3) text-[10px] leading-[15px] md:mx-[5.5rem]">
+				<pre className="mx-2 mb-2 overflow-x-auto rounded-sm border-(--color-border-strong) border-l px-2.5 py-[7px] font-mono text-(--color-text-3) text-xs leading-4 md:mx-[5.5rem]">
 					{payloadJson}
 				</pre>
 			)}

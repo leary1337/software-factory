@@ -64,7 +64,7 @@ function ProjectSelector() {
 			value={projectId ?? ""}
 			onChange={(e) => setProjectId(e.target.value === "" ? null : e.target.value)}
 			aria-label="Filter by project"
-			className="hidden h-8 rounded-(--radius-sm) border border-(--color-border) bg-(--color-bg) px-2 font-mono text-(--color-text-2) text-[11px] leading-[14px] md:block"
+			className="hidden h-8 rounded-(--radius-sm) border border-(--color-border) bg-(--color-bg) px-2 font-mono text-(--color-text-2) text-xs leading-4 md:block"
 		>
 			<option value="">all projects</option>
 			{rows.map((p) => (
@@ -81,7 +81,7 @@ function RangeSelector() {
 	const { days, setDays } = useTelemetryWindow();
 	return (
 		<div className="hidden items-center gap-3 md:flex">
-			<span className="hidden font-mono text-(--color-text-3) text-[11px] leading-[14px] tracking-[0.04em] sm:inline">
+			<span className="hidden font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.04em] sm:inline">
 				{endsTodayLabel()}
 			</span>
 			<section
@@ -97,7 +97,7 @@ function RangeSelector() {
 							onClick={() => setDays(d)}
 							aria-pressed={active}
 							className={cn(
-								"px-2.5 py-1.5 font-mono text-[11px] leading-[14px]",
+								"px-2.5 py-1.5 font-mono text-xs leading-4",
 								active
 									? "bg-(--color-primary) font-medium text-(--color-primary-ink)"
 									: "text-(--color-text-3) hover:text-(--color-text-2)",
@@ -129,7 +129,7 @@ function TabNav() {
 					to={`/telemetry/${path}`}
 					className={({ isActive }) =>
 						cn(
-							"flex shrink-0 flex-col gap-2 pb-0 font-mono text-[11px] leading-[14px] tracking-[0.08em]",
+							"flex shrink-0 flex-col gap-2 pb-0 font-mono text-xs leading-4 tracking-[0.08em]",
 							isActive
 								? "font-semibold text-(--color-text)"
 								: "text-(--color-text-3) hover:text-(--color-text-2)",
@@ -165,7 +165,7 @@ export function TelemetryPage() {
 						<h1 className="font-semibold text-(--color-text) text-[22px] leading-7 tracking-[-0.025em]">
 							Telemetry
 						</h1>
-						<p className="text-(--color-text-2) text-[13px] leading-[18px]">
+						<p className="text-(--color-text-2) text-sm leading-[18px]">
 							Cost, behavior, and delivery across runs.
 						</p>
 					</div>

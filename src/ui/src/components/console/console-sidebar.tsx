@@ -33,7 +33,7 @@ function NavRow({ item, onNavigate }: { item: ConsoleNavItem; onNavigate?: () =>
 				cn(
 					"flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm",
 					isActive
-						? "bg-(--color-primary)/10 font-medium text-(--color-text)"
+						? "bg-(--color-primary)/10 font-medium text-(--color-primary)"
 						: "text-(--color-text-2) hover:bg-(--color-surface-raised)",
 				)
 			}

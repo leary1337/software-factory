@@ -7,19 +7,27 @@ export function WorkspaceTaskCard({
 	task,
 	project,
 	onOpen,
+	compact = false,
 }: {
 	task: WorkspaceTask;
 	project?: string;
 	onOpen: () => void;
+	compact?: boolean;
 }) {
 	return (
 		<article
 			className={cn(
-				"min-w-0 rounded-lg border border-(--color-border) bg-(--color-surface) p-4",
+				"min-w-0 rounded-lg border border-(--color-border)",
+				compact ? "bg-(--color-bg) p-3" : "bg-(--color-surface) p-4",
 				task.attention && "border-(--color-warning)/40",
 			)}
 		>
-			<div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+			<div
+				className={cn(
+					"mb-2 flex flex-wrap items-center justify-between gap-2 text-xs",
+					compact && !task.attention && "hidden",
+				)}
+			>
 				<span
 					className={cn(
 						"flex items-center gap-1.5 text-(--color-text-2)",
@@ -34,15 +42,21 @@ export function WorkspaceTaskCard({
 			<Button
 				variant="link"
 				onClick={onOpen}
-				className="h-auto w-full justify-start whitespace-normal break-words p-0 text-left font-medium text-sm leading-6"
+				className="h-auto w-full justify-start whitespace-normal break-words p-0 text-left font-medium text-sm leading-5"
 			>
-				{task.title}
-				<ArrowUpRight className="ml-auto h-4 w-4 shrink-0" />
+				<span className={cn("min-w-0", compact && "line-clamp-2")}>{task.title}</span>
+				<ArrowUpRight aria-hidden className="ml-auto h-4 w-4 shrink-0" />
 			</Button>
 			{task.attention ? (
 				<p className="mt-2 line-clamp-2 break-words text-(--color-text-2) text-sm">{task.reason}</p>
 			) : null}
-			<div className="mt-3 flex flex-wrap gap-2 text-(--color-text-3) text-xs">
+			<div
+				className={cn(
+					"flex flex-wrap gap-2 text-(--color-text-2) text-xs",
+					compact ? "mt-2" : "mt-3",
+				)}
+			>
+				{compact && !task.attention ? <span>{task.column} ·</span> : null}
 				<span>
 					{task.runs.find((r) => r.id === task.runId)?.agentName ??
 						task.plan?.current.detail.planRun.agentName ??

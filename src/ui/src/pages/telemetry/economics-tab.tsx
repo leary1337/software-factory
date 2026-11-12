@@ -69,9 +69,7 @@ function SpendPanel({ from, to }: { from: string; to: string }) {
 					Failed to load cost analytics. {(cost.error as Error | null)?.message ?? ""}
 				</p>
 			) : visible.length === 0 && !cost.isLoading ? (
-				<p className="text-(--color-text-3) text-[12px] leading-4">
-					No spend recorded in this window.
-				</p>
+				<p className="text-(--color-text-3) text-xs leading-4">No spend recorded in this window.</p>
 			) : (
 				<>
 					{visible.map((b) => (
@@ -89,7 +87,7 @@ function SpendPanel({ from, to }: { from: string; to: string }) {
 					{hidden.length > 0 ? (
 						<SpendRow name={`${String(hidden.length)} more`} costUsd={formatCostUsd(hiddenCost)} />
 					) : null}
-					<p className="text-(--color-text-2) text-[12px] leading-4">
+					<p className="text-(--color-text-2) text-xs leading-4">
 						{totals !== undefined && totals.runs > totals.priced
 							? `${String(totals.runs - totals.priced)} runs carry no recorded cost. They are counted, not priced.`
 							: "Spend over runs.cost_usd in the selected window."}
@@ -144,26 +142,26 @@ function EconomicsAgentRow({
 			<td className="py-1.5 pr-3">
 				<Link
 					to={`/agents/${encodeURIComponent(row.agent)}`}
-					className="font-mono text-(--color-text-2) text-[11px] leading-[14px] underline-offset-2 hover:underline"
+					className="font-mono text-(--color-text-2) text-xs leading-4 underline-offset-2 hover:underline"
 				>
 					{row.agent}
 				</Link>
 			</td>
-			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-2) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-2) text-xs leading-4">
 				{String(row.runs)}
 			</td>
-			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-2) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-2) text-xs leading-4">
 				{row.successRate === null ? "—" : `${Math.round(row.successRate * 100)}%`}
 			</td>
-			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-3) text-xs leading-4">
 				{pass === undefined || pass.total === 0
 					? "—"
 					: `${Math.round((pass.pass / pass.total) * 100)}%`}
 			</td>
-			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 text-right font-mono text-(--color-text-3) text-xs leading-4">
 				{formatDuration(row.avgDurationMs)}
 			</td>
-			<td className="py-1.5 text-right font-mono text-(--color-text) text-[11px] leading-[14px]">
+			<td className="py-1.5 text-right font-mono text-(--color-text) text-xs leading-4">
 				{row.costPerMergedPrUsd === null || row.costPerMergedPrUsd === undefined
 					? "—"
 					: formatCostUsd(row.costPerMergedPrUsd)}
@@ -199,7 +197,7 @@ function AgentEconomicsMeterRow({
 	return (
 		<MeterBar
 			label={row.agent}
-			labelClass="w-[80px] overflow-clip max-md:text-[9px] max-md:leading-[11px] text-(--color-text-2)"
+			labelClass="w-[80px] overflow-clip max-md:text-xs max-md:leading-4 text-(--color-text-2)"
 			width={width}
 			markClass={cn("h-2 bg-(--color-success)", ECONOMICS_FILL_RAMP[rank] ?? "opacity-45")}
 			title={`${row.agent} · ${String(row.runs)} runs · ${
@@ -245,7 +243,7 @@ function AgentEconomicsTable() {
 					Failed to load run analytics. {(runs.error as Error | null)?.message ?? ""}
 				</p>
 			) : rows.length === 0 && !runs.isLoading ? (
-				<p className="text-(--color-text-3) text-[12px] leading-4">No runs in this window.</p>
+				<p className="text-(--color-text-3) text-xs leading-4">No runs in this window.</p>
 			) : (
 				<>
 					{/* Below md: meter-row list (warren-756e, mock :272-315) —
@@ -269,7 +267,7 @@ function AgentEconomicsTable() {
 										(h, i) => (
 											<th
 												key={h}
-												className={`pr-3 pb-2 text-left font-mono text-(--color-text-3) text-[10px] tracking-[0.06em] ${i >= 1 ? "text-right" : ""}`}
+												className={`pr-3 pb-2 text-left font-mono text-(--color-text-3) text-xs tracking-[0.06em] ${i >= 1 ? "text-right" : ""}`}
 											>
 												{h}
 											</th>

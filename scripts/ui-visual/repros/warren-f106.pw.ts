@@ -1,14 +1,14 @@
 /** warren-f106: compact Overview and readable task alerts in both themes. */
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
-import type { PlanRunDetailResponse } from "../../../src/ui/src/api/types.ts";
+import type { PlanRunDetailResponse, ProjectRow } from "../../../src/ui/src/api/types.ts";
 import { harnessCases, openCase } from "../harness.ts";
 
 const { fixture, cases } = harnessCases();
 const TITLE = "Подстановка значений одним нажатием";
 const projectId = fixture.ids.projects.withSeeds.id;
 
-async function installWorkspace(page: Page) {
+async function installWorkspace(page: Page, projectCount = 1) {
 	const response = await page.request.get(
 		`${fixture.baseUrl}/plan-runs/${fixture.ids.planRun.id}`,
 		{
@@ -42,14 +42,32 @@ async function installWorkspace(page: Page) {
 					}
 				: null,
 	}));
+	const projectResponse = await page.request.get(`${fixture.baseUrl}/projects`, {
+		headers: { Authorization: `Bearer ${fixture.token}` },
+	});
+	const inventory = (await projectResponse.json()) as { projects: ProjectRow[] };
+	const templateProject = inventory.projects.find((project) => project.id === projectId);
+	if (!templateProject) throw new Error("Missing fixture project");
+	const projects = Array.from({ length: projectCount }, (_, index) => ({
+		...templateProject,
+		id: index === 0 ? projectId : `compact-project-${index}`,
+		gitUrl: `https://github.com/operator/product-${index}.git`,
+	}));
+	const details = projects.map((project, index) => ({
+		...detail,
+		planRun: { ...detail.planRun, id: `${detail.planRun.id}-${index}`, projectId: project.id },
+	}));
+	await page.route(/\/projects(?:\?.*)?$/, (route) => route.fulfill({ json: { projects } }));
 	await page.route(/\/plan-runs(?:\?.*)?$/, (route) =>
-		route.fulfill({ json: { planRuns: [detail.planRun] } }),
+		route.fulfill({ json: { planRuns: details.map((entry) => entry.planRun) } }),
 	);
-	await page.route(`**/plan-runs/${detail.planRun.id}`, (route) => route.fulfill({ json: detail }));
+	for (const entry of details) {
+		await page.route(`**/plan-runs/${entry.planRun.id}`, (route) => route.fulfill({ json: entry }));
+	}
 	await page.route(/\/runs(?:\?.*)?$/, (route) =>
 		route.fulfill({ json: { runs: [], total: 0, limit: 200, offset: 0 } }),
 	);
-	await page.route(`**/projects/${projectId}/deploy`, (route) =>
+	await page.route("**/projects/*/deploy", (route) =>
 		route.fulfill({
 			json: {
 				configured: true,
@@ -81,7 +99,7 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 		}) => {
 			test.skip(c.viewport !== "desktop", "Phones retain readable vertical flow");
 			await openCase(page, { ...c, url: `/#/overview?project=${projectId}` }, fixture);
-			await expect(page.getByText("Следующий Release · bbbbbbb · main")).toBeVisible();
+			await expect(page.getByText("Ready to deploy · 1 commits", { exact: true })).toBeVisible();
 			for (const size of [c.size, { width: 1366, height: 768 }]) {
 				await page.setViewportSize(size);
 				for (const name of ["Требует тебя", "Текущая работа", "Production"]) {
@@ -96,6 +114,16 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 					await page.locator("main").evaluate((el) => el.scrollHeight - el.clientHeight),
 				).toBeLessThanOrEqual(1);
 			}
+		});
+		test("keeps three projects and their releases within a laptop viewport", async ({ page }) => {
+			test.skip(c.viewport !== "desktop", "Phones retain readable vertical flow");
+			await installWorkspace(page, 3);
+			await page.setViewportSize({ width: 1366, height: 768 });
+			await openCase(page, c, fixture);
+			await expect(page.getByText("Ready to deploy · 1 commits", { exact: true })).toHaveCount(3);
+			expect(
+				await page.locator("main").evaluate((el) => el.scrollHeight - el.clientHeight),
+			).toBeLessThanOrEqual(1);
 		});
 		test("keeps every warning label, reason and filename readable in the task panel", async ({
 			page,
