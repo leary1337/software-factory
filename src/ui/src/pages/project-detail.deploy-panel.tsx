@@ -29,7 +29,7 @@ function behindLabel(overview: ProjectDeployOverview): string {
 	if (overview.current === null) return "Ещё не опубликовано";
 	if (overview.behind === null) return "Нет данных";
 	if (overview.behind.count === 0) return "Deployed";
-	return `Ready to deploy · ${overview.behind.count} commits`;
+	return `Ready to deploy · ${overview.behind.count} ${overview.behind.count === 1 ? "commit" : "commits"}`;
 }
 
 function releaseLabel(overview: ProjectDeployOverview): string {

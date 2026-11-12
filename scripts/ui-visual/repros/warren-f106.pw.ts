@@ -99,7 +99,7 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 		}) => {
 			test.skip(c.viewport !== "desktop", "Phones retain readable vertical flow");
 			await openCase(page, { ...c, url: `/#/overview?project=${projectId}` }, fixture);
-			await expect(page.getByText("Ready to deploy · 1 commits", { exact: true })).toBeVisible();
+			await expect(page.getByText("Ready to deploy · 1 commit", { exact: true })).toBeVisible();
 			for (const size of [c.size, { width: 1366, height: 768 }]) {
 				await page.setViewportSize(size);
 				for (const name of ["Требует тебя", "Текущая работа", "Production"]) {
@@ -120,7 +120,7 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 			await installWorkspace(page, 3);
 			await page.setViewportSize({ width: 1366, height: 768 });
 			await openCase(page, c, fixture);
-			await expect(page.getByText("Ready to deploy · 1 commits", { exact: true })).toHaveCount(3);
+			await expect(page.getByText("Ready to deploy · 1 commit", { exact: true })).toHaveCount(3);
 			expect(
 				await page.locator("main").evaluate((el) => el.scrollHeight - el.clientHeight),
 			).toBeLessThanOrEqual(1);

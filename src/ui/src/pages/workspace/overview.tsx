@@ -107,7 +107,7 @@ export function Overview({
 					title="Текущая работа"
 					count={allTasks}
 					icon={<FolderKanban aria-hidden className="h-4 w-4 text-(--color-primary)" />}
-					link={<Link to="/kanban">Все задачи · {projects.length} проектов →</Link>}
+					link={<Link to="/kanban">Все задачи · Проектов: {projects.length} →</Link>}
 				>
 					{projects.length === 0 ? (
 						<Link className="text-(--color-primary) text-sm" to="/projects">
