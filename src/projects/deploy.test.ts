@@ -138,6 +138,21 @@ describe("project deployment", () => {
 		);
 		expect(dispatches).toBe(0);
 	});
+	test("retains a completed workflow even when no active run was observed", async () => {
+		const completed = {
+			id: 123,
+			status: "completed",
+			conclusion: "failure",
+			sha: "candidate",
+			createdAt: "2026-11-12T10:00:00Z",
+			url: "https://example.test/actions/runs/123",
+		};
+		deploys.listRuns = async () => ({ ok: true, value: [completed] });
+		const result = await getProjectDeployOverview(deps, projectId);
+		expect(result.configured && result.latestRun).toEqual(completed);
+		expect(result.configured && result.activeRun).toBeNull();
+		expect(result.configured && result.current?.sha).toBe("live");
+	});
 	test("rejects dispatch when a workflow is already active", async () => {
 		deploys.listRuns = async () => ({
 			ok: true,

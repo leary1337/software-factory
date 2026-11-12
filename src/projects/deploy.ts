@@ -59,6 +59,7 @@ export interface DeployOverview {
 	readonly currentState: DeploymentCurrentState;
 	readonly behind: { readonly count: number; readonly changes: PendingChanges["commits"] } | null;
 	readonly activeRun: DeployRun | null;
+	readonly latestRun: DeployRun | null;
 	readonly history: readonly DeployRecord[];
 	readonly activePlan: { readonly merged: number; readonly total: number } | null;
 	readonly error: string | null;
@@ -129,6 +130,7 @@ async function buildOverview(
 		errors,
 	);
 	const { history, current, currentState } = release;
+	const workflowRuns = unwrapOr(runs, [], errors);
 	let behind: DeployOverview["behind"] = null;
 	if (current !== null) {
 		const compared = unwrapOr(await deploys.compare(ref, current.sha, branch), null, errors);
@@ -148,7 +150,8 @@ async function buildOverview(
 		current,
 		currentState,
 		behind,
-		activeRun: unwrapOr(runs, [], errors).find((r) => r.status !== "completed") ?? null,
+		activeRun: workflowRuns.find((r) => r.status !== "completed") ?? null,
+		latestRun: workflowRuns[0] ?? null,
 		history,
 		activePlan: await loadActivePlan(deps, projectId),
 		error: errors[0] ?? null,

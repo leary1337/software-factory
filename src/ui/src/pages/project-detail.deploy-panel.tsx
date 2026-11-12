@@ -150,6 +150,16 @@ function Overview({
 					</OperatorOnly>
 				)}
 			</div>
+			{activeRun === null && overview.latestRun?.status === "completed" ? (
+				<a
+					className={`${MONO} text-(--color-primary)`}
+					href={overview.latestRun.url}
+					target="_blank"
+					rel="noreferrer"
+				>
+					Workflow · {overview.latestRun.conclusion ?? "completed"} ↗
+				</a>
+			) : null}
 			<details open={compact ? undefined : true}>
 				<summary className="cursor-pointer text-sm">Состав Release и история</summary>
 				<div className="mt-3 space-y-3">
@@ -186,7 +196,7 @@ export function DeployPanel({
 }) {
 	const qc = useQueryClient();
 	const caps = useCapabilities();
-	const [requested, setRequested] = useState(false);
+	const [requested, setRequested] = useState<{ previousRunId: number | null } | null>(null);
 	const [confirming, setConfirming] = useState(false);
 	const queryKey = ["project-deploy", projectId];
 	const overview = useQuery({
@@ -200,18 +210,26 @@ export function DeployPanel({
 		},
 	});
 	const deploy = useMutation({
-		mutationFn: () => projectsApi.startDeploy(projectId),
-		onSuccess: () => {
+		mutationFn: async () => {
+			const previousRunId = overview.data?.configured
+				? (overview.data.latestRun?.id ?? null)
+				: null;
+			await projectsApi.startDeploy(projectId);
+			return { previousRunId };
+		},
+		onSuccess: (request) => {
 			setConfirming(false);
-			setRequested(true);
+			setRequested(request);
 			void qc.invalidateQueries({ queryKey });
 		},
 	});
 
 	const data = overview.data;
 	useEffect(() => {
-		if (data?.configured && data.activeRun) setRequested(false);
-	}, [data]);
+		if (!requested || !data?.configured) return;
+		if (data.activeRun || (data.latestRun && data.latestRun.id !== requested.previousRunId))
+			setRequested(null);
+	}, [data, requested]);
 	return (
 		<OperatorOnly capability="readOperator">
 			<section className={PANEL} aria-label="Production">
@@ -252,7 +270,7 @@ export function DeployPanel({
 						<Overview
 							overview={data}
 							compact={compact}
-							requested={requested}
+							requested={requested !== null}
 							onDeploy={() => setConfirming(true)}
 						/>
 						<ConfirmDeploy
