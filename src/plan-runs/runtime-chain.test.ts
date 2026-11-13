@@ -12,12 +12,16 @@ for (const verdicts of [
 	["CHANGES", "CHANGES", "CHANGES", "PASS"],
 	["STALLED", "PASS"],
 	["CRASH"],
+	["CRASH", "CRASH", "CRASH"],
 ]) {
 	test.skipIf(process.platform !== "darwin")(
 		`runs the real sandbox factory chain: ${verdicts.join(" → ")}`,
 		async () => {
-			const expectedReworks = verdicts.filter((v) => v === "CHANGES" || v === "STALLED").length;
-			const succeeds = verdicts.at(-1) === "PASS" && !verdicts.includes("STALLED");
+			const expectedReworks =
+				verdicts.filter((v) => v === "CHANGES" || v === "STALLED").length +
+				(verdicts.includes("STALLED") ? 1 : 0);
+			const succeeds =
+				!verdicts.includes("STALLED") && verdicts.filter((v) => v === "CRASH").length < 3;
 			const h = await runtimeChain([...verdicts]);
 			try {
 				for (let i = 0; i < 25; i++) {

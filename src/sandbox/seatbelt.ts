@@ -165,6 +165,13 @@ export function buildSeatbeltProfile(
 	lines.push(...renderWorkspaceGitRules(profile));
 	if (profile.projectInputsPath)
 		lines.push(`(deny file-write* (subpath ${sbString(profile.projectInputsPath)}))`);
+	const sources = profile.verificationSources;
+	if (sources) {
+		lines.push(`(deny file-write-unlink (literal ${sbString(profile.workspace)}))`);
+		lines.push(`(deny file-write-unlink (literal ${sbString(sources.directory)}))`);
+		for (const file of sources.files)
+			lines.push(`(deny file-write* (literal ${sbString(join(sources.directory, file))}))`);
+	}
 
 	lines.push(...renderUnixSocketRules(profile));
 	lines.push(...renderNetworkRules(profile));

@@ -42,6 +42,8 @@ export interface SandboxProfile {
 	readOnlyMounts: string[];
 	/** Host-owned, project-scoped data retained in independent verification. */
 	projectInputsPath?: string;
+	/** Host-owned proof sources. The directory allows scratch files but cannot be replaced. */
+	verificationSources?: { directory: string; files: readonly string[] };
 	network: NetworkPolicy;
 	/** Domains permitted under `network: "restricted"`. */
 	allowedDomains: string[];
