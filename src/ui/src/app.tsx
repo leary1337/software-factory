@@ -31,6 +31,8 @@ import {
 	TelemetryLoopTab,
 	TelemetryPage,
 } from "@/pages/telemetry.tsx";
+import { ProjectScope } from "@/pages/workspace/project-scope.tsx";
+import { WorkspacePage } from "@/pages/workspace.tsx";
 
 const queryClient = new QueryClient({
 	queryCache: new QueryCache({
@@ -93,11 +95,13 @@ export function App() {
 							<Route
 								element={
 									<AuthGate>
-										<ConsoleShell />
+										<ProjectScope>
+											<ConsoleShell />
+										</ProjectScope>
 									</AuthGate>
 								}
 							>
-								{/* Tasks is the index destination, except
+								{/* Overview is the index destination, except
 								    on a zero-project instance where an undismissed
 								    operator lands on the first-run setup checklist
 								    instead (warren-a911 / pl-26f3 step 9). Spectators
@@ -113,6 +117,8 @@ export function App() {
 										</OperatorRoute>
 									}
 								/>
+								<Route path="/overview" element={<WorkspacePage view="Overview" />} />
+								<Route path="/kanban" element={<WorkspacePage view="Kanban" />} />
 								<Route path="/tasks" element={<TasksPage />} />
 								<Route
 									path="/production"
@@ -190,7 +196,7 @@ export function App() {
 								<Route path="/events" element={<EventExplorerPage />} />
 								<Route path="/instance" element={<InstancePage />} />
 							</Route>
-							<Route path="*" element={<Navigate to="/tasks" replace />} />
+							<Route path="*" element={<Navigate to="/overview" replace />} />
 						</Routes>
 					</HashRouter>
 				</ToastProvider>

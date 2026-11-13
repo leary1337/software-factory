@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import type { PlanRunChildRow, RunRow } from "@/api/types.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { SelectInput } from "@/components/ui/select-input.tsx";
-import { ReviewReport } from "../run-detail/review-report.tsx";
+import { ExecutionTiming, HistoryTiming } from "./execution-timing.tsx";
 import { type HistoryFilter, historyEntries, historyResult } from "./history-entries.ts";
+import { HistoryReport } from "./history-report.tsx";
 
 const PAGE_SIZE = 8;
 
@@ -32,6 +33,9 @@ export function TaskHistory({ child, run }: { child: PlanRunChildRow; run: RunRo
 						{reviewCount} code reviews · {uiCount} UI/UX reviews · {reworkCount} reworks
 					</p>
 				) : null}
+				<p className="text-(--color-text-2) text-xs">
+					Dates are shown in your local time zone. Durations measure each execution.
+				</p>
 			</header>
 			<div className="flex flex-wrap gap-3">
 				<label htmlFor={`${id}-type`} className="flex flex-col gap-1 text-(--color-text-2) text-xs">
@@ -93,15 +97,13 @@ export function TaskHistory({ child, run }: { child: PlanRunChildRow; run: RunRo
 							</Link>
 							<span>{historyResult(step)}</span>
 						</div>
+						<HistoryTiming runId={step.runId} label={label} />
 						{step.summary && step.step !== "rework" ? (
-							<details open={step.runId === latestReview?.step.runId} className="text-sm">
-								<summary className="cursor-pointer text-(--color-text-2)">
-									Report for {label}
-								</summary>
-								<div className="mt-2">
-									<ReviewReport summary={step.summary} executionState={step.executionState} />
-								</div>
-							</details>
+							<HistoryReport
+								step={step}
+								label={label}
+								latest={step.runId === latestReview?.step.runId}
+							/>
 						) : null}
 					</li>
 				))}
@@ -118,17 +120,20 @@ export function TaskHistory({ child, run }: { child: PlanRunChildRow; run: RunRo
 				</p>
 			) : null}
 			{run ? (
-				<p className="flex flex-wrap gap-2 border-(--color-border) border-t pt-3 text-sm">
+				<div className="space-y-2 border-(--color-border) border-t pt-3 text-sm">
 					<Link
 						className="text-(--color-primary) hover:underline"
 						to={`/runs/${encodeURIComponent(run.id)}`}
 					>
 						Implementation
 					</Link>
-					<span>Execution: {run.state}</span>
-				</p>
+					<p>Execution: {run.state}</p>
+					<ExecutionTiming run={run} />
+				</div>
 			) : (
-				<p className="text-(--color-text-2) text-sm">Implementation has not started.</p>
+				<p className="text-(--color-text-2) text-sm">
+					{child.runId ? "Implementation details unavailable." : "Implementation has not started."}
+				</p>
 			)}
 		</section>
 	);

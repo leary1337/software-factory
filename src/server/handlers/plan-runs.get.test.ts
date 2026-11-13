@@ -243,6 +243,7 @@ describe("GET /plan-runs/:id", () => {
 			planRun: { id: string };
 			children: {
 				seq: number;
+				productionVerification: { sha: string; environment: string; verifiedAt: string } | null;
 				metrics: { runCount: number; reviewCount: number; costUnknownRuns: number };
 				runId: string | null;
 				reviewMerge: { kind: string; reason: string; nextAction: string; paths: string[] } | null;
@@ -260,6 +261,23 @@ describe("GET /plan-runs/:id", () => {
 			paths: ["scripts/check.sh"],
 		});
 		expect(body.children[1]?.reviewMerge).toBeNull();
+		expect(body.children[0]?.productionVerification).toBeNull();
+		await repos.events.append({
+			runId: runA.id,
+			sandboxEventSeq: 3,
+			ts: "2026-11-12T00:00:00Z",
+			kind: "plan_run.deployment_verified",
+			stream: "system",
+			payload: { expectedSha: commit, environment: "production" },
+		});
+		const verified = await fetch(`${tcpUrl(handle)}/plan-runs/${created.planRun.id}`);
+		const verifiedBody = (await verified.json()) as typeof body;
+		expect(verifiedBody.children[0]?.productionVerification).toEqual({
+			sha: commit,
+			environment: "production",
+			verifiedAt: "2026-11-12T00:00:00Z",
+		});
+		expect(verifiedBody.children[1]?.productionVerification).toBeNull();
 		expect(body.children[0]?.metrics).toMatchObject({
 			runCount: 2,
 			reviewCount: 1,

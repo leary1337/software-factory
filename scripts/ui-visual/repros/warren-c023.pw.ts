@@ -62,13 +62,20 @@ for (const c of cases.filter(
 	test.describe(`${SEED} ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
 
-		test("numbers the bottom nav tabs 01-05", async ({ page }) => {
+		test("keeps primary workspace navigation compact and leaves tools in More", async ({
+			page,
+		}) => {
 			await openCase(page, c, fixture);
 			const nav = page.getByRole("navigation", { name: "Primary" });
-			const ordinals = await nav.evaluate((el) =>
-				[...el.children].map((tab) => (tab.firstElementChild?.textContent ?? "").trim()),
-			);
-			expect(ordinals).toEqual(["01", "02", "03", "04", "05"]);
+			expect(await nav.getByRole("link").allTextContents()).toEqual([
+				"Overview",
+				"Kanban",
+				"Production",
+			]);
+			await nav.getByRole("button", { name: "More" }).click();
+			await expect(
+				page.getByRole("dialog").getByRole("link", { name: "Operations" }),
+			).toBeVisible();
 		});
 	});
 }

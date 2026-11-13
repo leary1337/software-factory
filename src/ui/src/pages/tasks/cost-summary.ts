@@ -36,11 +36,14 @@ export function taskCost(child: PlanRunChildRow): CostSummary {
 }
 
 export function planCost(children: readonly PlanRunChildRow[]): CostSummary {
-	const costs = children.map(taskCost);
+	return sumCosts(children.map(taskCost));
+}
+
+export function sumCosts(costs: readonly CostSummary[]): CostSummary {
 	const known = costs.flatMap((cost) => (cost.amount === null ? [] : [cost.amount]));
 	return {
 		amount:
-			known.length > 0 || children.length === 0
+			known.length > 0 || costs.length === 0
 				? known.reduce((sum, amount) => sum + amount, 0)
 				: null,
 		unknownRuns: costs.reduce((sum, cost) => sum + cost.unknownRuns, 0),
@@ -49,6 +52,28 @@ export function planCost(children: readonly PlanRunChildRow[]): CostSummary {
 		estimateRuns: costs.reduce((sum, cost) => sum + cost.estimateRuns, 0),
 		runCount: costs.reduce((sum, cost) => sum + cost.runCount, 0),
 	};
+}
+
+export function preciseCostText(cost: CostSummary): string {
+	if (cost.amount === null) return "Unknown";
+	const amount =
+		cost.amount > 0 && cost.amount < 0.000001 ? "<$0.000001" : `$${cost.amount.toFixed(6)}`;
+	return `${amount}${cost.partial ? " + unknown" : ""}`;
+}
+
+/** Explain the difference between rounded rows and a total computed from original values. */
+export function roundingAdjustment(costs: readonly CostSummary[]): string | null {
+	const total = sumCosts(costs);
+	if (total.amount === null) return null;
+	const rounded = (amount: number) => Number(formatCostUsd(amount).slice(1));
+	const rows = costs.reduce(
+		(sum, cost) => sum + (cost.amount === null ? 0 : rounded(cost.amount)),
+		0,
+	);
+	const adjustment = Number((rounded(total.amount) - rows).toFixed(6));
+	if (adjustment === 0) return null;
+	const amount = Math.abs(adjustment);
+	return `${adjustment > 0 ? "+" : "−"}$${amount.toFixed(3).replace(/0$/, "")}`;
 }
 
 export function costText(cost: CostSummary): string {

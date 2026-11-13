@@ -192,19 +192,19 @@ export function RunsPage() {
 					<h1 className="font-semibold text-(--color-text) text-[17px] leading-[22px] tracking-[-0.025em] md:text-[20px] md:leading-6">
 						Runs
 					</h1>
-					<p className="text-(--color-text-2) text-[11px] leading-[14px] md:text-[12px] md:leading-4">
+					<p className="text-(--color-text-2) text-xs leading-4 md:text-xs md:leading-4">
 						Runs across every project.
 					</p>
 				</div>
 				{/* Below md the trailing slot is the mono run count; dispatch
 				    lives in the bottom nav (warren-ffaf, mock :66-68). */}
-				<div className="shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3 md:hidden">
+				<div className="shrink-0 font-mono text-(--color-text-3) text-xs leading-4 md:hidden">
 					{totalRuns} TOTAL
 				</div>
 				<OperatorOnly>
 					<Link
 						to="/dispatch"
-						className="hidden h-[31px] items-center gap-[7px] rounded-(--radius-sm) bg-(--color-primary) px-[11px] font-medium text-(--color-primary-ink) text-[11px] leading-[14px] hover:opacity-90 md:inline-flex"
+						className="hidden h-[31px] items-center gap-[7px] rounded-(--radius-sm) bg-(--color-primary) px-[11px] font-medium text-(--color-primary-ink) text-xs leading-4 hover:opacity-90 md:inline-flex"
 					>
 						＋ Dispatch run
 					</Link>
@@ -224,7 +224,7 @@ export function RunsPage() {
 			    the filter strip above it (warren-3de0), capped by the
 			    --color-thead column strip (mock :92-103). */}
 			<div className="flex flex-col overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) md:hidden">
-				<div className="flex shrink-0 items-center gap-2 bg-(--color-thead) px-3 py-2 font-mono text-(--color-text-3) text-[9px] leading-[11px] tracking-[0.06em]">
+				<div className="flex shrink-0 items-center gap-2 bg-(--color-thead) px-3 py-2 font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.06em]">
 					<span className="w-[70px] shrink-0">STATE</span>
 					<span className="grow">RUN</span>
 					<span className="shrink-0">ELAPSED · COST</span>
@@ -234,7 +234,7 @@ export function RunsPage() {
 			{/* Mobile pagination footer (mock :297-305): outside the card,
 			    count on the left, Load-more on the right. */}
 			<div className="flex shrink-0 items-center pt-3 pb-4 md:hidden">
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px]">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4">
 					{mobileRows.length} OF {totalRuns}
 					{isFiltered ? " · FILTERED" : null}
 				</span>
@@ -243,7 +243,7 @@ export function RunsPage() {
 					<button
 						type="button"
 						onClick={() => setMobileCount((c) => c + MOBILE_PAGE_STEP)}
-						className="font-medium text-(--color-primary) text-[11px] leading-[14px]"
+						className="font-medium text-(--color-primary) text-xs leading-4"
 					>
 						Load more →
 					</button>
@@ -278,7 +278,7 @@ export function RunsPage() {
 						<div className="flex items-center gap-3 text-(--color-text-3) text-xs">
 							{costTotals.total !== undefined && costTotals.priced > 0 ? (
 								<span
-									className="font-mono text-(--color-text-3) text-[10px] leading-3"
+									className="font-mono text-(--color-text-3) text-xs leading-4"
 									title={`${costTotals.priced} of ${totalRuns} runs have a recorded cost (all-time)`}
 								>
 									total: {formatCostUsd(costTotals.total)}

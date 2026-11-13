@@ -15,7 +15,7 @@ for (const c of cases.filter((entry) => entry.page.id === "project-detail")) {
 			await openCase(page, c, fixture);
 			const panel = page.getByRole("region", { name: "Production", exact: true });
 			await expect(panel).toBeVisible();
-			await expect(panel).toContainText("Deployment is not configured");
+			await expect(panel).toContainText("Deploy для этого проекта не настроен");
 			const box = await panel.boundingBox();
 			expect(box).not.toBeNull();
 			expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(c.size.width);
@@ -35,19 +35,19 @@ for (const c of cases.filter((entry) => entry.page.id === "project-detail")) {
 			});
 			const opened = openCase(page, c, fixture);
 			try {
-				await expect(page.getByText("Loading production…")).toBeVisible();
+				await expect(page.getByText("Загрузка Production…")).toBeVisible();
 			} finally {
 				release?.();
 			}
 			await opened;
 			const panel = page.getByRole("region", { name: "Production", exact: true });
-			await expect(panel.getByRole("button", { name: "Retry" })).toBeVisible();
+			await expect(panel.getByRole("button", { name: "Повторить" })).toBeVisible();
 			await page.unroute("**/projects/*/deploy");
 			await page.route("**/projects/*/deploy", (route) =>
 				route.fulfill({ json: { configured: false } }),
 			);
-			await panel.getByRole("button", { name: "Retry" }).click();
-			await expect(panel).toContainText("Deployment is not configured");
+			await panel.getByRole("button", { name: "Повторить" }).click();
+			await expect(panel).toContainText("Deploy для этого проекта не настроен");
 		});
 
 		test("distinguishes unknown production from no release", async ({ page }) => {
@@ -70,8 +70,8 @@ for (const c of cases.filter((entry) => entry.page.id === "project-detail")) {
 			);
 			await openCase(page, c, fixture);
 			const panel = page.getByRole("region", { name: "Production", exact: true });
-			await expect(panel).toContainText("Current release unknown");
-			await expect(panel).not.toContainText("Not deployed yet");
+			await expect(panel).toContainText("Текущий Release неизвестен");
+			await expect(panel).not.toContainText("Ещё не опубликовано");
 			await expect(panel.getByRole("button", { name: "Deploy", exact: true })).toBeDisabled();
 		});
 	});

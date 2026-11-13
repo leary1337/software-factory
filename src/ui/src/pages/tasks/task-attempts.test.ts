@@ -26,6 +26,12 @@ function attempt(
 }
 
 describe("groupTaskAttempts", () => {
+	test("counts a repeated plan child once when combining cached and selected attempts", () => {
+		const current = attempt("2");
+		const older = attempt("1", { state: "cancelled" });
+		const [task] = groupTaskAttempts([current, older, current]);
+		expect(task?.attempts).toHaveLength(2);
+	});
 	test("retains cancelled attempts under one current task regardless of renamed titles", () => {
 		const old = attempt("1", { state: "cancelled" }, { title: "Old name" });
 		const current = attempt("2");

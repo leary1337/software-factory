@@ -1,39 +1,34 @@
 @import "tailwindcss";
 /*
- * The Direction C design tokens (warren-059a). Everything a theme change
- * touches lives in that file: the verbatim canvas token set, the light-theme
+ * The shared design tokens (warren-f106). Everything a theme change
+ * touches lives in that file: the Balun reference palette, the light-theme
  * remap, the legacy-name compatibility aliases, and the Tailwind @theme
  * wiring. What stays here is the Tailwind import, the fonts the tokens name,
  * the `dark:` variant wiring, and the base element rules.
  */
 @import "./tokens.css";
 
-/*
- * Self-hosted brand fonts (Phase 1, warren-23fe / pl-55a3 step 1).
- *
- * We declare @font-face inline against the @fontsource-variable woff2
- * payloads rather than importing the package's bundled CSS — the
- * bundled stylesheets ship rules for every subset (cyrillic / greek /
- * vietnamese / latin-ext / latin) which inflates the CSS bundle past
- * the check:bundle-size ratchet. The UI is English-only; latin +
- * latin-ext covers what we ship today. Variable fonts give us the
- * full 100–900 weight axis from a single woff2 per family.
- */
+/* Reference fonts include Latin and Cyrillic and are served locally. */
 @font-face {
-	font-family: "Inter Variable";
+	font-family: "Roboto Mono";
 	font-style: normal;
 	font-display: swap;
-	font-weight: 100 900;
-	src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
-		format("woff2-variations");
+	font-weight: 100 400;
+	src: url("/fonts/roboto-mono-regular.woff2") format("woff2");
 }
 @font-face {
-	font-family: "JetBrains Mono Variable";
+	font-family: "Roboto Mono";
 	font-style: normal;
 	font-display: swap;
-	font-weight: 100 900;
-	src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
-		format("woff2-variations");
+	font-weight: 500 900;
+	src: url("/fonts/roboto-mono-bold.woff2") format("woff2");
+}
+@font-face {
+	font-family: "Neue Machina";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 600 900;
+	src: url("/fonts/neue-machina-bold.woff2") format("woff2");
 }
 
 /*
@@ -45,7 +40,7 @@
  * "system" to a concrete data-theme=light|dark at runtime, this single
  * source of truth keeps utilities and tokens aligned.
  *
- * Direction C inverts the default: the token sheet's :root is the dark
+ * The default is dark: the token sheet's :root is the dark
  * palette and `[data-theme="light"]` carries the light remap, but the
  * variant wiring is unchanged — it still keys off the concrete attribute.
  */
@@ -71,8 +66,7 @@ body {
 
 /*
  * Tabular numerals on data surfaces — keeps numeric columns
- * (run durations, counts, ids, timestamps) aligned even when
- * the proportional sans font is in use.
+ * (run durations, counts, ids, timestamps) aligned.
  */
 table,
 code,
@@ -80,4 +74,38 @@ pre,
 .font-mono,
 [class*="tabular"] {
 	font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-display);
+		font-weight: 700;
+	}
+	summary {
+		cursor: pointer;
+	}
+	button,
+	input,
+	select,
+	textarea {
+		font: inherit;
+	}
+	button,
+	a,
+	summary {
+		touch-action: manipulation;
+	}
+	:focus-visible {
+		outline-color: var(--color-primary);
+	}
+	::selection {
+		background: var(--color-action);
+		color: var(--color-action-ink);
+	}
+}
+
+.lucide {
+	stroke-width: 1.75;
 }
