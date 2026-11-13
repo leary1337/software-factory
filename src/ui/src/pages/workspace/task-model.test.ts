@@ -40,9 +40,14 @@ describe("buildWorkspaceTasks", () => {
 			state: "pr_open",
 			reviewSteps: [{ runId: "review", step: "review", executionState: "running", summary: null }],
 		});
-		const tasks = buildWorkspaceTasks([detail], [run("implementation"), run("review")]);
+		const startedAt = "2026-01-02T12:00:00.000Z";
+		const tasks = buildWorkspaceTasks(
+			[detail],
+			[run("implementation"), run("review", { startedAt })],
+		);
 		expect(tasks).toHaveLength(1);
 		expect(tasks[0]).toMatchObject({ column: "Review", attention: false, runId: "review" });
+		expect(tasks[0]?.updatedAt).toBe(Date.parse(startedAt));
 		expect(tasks[0]?.runs).toHaveLength(2);
 	});
 	test("groups retries and continuation chains, keeping the live attempt current", () => {
@@ -150,6 +155,34 @@ describe("buildWorkspaceTasks", () => {
 		expect(task).toMatchObject({ column: "In progress", attention: false, runId: "manual" });
 		expect(task?.currentPlan).toBeUndefined();
 		expect(task?.plan?.attempts).toHaveLength(1);
+	});
+
+	test("a merge clears earlier failed manual attempts and keeps later failures actionable", () => {
+		const detail = plan({
+			state: "merged",
+			prMergedAt: "2026-01-04",
+		});
+		detail.planRun.state = "cancelled";
+		const oldFailure = run("before", {
+			seedId: "issue",
+			state: "failed",
+			createdAt: Date.parse("2026-01-02"),
+			endedAt: "2026-01-03",
+		});
+		const [merged] = buildWorkspaceTasks([detail], [oldFailure]);
+		expect(merged).toMatchObject({ column: "Merged", attention: false });
+		expect(merged?.runs).toContainEqual(oldFailure);
+		const newFailure = run("after", {
+			...oldFailure,
+			id: "after",
+			createdAt: Date.parse("2026-01-05"),
+			endedAt: "2026-01-06",
+		});
+		expect(buildWorkspaceTasks([detail], [oldFailure, newFailure])[0]).toMatchObject({
+			column: "Stopped",
+			attention: true,
+			runId: "after",
+		});
 	});
 
 	test("terminates malformed cyclic continuation links", () => {
