@@ -21,25 +21,13 @@ import {
 	PromptPanel,
 	RunDefinitionPanel,
 	RuntimePanel,
-	SpendPanel,
+	TokensPanel,
 } from "@/pages/run-detail/side-panels.tsx";
 import { CancelRunButton, SteerForm } from "@/pages/run-detail/steering-panel.tsx";
 import { extractReapSummary, isBridgeStalled } from "@/pages/run-detail-format.ts";
 import { projectLabel } from "@/pages/runs/runs-format.ts";
 import { RunReviewPanel } from "./review-panel.tsx";
 import { formatRunElapsed } from "./run-detail-format.ts";
-
-/**
- * Run detail — the Direction C workload inspector (warren-8c85 /
- * pl-7e38 step 4), translated from docs/ui-revamp/screens/run-detail.jsx:
- * breadcrumb + identity header, the five-cell lifecycle phase rail, the
- * structured event tail (main column), and the side column's Runtime /
- * Spend / Preview / Run definition / Prompt / Steering panels. Live
- * tailing rides the existing NDJSON stream reader (useEventStream);
- * operator affordances (cancel, re-run, steer, preview login/teardown)
- * ride OperatorOnly so the WARREN_AUTH=public spectator projection stays
- * read-only.
- */
 
 /**
  * Event kinds whose arrival means the warren run row may have advanced
@@ -406,7 +394,7 @@ export function RunDetailPage() {
 
 			{/*
 			 * Mobile section order (warren-3399): below md the stack reads
-			 * Runtime → Spend → Event stream → Steering, with Prompt / Run
+			 * Runtime → Tokens → Event stream → Steering, with Prompt / Run
 			 * definition / Preview collapsed into details disclosures — the
 			 * 375px mock omits them entirely; collapsing keeps the data
 			 * reachable. Breakpoint decision: the two-column row still cuts
@@ -435,7 +423,7 @@ export function RunDetailPage() {
 						<RuntimePanel run={r} />
 					</div>
 					<div className="order-2 md:order-none">
-						<SpendPanel run={r} />
+						<TokensPanel run={r} />
 					</div>
 					<div className="hidden md:contents">
 						{r.previewState !== null ? <PreviewPanel run={r} /> : null}

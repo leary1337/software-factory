@@ -11,7 +11,7 @@ Warren needs two kinds of credential: one so an agent can call its model API, an
 
 When the `claude` CLI is on PATH, the `warren up` wizard offers `claude setup-token` and stores the resulting `CLAUDE_CODE_OAUTH_TOKEN`. A pasted token works too.
 
-Subscription auth serves the claude-code harness only. Pi and every other harness still need their own API keys. The wizard states this limit at the prompt, and the cost display honors it: runs under subscription auth carry `costBasis=subscription_estimate` and the UI shows the cost as an estimate, not a bill. `maxCostUsd` still enforces against that estimate as a runaway brake.
+Subscription auth serves the claude-code harness only. Pi and every other harness still need their own API keys. The wizard states this limit at the prompt.
 
 ### Anthropic API key
 

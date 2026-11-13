@@ -3,6 +3,7 @@ import type { RunRow } from "../db/schema.ts";
 import type { HandleInFlightInput } from "./in-flight.ts";
 import type { ReviewDelivery } from "./review-delivery.ts";
 import { passedReviewCommit } from "./review-result.ts";
+import { MERGE_WAIT_REASONS } from "./review-warren-merge.ts";
 
 const MAX_MERGE_ATTEMPTS = 3;
 type Events = Awaited<ReturnType<HandleInFlightInput["repos"]["events"]["listByRun"]>>;
@@ -57,7 +58,28 @@ export async function deliverMerge(
 	if (events.some((event) => event.kind === "plan_run.review_merged")) return delivery;
 	const last = latestMergeResult(events);
 	if (last?.kind === "blocked") return blockedDelivery(delivery, last);
-	const attempts = events.filter((event) => event.kind === "plan_run.review_merge_attempt").length;
+	const acknowledgedWaits = events.filter((event) => {
+		if (event.kind !== "plan_run.review_merge_result") return false;
+		const result = readReviewMergeResult(event.payloadJson);
+		return result?.kind === "retry" && MERGE_WAIT_REASONS.has(result.reason);
+	}).length;
+	// Unacknowledged attempts still count after a crash; only a persisted,
+	// classified wait refunds the transport-attempt budget.
+	const attempts =
+		events.filter((event) => event.kind === "plan_run.review_merge_attempt").length -
+		acknowledgedWaits;
+	const waits = events.filter((event) => event.kind === "plan_run.review_merge_result").length;
+	// A missing check or stuck provider operation must remain bounded across restarts.
+	if (waits >= 180) {
+		const stopped: ReviewMergeResult = {
+			kind: "blocked",
+			reason: "merge_wait_exhausted",
+			detail: "Automatic merge is still waiting after 180 polls.",
+			nextAction: "Inspect missing CI results or a pending branch update, then retry review.",
+		};
+		await input.emit(run.id, "plan_run.review_merge_result", { ...stopped });
+		return blockedDelivery(delivery, stopped);
+	}
 	if (attempts >= MAX_MERGE_ATTEMPTS) {
 		const stopped: ReviewMergeResult = {
 			kind: "blocked",

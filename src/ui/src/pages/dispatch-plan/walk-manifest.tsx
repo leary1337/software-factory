@@ -2,7 +2,7 @@ import type { InstanceFactsResponse } from "@/api/instance-types.ts";
 import type { ProjectRow } from "@/api/types.ts";
 import type { AdmissionRow, AdmissionStatus, ManifestLine } from "../dispatch/manifest-view.ts";
 import { buildAdmissionRows, repositoryLabel } from "../dispatch/manifest-view.ts";
-import { parseCostCap, parseIssueIds, type WalkDraft } from "./walk-draft.ts";
+import { parseIssueIds, type WalkDraft } from "./walk-draft.ts";
 
 /**
  * Right rail of the Direction C Dispatch plan page (warren-02bb): the
@@ -33,7 +33,6 @@ export interface WalkManifestInput {
 	readonly agent: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly costCap: string;
 	readonly planId: string;
 	readonly issuesText: string;
 	readonly sourceMode: WalkDraft["sourceMode"];
@@ -68,8 +67,6 @@ export function buildWalkManifestLines(input: WalkManifestInput): readonly Manif
 		{ key: "runtime:" },
 		{ indent: true, key: "adapter: ", value: input.agent.length > 0 ? input.agent : "—" },
 		{ indent: true, key: "model: ", value: modelValue(input.provider, input.model) },
-		{ key: "limits:" },
-		{ indent: true, key: "costUsd: ", value: costValue(input.costCap) },
 		{ key: "walk:" },
 		{
 			indent: true,
@@ -108,7 +105,6 @@ export function buildWalkManifestSummaryLines(input: WalkManifestInput): readonl
 			key: "children: ",
 			value: input.sourceMode === "issues" ? `${issues.length}` : openChildrenValue(input),
 		},
-		{ key: "costUsd: ", value: costValue(input.costCap) },
 		{ key: "gate: ", value: "previous PR merged" },
 	];
 }
@@ -126,11 +122,6 @@ function modelValue(provider: string, model: string): string {
 	if (model.length > 0) return model;
 	if (provider.length > 0) return provider;
 	return "—";
-}
-
-function costValue(costCap: string): string {
-	const parsed = parseCostCap(costCap);
-	return parsed !== null && "value" in parsed ? `${parsed.value.toFixed(2)} / child` : "—";
 }
 
 /** The admission-policy rows the right rail renders, in display order. */

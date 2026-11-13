@@ -4,19 +4,6 @@ import { cn } from "@/lib/utils.ts";
 import type { OpsWindow } from "../../../../core/wire.ts";
 import { formatDurationMs, oldestPhaseInstant } from "./operations.helpers.ts";
 
-/**
- * The Operations capacity strip (warren-d903): RUNNING / QUEUE DEPTH /
- * SPEND / DELIVERY cards from one `GET /ops/overview` snapshot. Cards
- * whose section the public projection omits (spend, delivery) render on
- * presence — a spectator sees the reduced strip, not zeroed cards
- * (warren-f53e: absent ≠ 0).
- *
- * Mobile (warren-10d3, mobile/operations.jsx:72-137): below sm the strip
- * is the mock's 2x2 grid — RUNNING|QUEUE over SPEND|DELIVERY — with a
- * right hairline on the left cells, a bottom hairline on the first row,
- * 12px cell padding, and 18/22 600 values. The sm+ row is unchanged.
- */
-
 interface CapacityCellSpec {
 	readonly label: string;
 	readonly value: string;
@@ -62,12 +49,12 @@ export function CapacityStrip({
 	overview,
 	runs,
 	now,
-	window = "24h",
+	window: _window = "24h",
 }: {
 	overview: OpsOverviewResponse | undefined;
 	runs: readonly RunRow[] | undefined;
 	now: number;
-	/** Trailing window the spend/delivery buckets cover (warren-7194). */
+
 	window?: OpsWindow;
 }) {
 	if (overview === undefined) {
@@ -90,7 +77,6 @@ export function CapacityStrip({
 			: oldestQueued === null
 				? "queue empty"
 				: `oldest queued ${formatDurationMs(now - oldestQueued)}`;
-	const spend = overview.spend;
 	const delivery = overview.delivery;
 
 	const cells: CapacityCellSpec[] = [
@@ -107,16 +93,6 @@ export function CapacityStrip({
 			detail: oldestQueuedLabel,
 		},
 	];
-	if (spend !== undefined) {
-		cells.push({
-			label: `SPEND · ${window.toUpperCase()}`,
-			// The USD sums are operator-only — a spectator's reduced body
-			// carries windowRuns alone, so the value renders "—", not 0.00.
-			value: spend.windowUsd === undefined ? "—" : spend.windowUsd.toFixed(2),
-			unit: "USD",
-			detail: `${spend.windowRuns} runs in window`,
-		});
-	}
 	if (delivery !== undefined) {
 		cells.push({
 			label: "DELIVERY",

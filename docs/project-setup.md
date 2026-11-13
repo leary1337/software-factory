@@ -310,3 +310,50 @@ should see:
 3. GitHub marks the PR as auto-merge enabled, with the squash method
 4. Once CI passes, the PR auto-merges
 5. GitHub deletes the head branch
+
+### Reviewed plans without paid branch protection
+
+For an owner-controlled private repository without GitHub Pro, explicitly choose
+Warren verification on the **default branch**, keeping the existing quality gate:
+
+```yaml
+pr:
+  autoMerge:
+    verification: warren
+    method: merge
+    requiredChecks: [test]
+```
+
+Use the actual CI job names. The factory preset also enables
+`WARREN_PLAN_RUN_MERGE_ON_PASS=1`.
+
+Reviewed plan steps require PASS, the independent runtime gate, and CI success
+for the pinned head. UI changes also require UI review.
+
+Standalone runs cannot use this mode to arm native GitHub auto-merge.
+Omit `verification` to keep the existing forge policy.
+
+Warren keeps the reviewed commits through a fast-forward merge. It does not
+squash or rebase them.
+
+The head must include the current base. Git then compares and updates that base
+with an explicit SHA lease.
+
+Git rejects a concurrent base change. Warren never overwrites that history.
+
+GitHub must confirm the PR merge before the next plan child starts.
+Warren updates outdated PR branches, then runs a new review and gate.
+
+Missing or pending CI waits for at most 180 coordinator polls. Transport errors
+have a separate limit of three attempts.
+
+Failed checks, draft PRs, protected paths and policy changes still need attention.
+This mode controls Warren writes but cannot prevent direct pushes by other writers.
+
+Use the default forge mode with strict branch protection for server enforcement.
+
+References:
+
+- [Git explicit SHA lease](https://git-scm.com/docs/git-push).
+- [GitHub checks](https://docs.github.com/en/rest/checks/runs).
+- [Combined commit statuses](https://docs.github.com/en/rest/commits/statuses).

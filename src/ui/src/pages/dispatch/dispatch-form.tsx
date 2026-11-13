@@ -115,10 +115,8 @@ export interface DispatchFormProps {
 	prompt: string;
 	providerOverride: string;
 	modelOverride: string;
-	costCap: string;
 	providerDefaultKind: "project" | "agent" | null;
 	modelDefaultKind: "project" | "agent" | null;
-	costCapError: string | null;
 	submitError: string | null;
 	pending: boolean;
 	onAgent: (value: string) => void;
@@ -128,7 +126,6 @@ export interface DispatchFormProps {
 	onPrompt: (value: string) => void;
 	onProvider: (value: string) => void;
 	onModel: (value: string) => void;
-	onCostCap: (value: string) => void;
 	onCancel: () => void;
 	/** Fires on form submission (Enter key or the Dispatch button). */
 	onSubmit: () => void;
@@ -139,8 +136,7 @@ export function DispatchForm(props: DispatchFormProps) {
 		!props.pending &&
 		props.agent.length > 0 &&
 		props.project.length > 0 &&
-		props.prompt.trim().length > 0 &&
-		props.costCapError === null;
+		props.prompt.trim().length > 0;
 
 	return (
 		<form
@@ -296,27 +292,6 @@ export function DispatchForm(props: DispatchFormProps) {
 							placeholder="What should the agent do?"
 						/>
 						<p className={hintClass}>{props.prompt.length} CHARACTERS</p>
-					</div>
-				</Section>
-			</MobileCard>
-
-			<MobileCard title="Guardrails">
-				<Section title="Guardrails" description="Optional limits for this run." divider="none">
-					<div className="grid gap-[12px] sm:grid-cols-2">
-						<Field
-							label="Cost cap (USD)"
-							hint={props.costCapError ?? "THE RUN STOPS AT THIS SPEND"}
-						>
-							<input
-								className={`${controlClass} ${props.costCapError ? "border-(--color-danger)" : ""} font-mono`}
-								value={props.costCap}
-								onChange={(e) => props.onCostCap(e.target.value)}
-								placeholder="unset"
-								inputMode="decimal"
-								autoComplete="off"
-								spellCheck={false}
-							/>
-						</Field>
 					</div>
 				</Section>
 			</MobileCard>

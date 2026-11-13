@@ -166,10 +166,6 @@ function campaignStatus(store: CampaignStateStore, campaignId: string): Record<s
 		campaign: campaignToJson(requireCampaign(store, campaignId)),
 		workItems: store.campaigns.listWorkItems(campaignId).map(workItemToJson),
 		prIdentities: store.events.listPrIdentities(campaignId).map(prIdentityToJson),
-		budget: {
-			capUsdCents: store.campaigns.getCampaign(campaignId)?.budgetCapUsdCents ?? null,
-			availableUsdCents: store.budget.availableUsdCents(campaignId),
-		},
 		openAttention: store.events.listOpenAttention(campaignId).length,
 		report: buildCampaignReport(store, campaignId),
 	};

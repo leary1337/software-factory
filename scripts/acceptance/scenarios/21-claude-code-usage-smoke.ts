@@ -1,22 +1,3 @@
-/**
- * Scenario 21 — claude-code built-in cost-tracking smoke (warren-87f9).
- *
- * Parallel to scenario 16 (pi cost parity) but for the `claude-code`
- * built-in. Asserts that warren's bridge `extractClaudeUsage` reads the
- * terminal `result` envelope's `total_cost_usd` + `usage.*_tokens` and
- * persists them via `RunsRepo.attachStats` — so a claude-code run lands
- * with non-null `cost_usd` / `tokens_input` / `tokens_output` /
- * `tokens_cache_read` / `tokens_cache_write` columns, the same way pi
- * runs do.
- *
- * The acceptance harness injects a stub `claude` binary via a PATH
- * shim (lib/stub-agent/claude-code-path-shim.sh, warren-0f18), so no
- * real Anthropic API key is needed. The shim emits a fixed-shape
- * stream-json result envelope that warren's own parseJsonlClaude
- * (src/runtime/adapters/parsers/) reads, so cost assertions are
- * deterministic.
- */
-
 import {
 	AcceptanceError,
 	assertEqual,
@@ -53,7 +34,6 @@ interface RunRow {
 	readonly sandboxRunId: string | null;
 	readonly renderedAgentJson: AgentDefinitionEnvelope;
 	readonly state: string;
-	readonly costUsd?: number | null;
 	readonly tokensInput?: number | null;
 	readonly tokensOutput?: number | null;
 	readonly tokensCacheRead?: number | null;
@@ -71,8 +51,7 @@ const CLAUDE_USAGE_TIMEOUT_MS = 15_000;
 
 export const scenario: Scenario = {
 	id: "21",
-	title:
-		"claude-code cost smoke — POST /runs agent=claude-code populates cost_usd/tokens_* on terminal",
+	title: "claude-code usage smoke — POST /runs agent=claude-code populates tokens_* on terminal",
 	// Same constraint as 16: needs the host-side sample project + the
 	// claude-code PATH-shim stub (fixtures shim-bin, warren-ea0a).
 	modes: ["in-proc"],
@@ -91,7 +70,7 @@ export const scenario: Scenario = {
 			body: {
 				agent: "claude-code",
 				project: project.id,
-				prompt: "scenario-17 claude-code cost smoke",
+				prompt: "scenario-17 claude-code usage smoke",
 			},
 		});
 		const run = created.run;
@@ -114,7 +93,6 @@ export const scenario: Scenario = {
 		try {
 			await waitForFirstEvent(http, run.id, FIRST_EVENT_TIMEOUT_MS);
 
-			// Wait for terminal cost extraction to land on the run row
 			// (warren-87f9). The stub emits a single `result` envelope with
 			// `total_cost_usd=0.000421`, `input_tokens=1200`,
 			// `output_tokens=400`, `cache_read_input_tokens=5000`,
@@ -122,10 +100,6 @@ export const scenario: Scenario = {
 			// extractClaudeUsage on terminal detection and persists via
 			// attachStats.
 			const final = await waitForClaudeUsage(http, run.id, CLAUDE_USAGE_TIMEOUT_MS);
-			assertTrue(
-				typeof final.costUsd === "number" && final.costUsd > 0,
-				`run.cost_usd should be > 0 after claude-code result; got ${JSON.stringify(final.costUsd)}`,
-			);
 			assertTrue(
 				typeof final.tokensInput === "number" && final.tokensInput > 0,
 				`run.tokens_input should be > 0; got ${JSON.stringify(final.tokensInput)}`,
@@ -178,13 +152,10 @@ async function waitForClaudeUsage(http: WarrenHttp, runId: string, timeoutMs: nu
 		return await waitForRunPredicate(
 			http,
 			runId,
-			(row) =>
-				typeof row.costUsd === "number" &&
-				typeof row.tokensInput === "number" &&
-				typeof row.tokensOutput === "number",
+			(row) => typeof row.tokensInput === "number" && typeof row.tokensOutput === "number",
 			timeoutMs,
 			(row) =>
-				`state=${row.state} costUsd=${JSON.stringify(row.costUsd)} ` +
+				`state=${row.state} ` +
 				`tokensInput=${JSON.stringify(row.tokensInput)} tokensOutput=${JSON.stringify(row.tokensOutput)}`,
 		);
 	} catch (err) {

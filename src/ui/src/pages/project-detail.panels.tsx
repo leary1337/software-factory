@@ -121,7 +121,6 @@ function DefaultsGrid({ defaults }: { defaults: DefaultsConfig }) {
 		["defaultProvider", defaults.defaultProvider],
 		["defaultBranch", defaults.defaultBranch],
 		["runBranchPrefix", defaults.runBranchPrefix],
-		["maxCostUsd", defaults.maxCostUsd?.toFixed(2)],
 		["qualityGate", defaults.qualityGate],
 		["defaultPrompt", defaults.defaultPrompt],
 	];

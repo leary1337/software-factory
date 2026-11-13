@@ -32,8 +32,6 @@
 
 import type {
 	ArmAutoMergeOptions,
-	CheckRun,
-	CheckSummary,
 	Forge,
 	ForgeCapabilities,
 	ForgeError,
@@ -48,13 +46,15 @@ import type {
 	RepoRef,
 } from "../contract.ts";
 import { armGitHubAutoMerge } from "./auto-merge.ts";
+import { readCheckSummary } from "./check-summary.ts";
 import { GitHubDeploys } from "./deploys.ts";
 import { toForgeError } from "./errors.ts";
 import { GITHUB_API_BASE } from "./headers.ts";
 import { requestGitHub } from "./http.ts";
+import { readGitHubMergeChecks } from "./merge-checks.ts";
 import { readGitHubMergeProtection } from "./merge-protection.ts";
 import { type PrWriteMethod, writePullRequest } from "./pr-text.ts";
-import { parseCheckRun, readAutoMergeState, readJson, readText, rollUp } from "./readers.ts";
+import { readAutoMergeState, readJson, readText } from "./readers.ts";
 import { GITHUB_FORGE_KIND, parseGitHubRepoRef } from "./repo-ref.ts";
 import { writeReviewComment } from "./review-comment.ts";
 import {
@@ -96,6 +96,7 @@ function err<T>(error: ForgeError): ForgeResult<T> {
 }
 
 interface GitHubPrJson {
+	draft?: unknown;
 	merge_commit_sha?: unknown;
 	readonly number?: unknown;
 	readonly html_url?: unknown;
@@ -254,6 +255,7 @@ export class GitHubForge implements Forge {
 		return ok({
 			lifecycle,
 			mergedAt,
+			...(typeof body.draft === "boolean" ? { draft: body.draft } : {}),
 			...(typeof body.merge_commit_sha === "string" ? { mergedCommit: body.merge_commit_sha } : {}),
 			headCommit: typeof head?.sha === "string" ? head.sha : "",
 			baseBranch: typeof base?.ref === "string" ? base.ref : "",
@@ -310,6 +312,21 @@ export class GitHubForge implements Forge {
 		});
 	}
 
+	readMergeChecks(ref: RepoRef, commit: string) {
+		return readGitHubMergeChecks({
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/commits/${encodeURIComponent(commit)}`,
+			commit,
+			fetch: this.fetch,
+		});
+	}
+
+	updatePullRequestBranch(ref: RepoRef, pr: PullRequestRef, expectedHead: string) {
+		return this.writePr(ref, `pulls/${pr.number}/update-branch`, "PUT", {
+			expected_head_sha: expectedHead,
+		});
+	}
+
 	private writePr(
 		ref: RepoRef,
 		path: string,
@@ -329,29 +346,13 @@ export class GitHubForge implements Forge {
 		});
 	}
 
-	async listChecks(ref: RepoRef, commit: string): Promise<ForgeResult<CheckSummary>> {
-		if (!this.capabilities.checkRuns) {
-			return err({
-				kind: "unsupported",
-				detail:
-					"capabilities.checkRuns is false (fine-grained PAT cannot reach the Checks API — §5/§6.7)",
-			});
-		}
-		const minted = await this.mint(ref);
-		if (!minted.ok) return err(minted.error);
-		const result = await requestGitHub({
-			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/commits/${encodeURIComponent(commit)}/check-runs?per_page=100`,
-			method: "GET",
-			token: minted.value.secret,
-			userAgent: USER_AGENT,
-			context: "GET /check-runs",
+	listChecks(ref: RepoRef, commit: string) {
+		return readCheckSummary({
+			enabled: this.capabilities.checkRuns,
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/commits/${encodeURIComponent(commit)}`,
 			fetch: this.fetch,
 		});
-		if (!result.ok) return err(toForgeError(result.error));
-		const body = (await readJson(result.response)) as { check_runs?: unknown } | null;
-		const raw = Array.isArray(body?.check_runs) ? body.check_runs : [];
-		const runs = raw.map(parseCheckRun).filter((r): r is CheckRun => r !== null);
-		return ok({ conclusion: rollUp(runs), runs });
 	}
 
 	/** Best-effort by contract: any failure degrades to ok with `null`. */

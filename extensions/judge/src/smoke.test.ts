@@ -25,7 +25,6 @@ import { JudgmentCursorStore } from "./cursor-store.ts";
 import { FakeWarren } from "./fake-warren.ts";
 import type { JudgeOutcome } from "./judge-loop.ts";
 import { createFetchHandler } from "./server.ts";
-import { SpendLedger } from "./spend-ledger.ts";
 import { VerdictStore } from "./verdict-store.ts";
 import { validateVerdict, type JudgeVerdict } from "./wire.ts";
 
@@ -50,7 +49,6 @@ function verdictFor(runId: string, model: string, confidence: "high" | "low"): J
 			model,
 			rubricVersion: RUBRIC,
 			judgedAt: NOW.toISOString(),
-			costUsd: 0.01,
 			pagesRead: 1,
 			pageCapHit: false,
 		},
@@ -84,7 +82,6 @@ describe("judge export smoke", () => {
 	let client: WarrenClient;
 	let verdicts: VerdictStore;
 	let cursors: JudgmentCursorStore;
-	let spend: SpendLedger;
 	let metrics: CalibrationMetricStore;
 	let handler: (req: Request) => Response;
 
@@ -97,7 +94,6 @@ describe("judge export smoke", () => {
 		client = createClient({ baseUrl: fake.baseUrl, token: "smoke-token" });
 		verdicts = new VerdictStore(dbPath, { now: () => NOW });
 		cursors = new JudgmentCursorStore(dbPath);
-		spend = new SpendLedger(dbPath);
 		metrics = new CalibrationMetricStore(dbPath);
 		handler = createFetchHandler({
 			verdicts,
@@ -112,7 +108,6 @@ describe("judge export smoke", () => {
 		fake.stop();
 		verdicts.close();
 		cursors.close();
-		spend.close();
 		metrics.close();
 		rmSync(dir, { recursive: true, force: true });
 	});
@@ -137,17 +132,14 @@ describe("judge export smoke", () => {
 		});
 	}
 
-	async function cycle(judge: JudgeFn, dailyBudgetUsd = 5) {
+	async function cycle(judge: JudgeFn, _dailyBudgetUsd = 5) {
 		return await collectOnce({
 			client,
 			verdicts,
 			cursors,
-			spend,
 			judge,
 			rubricVersion: RUBRIC,
 			judgeModelId: CHEAP_MODEL,
-			maxCostUsdPerJudgment: 0.25,
-			dailyBudgetUsd,
 			now: () => NOW,
 		});
 	}
@@ -161,25 +153,20 @@ describe("judge export smoke", () => {
 				stats: {
 					attempts: 1,
 					tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 },
-					costUsd: 0.01,
 					pagesRead: 1,
 					pageCapHit: false,
 				},
 			}) satisfies JudgeOutcome;
 
-		const stats = await collectOnce({
+		await collectOnce({
 			client,
 			verdicts,
 			cursors,
-			spend,
 			judge,
 			rubricVersion: RUBRIC,
 			judgeModelId: CHEAP_MODEL,
-			maxCostUsdPerJudgment: 0.25,
-			dailyBudgetUsd: 5,
 			now: () => NOW,
 		});
-		expect(stats).toMatchObject({ terminalRuns: 1, judged: 1, budgetDeferred: 0 });
 
 		// The gate: no token, no rows — there is no public projection.
 		expect(handler(authed("/verdicts.jsonl", null)).status).toBe(401);
@@ -193,37 +180,6 @@ describe("judge export smoke", () => {
 		expect(validateVerdict(row.verdict).provenance.rubricVersion).toBe(RUBRIC);
 	});
 
-	test("an exhausted daily budget defers the run — no marker, judged once budget frees", async () => {
-		addTerminalRun("r-smoke-budget");
-		const gated: JudgeFn = async () => {
-			throw new Error("judge must not run past the budget gate");
-		};
-		const stats = await cycle(gated, 0);
-		expect(stats).toMatchObject({ judged: 0, budgetDeferred: 1 });
-
-		// No marker exported: a budget_exceeded row would occupy the store's
-		// dedupe key and block the eventual real verdict (warren-5fcf).
-		expect(await exportRows(handler)).toHaveLength(0);
-
-		// Budget available again — the deferred run is judged for real.
-		const judge: JudgeFn = async (runId) =>
-			({
-				kind: "verdict",
-				verdict: verdictFor(runId, CHEAP_MODEL, "high"),
-				stats: {
-					attempts: 1,
-					tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 },
-					costUsd: 0.01,
-					pagesRead: 1,
-					pageCapHit: false,
-				},
-			}) satisfies JudgeOutcome;
-		await cycle(judge, 5);
-		const rows = await exportRows(handler);
-		expect(rows).toHaveLength(1);
-		expect(rows[0]).toMatchObject({ kind: "verdict", runId: "r-smoke-budget" });
-	});
-
 	test("re-judge appends: both verdicts stay readable keyed by rubric version, and /agreement serves the metric", async () => {
 		addTerminalRun("r-smoke-rejudge");
 		const cheapJudge: JudgeFn = async (runId) =>
@@ -233,7 +189,6 @@ describe("judge export smoke", () => {
 				stats: {
 					attempts: 1,
 					tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 },
-					costUsd: 0.01,
 					pagesRead: 1,
 					pageCapHit: false,
 				},

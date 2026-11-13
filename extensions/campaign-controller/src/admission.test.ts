@@ -78,7 +78,6 @@ function unapprovedManifest(): Record<string, unknown> {
 			model: "claude-sonnet-4-5",
 		},
 		prompt: "Fix the assigned OpenClaw issue end to end.",
-		budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 		maxConcurrentRuns: 2,
 		expiresAt: "2026-12-31T00:00:00.000Z",
 	};
@@ -182,7 +181,6 @@ describe("importCampaign", () => {
 		expect(result.campaign.status).toBe("awaiting_approval");
 		expect(result.campaign.approvedAtMs).toBeNull();
 		expect(result.campaign.policyDigest).toBe(result.policyDigest);
-		expect(result.campaign.budgetCapUsdCents).toBe(10_000);
 		expect(result.workItems.map((item) => item.issueRef)).toEqual(["812", "815", "823"]);
 		expect(result.workItems.map((item) => item.position)).toEqual([1, 2, 3]);
 		expect(result.workItems.every((item) => item.status === "candidate")).toBe(true);
@@ -365,17 +363,6 @@ describe("approveCampaign", () => {
 });
 
 describe("admitWorkItem", () => {
-	test("admits the first issue in order with a full per-run reservation", () => {
-		const h = harness();
-		const campaign = approvedCampaign(h);
-		const result = admit(h, campaign, 812);
-		expect(result.workItem.status).toBe("admitted");
-		expect(result.reservation.amountUsdCents).toBe(500);
-		expect(result.reservation.state).toBe("active");
-		expect(result.manifestDigest).toBe(campaign.manifestDigest);
-		expect(result.policyDigest).toBe(campaign.policyDigest ?? "");
-	});
-
 	test("no network request occurs before admission succeeds", () => {
 		const h = harness();
 		const campaign = approvedCampaign(h);
@@ -399,7 +386,6 @@ describe("admitWorkItem", () => {
 			nowMs: NOW,
 		});
 		expect(result.workItem.status).toBe("admitted");
-		expect(result.reservation.amountUsdCents).toBe(500);
 	});
 
 	describe("table: every admission refusal names its invariant", () => {
@@ -597,64 +583,6 @@ describe("admitWorkItem", () => {
 					return { h, campaignId: campaign.id, issue: issue(815) };
 				},
 			},
-			{
-				name: "campaign budget exhausted by prior settled days",
-				invariant: "budget_insufficient",
-				build: () => {
-					const h = harness();
-					const manifest = signedManifest((m) => {
-						m.budget = { perRunUsd: 5, dailyUsd: 5, totalUsd: 10 };
-					});
-					const imported = importCampaign(h.store, { manifest, policy: basePolicy(), nowMs: NOW });
-					const campaign = approveCampaign(h.store, {
-						campaignId: imported.campaign.id,
-						manifestDigest: imported.manifestDigest,
-						approvedBy: "jayminwest",
-						nowMs: NOW,
-					}).campaign;
-					// Day 1 and day 2 each spend the full per-run cap, settling it.
-					const admitAt = (issueNumber: number, nowMs: number) =>
-						admitWorkItem(h.store, {
-							campaignId: campaign.id,
-							issue: issue(issueNumber),
-							policy: basePolicy(),
-							nowMs,
-						});
-					const first = admitAt(812, NOW);
-					h.store.budget.settleReservation(first.reservation.id, 500);
-					h.clock.advance(86_400_000);
-					const second = admitAt(815, NOW + 86_400_000);
-					h.store.budget.settleReservation(second.reservation.id, 500);
-					h.clock.advance(86_400_000);
-					// Day 3: the daily cap has room but the campaign cap is spent.
-					return {
-						h,
-						campaignId: campaign.id,
-						issue: issue(823),
-						nowMs: NOW + 2 * 86_400_000,
-					};
-				},
-			},
-			{
-				name: "daily budget exhausted",
-				invariant: "daily_budget_exhausted",
-				build: () => {
-					const h = harness();
-					const manifest = signedManifest((m) => {
-						m.issues = [812, 815, 823];
-						m.budget = { perRunUsd: 5, dailyUsd: 5, totalUsd: 100 };
-					});
-					const imported = importCampaign(h.store, { manifest, policy: basePolicy(), nowMs: NOW });
-					const campaign = approveCampaign(h.store, {
-						campaignId: imported.campaign.id,
-						manifestDigest: imported.manifestDigest,
-						approvedBy: "jayminwest",
-						nowMs: NOW,
-					}).campaign;
-					admit(h, campaign, 812);
-					return { h, campaignId: campaign.id, issue: issue(815) };
-				},
-			},
 		];
 
 		for (const testCase of cases) {
@@ -689,24 +617,6 @@ describe("admitWorkItem", () => {
 		expect(attention.map((row) => row.reason)).toContain("protected_path");
 	});
 
-	test("boundary: reservation exactly exhausting the campaign budget succeeds", () => {
-		const h = harness();
-		const manifest = signedManifest((m) => {
-			m.issues = [812, 815];
-			m.budget = { perRunUsd: 5, dailyUsd: 10, totalUsd: 10 };
-		});
-		const imported = importCampaign(h.store, { manifest, policy: basePolicy(), nowMs: NOW });
-		const campaign = approveCampaign(h.store, {
-			campaignId: imported.campaign.id,
-			manifestDigest: imported.manifestDigest,
-			approvedBy: "jayminwest",
-			nowMs: NOW,
-		}).campaign;
-		expect(admit(h, campaign, 812).reservation.amountUsdCents).toBe(500);
-		expect(admit(h, campaign, 815).reservation.amountUsdCents).toBe(500);
-		expect(h.store.budget.availableUsdCents(campaign.id)).toBe(0);
-	});
-
 	test("boundary: concurrency at exactly the approved maximum still admits", () => {
 		const h = harness();
 		const campaign = approvedCampaign(h);
@@ -719,46 +629,6 @@ describe("admitWorkItem", () => {
 		expect(result.workItem.status).toBe("admitted");
 	});
 
-	test("boundary: one cent short of the campaign budget refuses", () => {
-		const h = harness();
-		const manifest = signedManifest((m) => {
-			m.budget = { perRunUsd: 5, dailyUsd: 5, totalUsd: 9.99 };
-		});
-		const imported = importCampaign(h.store, { manifest, policy: basePolicy(), nowMs: NOW });
-		const campaign = approveCampaign(h.store, {
-			campaignId: imported.campaign.id,
-			manifestDigest: imported.manifestDigest,
-			approvedBy: "jayminwest",
-			nowMs: NOW,
-		}).campaign;
-		// Day 1 spends and settles $5.00 of a $9.99 cap; day 2 has daily room
-		// but only $4.99 of campaign cap left — one cent short of the per-run cap.
-		const first = admit(h, campaign, 812);
-		h.store.budget.settleReservation(first.reservation.id, 500);
-		h.clock.advance(86_400_000);
-		expectRefusal(
-			() =>
-				admitWorkItem(h.store, {
-					campaignId: campaign.id,
-					issue: issue(815),
-					policy: basePolicy(),
-					nowMs: NOW + 86_400_000,
-				}),
-			"budget_insufficient",
-		);
-	});
-
-	test("refused admission leaves no reservation or status change behind", () => {
-		const h = harness();
-		const campaign = approvedCampaign(h);
-		expectRefusal(() => admit(h, campaign, 815), "issue_out_of_order");
-		expect(h.store.budget.listReservations(campaign.id)).toHaveLength(0);
-		const item = h.store.campaigns
-			.listWorkItems(campaign.id)
-			.find((candidate) => candidate.issueRef === "815");
-		expect(item?.status).toBe("candidate");
-	});
-
 	test("admission succeeds in approved order across the whole campaign", () => {
 		const h = harness();
 		const campaign = approvedCampaign(h);
@@ -766,8 +636,6 @@ describe("admitWorkItem", () => {
 			const result = admit(h, campaign, issueNumber);
 			expect(result.workItem.status).toBe("admitted");
 		}
-		expect(h.store.budget.listReservations(campaign.id)).toHaveLength(3);
-		expect(h.store.budget.availableUsdCents(campaign.id)).toBe(10_000 - 1_500);
 	});
 
 	test("a changed-field re-import blocks admission of the superseded campaign", () => {
@@ -775,7 +643,7 @@ describe("admitWorkItem", () => {
 		const campaign = approvedCampaign(h);
 		importCampaign(h.store, {
 			manifest: signedManifest((m) => {
-				m.budget = { perRunUsd: 5, dailyUsd: 20, totalUsd: 90 };
+				m.maxConcurrentRuns = 3;
 			}),
 			policy: basePolicy(),
 			nowMs: NOW,

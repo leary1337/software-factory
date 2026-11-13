@@ -41,7 +41,7 @@ describe("plan run budgets", () => {
 	afterEach(async () => {
 		await db.close();
 	});
-	async function run(id: string, cost: number | null = 1) {
+	async function run(id: string, _cost: number | null = 1) {
 		await repos.runs.create({
 			id,
 			projectId: plan.projectId,
@@ -53,7 +53,6 @@ describe("plan run budgets", () => {
 		});
 		await repos.runs.markRunning(id, new Date(NOW.getTime() - 10000));
 		await repos.runs.finalize(id, "succeeded", NOW);
-		await repos.runs.attachStats(id, { costUsd: cost });
 		return id;
 	}
 	async function event(runId: string, kind: string, payload: Record<string, unknown>) {
@@ -106,13 +105,6 @@ describe("plan run budgets", () => {
 		await expect(
 			enforcePlanRunBudget(repos, plan, child, { task: { maxActiveMs: 10000 } }, NOW),
 		).rejects.toThrow("active-time budget reached");
-		await expect(
-			enforcePlanRunBudget(repos, plan, child, { task: { maxCostUsd: 1 } }, NOW),
-		).rejects.toThrow("estimated-cost budget reached");
-		await repos.runs.attachStats("impl", { costUsd: null });
-		await expect(
-			enforcePlanRunBudget(repos, plan, child, { task: { maxCostUsd: 100 } }, NOW),
-		).rejects.toThrow("cost is unknown");
 		await enforcePlanRunBudget(repos, plan, child, { task: { maxRuns: 2 } }, NOW);
 	});
 	test("distinguishes a reached threshold from a refused dispatch and clears it after admission", async () => {
@@ -157,11 +149,6 @@ describe("plan run budgets", () => {
 	test("rejects invalid limits without making zero an unlimited budget", () => {
 		for (const maxRuns of [0, -1, 1.5, "3"])
 			expect(parseDefaultsConfig({ planRunBudget: { task: { maxRuns } } }).ok).toBe(false);
-		expect(
-			parseDefaultsConfig({
-				planRunBudget: { task: { maxRuns: 3 }, plan: { maxCostUsd: 20, maxActiveMs: 60000 } },
-			}).ok,
-		).toBe(true);
 	});
 	test("refuses implementation, cold review and rework before calling the runtime", async () => {
 		await implementation();

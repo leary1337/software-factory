@@ -42,7 +42,6 @@ describe("CampaignStateStore", () => {
 		const campaign = store.campaigns.createCampaign({
 			manifestDigest: "digest-restart",
 			manifestJson: "{}",
-			budgetCapUsdCents: 100_00,
 		});
 		const workItem = store.campaigns.addWorkItem({
 			campaignId: campaign.id,

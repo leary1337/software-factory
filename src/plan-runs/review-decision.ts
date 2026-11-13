@@ -6,6 +6,7 @@ import {
 	reviewProgressDecision,
 	stoppedReview,
 } from "./review-progress.ts";
+import { recoverReview } from "./review-recovery.ts";
 import { parseVerdict, passedReviewCommit } from "./review-result.ts";
 
 function acceptReview(last: ReviewStepRecord, report: string): ReviewDecision {
@@ -29,6 +30,13 @@ function acceptReview(last: ReviewStepRecord, report: string): ReviewDecision {
 export function decideReviewStep(
 	steps: readonly ReviewStepRecord[],
 	budget: ReviewLoopBudget = DEFAULT_REVIEW_BUDGET,
+): ReviewDecision {
+	return recoverReview(steps, budget, decideNextStep(steps, budget));
+}
+
+function decideNextStep(
+	steps: readonly ReviewStepRecord[],
+	budget: ReviewLoopBudget,
 ): ReviewDecision {
 	const last = steps.at(-1);
 	if (last === undefined) return { kind: "spawn", step: "review" };

@@ -26,7 +26,7 @@ parse boundary:
   optional free-text note is capped at 200 characters and never substitutes
   for ranges.
 - **Mandatory provenance** — judge provider + model id, rubric-version hash
-  (of prompt + taxonomy), judged-at, and the USD cost of the judgment itself.
+  (of prompt + taxonomy), judged-at, and transcript-page coverage.
 
 Golden fixtures under [`src/__golden__/`](src/__golden__/) pin the verdict
 JSON shape. Regenerate after an intentional shape change with
@@ -60,8 +60,7 @@ Step 4 (warren-560c) adds rubric v1 authoring:
 - [`src/judge-loop.ts`](src/judge-loop.ts) — the bounded judgment: one fresh
   session per attempt, prompt-enforced verdict emission (a plain-text end
   consumes the retry budget), bounded retries then an unjudged marker
-  (`malformed_verdict` / `judge_error` / `budget_exceeded`), and
-  per-judgment token/cost accounting into provenance.
+  (`malformed_verdict` / `judge_error`), and per-judgment token statistics.
 - [`src/pi-session.ts`](src/pi-session.ts) — the production adapter over
   `@earendil-works/pi-coding-agent`: `createAgentSession` with
   `noTools: "builtin"` (coding toolset stripped), the model resolved via
@@ -75,29 +74,12 @@ Step 6 (warren-33da) adds the collector daemon:
   runs via `GET /runs`, drive one judgment per run, checkpoint the cursor
   ONLY after the verdict store accepts (the audit-log delivery discipline —
   a crash never skips a run, and the store's dedupe key makes a replay an
-  exact no-op). Serial by design: one judgment at a time, so the daily
-  budget gate is race-free and a graceful shutdown has at most one
+  exact no-op). Serial by design: graceful shutdown has at most one
   in-flight judgment to finish.
 - [`src/cursor-store.ts`](src/cursor-store.ts) — durable per-run judgment
   cursors keyed by run id, recording WHICH rubric version + judge model the
   accepted judgment was produced under; a new pair re-opens the run.
-- [`src/spend-ledger.ts`](src/spend-ledger.ts) — the fleet-wide spend
-  ledger: every judgment's accrued USD cost, summed per UTC day to enforce
-  `JUDGE_DAILY_BUDGET_USD`. Spend is ledgered for verdicts AND unjudged
-  markers alike — the provider billed the attempts either way.
-- Budget gates (§12.5): past the daily budget the run is DEFERRED — no
-  marker, no checkpoint — so it re-enters the candidate set once budget
-  frees (the next UTC day). The hole stays visible in the cycle stats and
-  a once-per-cycle deferral log line, never as a permanent write-off: a
-  `budget_exceeded` marker would occupy the store's dedupe key and block
-  the eventual real verdict (warren-5fcf). The per-judgment cap is clamped
-  to the remaining daily budget so one judgment cannot push the fleet past
-  the day gate. The cap is live inside an attempt too (warren-9a34): once
-  accrued cost reaches it, `page_events` stops serving transcript and
-  tells the model to report from the pages it has, so a successful
-  judgment overshoots the cap by at most one model turn. An attempt that
-  still ends without a verdict past the cap resolves with a
-  `budget_exceeded` marker, because the attempts were billed.
+- Provider errors leave no marker or checkpoint, so the next cycle can retry.
 - SIGTERM/SIGINT abort the loop between cycles; the in-flight judgment
   always finishes and checkpoints before exit.
 - [`src/calibration.ts`](src/calibration.ts) — the calibration re-judge
@@ -108,15 +90,7 @@ Step 6 (warren-33da) adds the collector daemon:
   band-agreement between the cheap and strong verdicts is computed from
   the store's calibration join and persisted per rubric version in the
   `calibration_metrics` table — the disagreement rate is itself the
-  tracked signal. Budget gates apply to calibration judgments too: past
-  the daily budget the sampled run is DEFERRED — no marker, no store
-  write, same PR #969 semantics as the collector — so it re-enters the
-  candidate pool next pass instead of a `budget_exceeded` marker
-  permanently excluding it. The deferral stays visible in the cycle
-  stats and a once-per-pass log line. Per-judgment failures from billed
-  attempts still write markers; a failure that cost $0 (an expired key, a
-  model the account cannot reach) is skipped the same way a deferral is,
-  because nothing was billed and a marker would exclude the run for good.
+  tracked signal. Provider errors remain retryable on the next pass.
   Disabled unless `JUDGE_CALIBRATION_MODEL` is set.
 
 Step 8 (warren-265d) adds the export surface and the end-to-end smoke:
@@ -126,8 +100,7 @@ Step 8 (warren-265d) adds the export surface and the end-to-end smoke:
 - [`src/smoke.test.ts`](src/smoke.test.ts) — the end-to-end smoke against
   the fake-warren double with a stubbed judge (no provider calls):
   terminal run → judged → validated verdict exported over
-  `/verdicts.jsonl`; the fleet-budget path defers the run and judges it
-  once budget frees; the re-judge append path keeps both verdicts readable
+  `/verdicts.jsonl`; the re-judge append path keeps both verdicts readable
   keyed by rubric version, with the stored calibration metric served by
   `/agreement`.
 
@@ -143,7 +116,7 @@ delegate to — FRICTION §4); hold it in a secret manager and never log it.
 - `GET /verdicts.jsonl?since=<id>&limit=<n>` — pages the append-only
   verdict store oldest-first (`id` is the SQLite rowid; `since` is
   exclusive). Verdict rows and `unjudged` markers export side by side —
-  a budget skip is a first-class visible row, never a silent gap. The
+  malformed judgments remain visible. The
   `X-Verdicts-Max-Id` response header is the high-water mark to
   checkpoint against, even on an empty page. A re-judge under a new
   rubric version (or the calibration pass's strong model) APPENDS a row;
@@ -192,8 +165,6 @@ extension's own store, never a core table.
 | `JUDGE_MODEL`     | no       | Judge model id (default `claude-haiku-4-5`) |
 | `JUDGE_DB_PATH`   | no       | SQLite store path (default `./data/judge.db`) |
 | `JUDGE_POLL_INTERVAL_MS` | no | Delay between terminal-run discovery polls (default `30000`) |
-| `JUDGE_MAX_COST_USD` | no | Per-judgment USD cost cap (default `0.25`) — the §12.5 analog of `maxCostUsd`. The legacy `JUDGE_MAX_COST_USD_PER_JUDGMENT` spelling still resolves as a fallback alias |
-| `JUDGE_DAILY_BUDGET_USD` | no | Fleet-level daily judge budget (default `5`); past it, further runs are deferred to the next UTC day, visibly in the cycle stats |
 | `JUDGE_MAX_RETRIES` | no | Malformed/missing-verdict retries per judgment (default `2`) |
 | `JUDGE_MAX_PAGES` | no | Hard cap on events pages per judgment (default `40`); past it the tail degrades to a lower-confidence verdict, never unbounded spend |
 | `JUDGE_EVENTS_PAGE_SIZE` | no | Default events page size when the model omits `limit` (default `200`) |

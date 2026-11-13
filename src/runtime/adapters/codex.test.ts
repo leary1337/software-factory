@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { parseVerdict } from "../../plan-runs/review.ts";
 import { detectRuntimeTerminal } from "../../runs/stream/terminal-detect.ts";
-import { aggregateUsageFromEvents } from "../../runs/usage-aggregate.ts";
 import { codexAdapter } from "./codex.ts";
-import { codexPricing, estimateCodexCost } from "./codex-config.ts";
 import { createCodexParser } from "./parsers/codex.ts";
 
 describe("codexAdapter", () => {
@@ -22,10 +20,21 @@ describe("codexAdapter", () => {
 		expect(command?.env).toMatchObject({ OPENAI_API_KEY: "", CODEX_API_KEY: "" });
 		expect(command?.stdin).toContain("[STEERING] (high) write tests");
 	});
+	test("accepts a model without a price table", () => {
+		const command = codexAdapter.buildSpawnCommand?.({
+			runId: "r",
+			workspacePath: "/repo",
+			homePath: "/home",
+			frontmatter: { model: "custom-model" },
+			prompt: "test",
+			pendingMessages: [],
+		});
+		expect(command?.argv).toContain("custom-model");
+	});
 });
 
 describe("createCodexParser", () => {
-	test("delivers the final verdict and usage through the existing review and budget contracts", () => {
+	test("delivers the final verdict and usage through the review and token statistics contracts", () => {
 		const parse = createCodexParser();
 		const lines = [
 			{ type: "thread.started", thread_id: "thread-test" },
@@ -49,24 +58,11 @@ describe("createCodexParser", () => {
 		expect(detectRuntimeTerminal({ ...terminal, seq: 1, ts: new Date() })).toBe("succeeded");
 		const payload = terminal.payload as { result: string; session_id: string };
 		expect(parseVerdict(payload.result)).toBe("PASS");
-		expect(payload.session_id).toBe("thread-test");
-		expect(aggregateUsageFromEvents(events)).toMatchObject({
-			tokensInput: 600,
-			tokensCacheRead: 400,
-			tokensOutput: 200,
-			costUsd: 0.00324,
+		expect(terminal.payload).toMatchObject({
+			usage: { input_tokens: 600, output_tokens: 200, cache_read_input_tokens: 400 },
 		});
-	});
-
-	test("keeps invalid usage unknown instead of recording zero cost", () => {
-		const parse = createCodexParser();
-		const events = parse(
-			JSON.stringify({
-				type: "turn.completed",
-				usage: { input_tokens: 10, cached_input_tokens: 20, output_tokens: 1 },
-			}),
-		);
-		expect(aggregateUsageFromEvents(events)).toBeNull();
+		expect(terminal.payload).not.toHaveProperty("total_cost_usd");
+		expect(payload.session_id).toBe("thread-test");
 	});
 
 	test("keeps failures failed and isolates concurrent process state", () => {
@@ -119,17 +115,16 @@ describe("createCodexParser", () => {
 		expect(edits).toHaveLength(1);
 		expect(edits[0]?.payload).toMatchObject({ name: "Edit", input: { file_path: "a.ts" } });
 	});
-});
-
-describe("codexPricing", () => {
-	test("requires a price for custom models instead of reporting a false zero", () => {
-		expect(() => codexPricing({ provider: "anthropic" })).toThrow("require the openai provider");
-		expect(() => codexPricing({ model: "custom" })).toThrow("No Codex cost estimate");
-		expect(
-			codexPricing({ model: "custom", codex: { pricing: { input: 1, cached: 0, output: 5 } } }),
-		).toEqual({ input: 1, cached: 0, output: 5 });
-		expect(
-			estimateCodexCost({ input_tokens: -1, output_tokens: 1 }, codexPricing()),
-		).toBeUndefined();
+	test("ignores malformed usage without fabricating token totals", () => {
+		const parse = createCodexParser();
+		for (const usage of [
+			{},
+			{ input_tokens: -1, output_tokens: 2 },
+			{ input_tokens: "3", output_tokens: 2 },
+			{ input_tokens: 3, cached_input_tokens: 4, output_tokens: 2 },
+		]) {
+			const event = parse(JSON.stringify({ type: "turn.completed", usage }))[0];
+			expect(event?.payload).not.toHaveProperty("usage");
+		}
 	});
 });

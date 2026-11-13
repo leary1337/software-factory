@@ -15,7 +15,6 @@
 import { Database } from "bun:sqlite";
 import type { Clock, IdGenerator } from "../clock.ts";
 import { ActionStore } from "./actions.ts";
-import { BudgetStore } from "./budget.ts";
 import { CampaignStore } from "./campaigns.ts";
 import { EventStore } from "./events.ts";
 import { FollowUpStore } from "./follow-ups.ts";
@@ -42,7 +41,6 @@ export class CampaignStateStore {
 	readonly actions: ActionStore;
 	readonly events: EventStore;
 	readonly leases: LeaseStore;
-	readonly budget: BudgetStore;
 	readonly followUps: FollowUpStore;
 
 	/**
@@ -60,7 +58,6 @@ export class CampaignStateStore {
 		this.actions = new ActionStore(ctx);
 		this.events = new EventStore(ctx);
 		this.leases = new LeaseStore(ctx);
-		this.budget = new BudgetStore(ctx);
 		this.followUps = new FollowUpStore(ctx);
 		this.migrate();
 	}

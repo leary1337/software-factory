@@ -107,7 +107,6 @@ export function aggregateTaskMetrics(
 	const events = runs
 		.flatMap((entry) => entry.events)
 		.sort((a, b) => a.ts.localeCompare(b.ts) || a.id - b.id);
-	const costs = runs.map(({ run }) => (valid(run.costUsd) ? run.costUsd : null));
 	const tokens = runs.map(({ run }) => tokenTotal(run));
 	const durations = runs.map(({ run }) =>
 		interval(
@@ -123,10 +122,6 @@ export function aggregateTaskMetrics(
 		runCount: runs.length,
 		missingRunCount,
 		incomplete: incomplete || missingRunCount > 0,
-		costUsd: knownSum(costs),
-		costUnknownRuns: costs.filter((value) => value === null).length + missingRunCount,
-		subscriptionEstimateRuns: runs.filter(({ run }) => run.costBasis === "subscription_estimate")
-			.length,
 		totalTokens: knownSum(tokens),
 		tokenUnknownRuns: tokens.filter((value) => value === null).length + missingRunCount,
 		activeMs: knownSum(durations),

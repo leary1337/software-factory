@@ -9,9 +9,8 @@ import { cn } from "@/lib/utils.ts";
  * Alert / Callout — a tinted box used for inline error, success,
  * warning, info, and neutral states. Backed by the semantic status
  * palette tokens added in Phase 1 (--color-success / -warning / -info /
- * -danger / -neutral) and their -foreground pairs added in this phase.
- * Pattern mirrors Badge's cva variants so the token surface stays
- * predictable.
+ * -danger / -neutral). Text uses the surface ink: the status -foreground
+ * pairs are for solid fills, not these translucent tints (warren-f110).
  *
  * Sizing/spacing follows the existing inline-error idiom across the UI
  * (rounded-md border, p-3, text-sm). The variant fill is a translucent
@@ -33,7 +32,7 @@ import { cn } from "@/lib/utils.ts";
  */
 
 const alertVariants = cva(
-	"relative flex w-full items-start gap-2.5 rounded-md border p-3 text-sm",
+	"relative flex w-full items-start gap-2.5 rounded-md border p-3 text-(--color-text) text-sm",
 	{
 		variants: {
 			variant: {

@@ -20,10 +20,7 @@ export function registerRunCommands(program: Command, context: CliContext): void
 			.command("show")
 			.description("render a run's detail (GET /runs/:id; json mode is the raw run document)")
 			.argument("<run-id>", "run id")
-			.option(
-				"--summary",
-				"emit a compact projection (id, state, failureReason, prUrl, costUsd, endedAt)",
-			),
+			.option("--summary", "emit a compact projection (id, state, failureReason, prUrl, endedAt)"),
 	).action(async (runId: string, opts: { summary?: boolean } & RemoteOpts) => {
 		const { client, context: ctx } = resolveCommandClient(context, opts);
 		const result = await runShow(ctx, { client }, { runId, summary: opts.summary === true });
@@ -36,10 +33,7 @@ export function registerRunCommands(program: Command, context: CliContext): void
 			.description("poll a run to its terminal state (SDK waitForRun; exit 0 on succeeded)")
 			.argument("<run-id>", "run id")
 			.option("--timeout <seconds>", "overall wait budget in seconds (default 1800)")
-			.option(
-				"--summary",
-				"emit a compact projection (id, state, failureReason, prUrl, costUsd, endedAt)",
-			),
+			.option("--summary", "emit a compact projection (id, state, failureReason, prUrl, endedAt)"),
 	).action(async (runId: string, opts: { timeout?: string; summary?: boolean } & RemoteOpts) => {
 		const timeoutSeconds = opts.timeout !== undefined ? Number(opts.timeout) : undefined;
 		if (timeoutSeconds !== undefined && !(Number.isFinite(timeoutSeconds) && timeoutSeconds > 0)) {

@@ -38,14 +38,12 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 		const calls: { sandboxRunId: string; phase: "baseline" | "terminal" }[] = [];
 		const responses: SessionStats[] = [
 			{
-				costUsd: 0.1,
 				tokensInput: 100,
 				tokensOutput: 50,
 				tokensCacheRead: 10,
 				tokensCacheWrite: 5,
 			},
 			{
-				costUsd: 0.75,
 				tokensInput: 600,
 				tokensOutput: 220,
 				tokensCacheRead: 40,
@@ -75,7 +73,6 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 		});
 		expect(calls.map((c) => c.phase)).toEqual(["baseline", "terminal"]);
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.65);
 		expect(after.tokensInput).toBe(500);
 		expect(after.tokensOutput).toBe(170);
 		expect(after.tokensCacheRead).toBe(30);
@@ -93,7 +90,6 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 			source: source([evt(sandboxRunId, 1, { kind: "agent_start" }), piAgentEnd(sandboxRunId, 2)]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeNull();
 		expect(after.tokensInput).toBeNull();
 	});
 
@@ -103,7 +99,6 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 			async fetch() {
 				calls += 1;
 				return {
-					costUsd: calls * 0.1,
 					tokensInput: calls * 100,
 					tokensOutput: calls * 50,
 					tokensCacheRead: 0,
@@ -136,7 +131,6 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 				phase += 1;
 				if (phase === 1) {
 					return {
-						costUsd: 0.05,
 						tokensInput: 50,
 						tokensOutput: 20,
 						tokensCacheRead: 0,
@@ -162,7 +156,7 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 			source: source([evt(sandboxRunId, 1, { kind: "agent_start" }), piAgentEnd(sandboxRunId, 2)]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeNull();
+		expect(after.tokensInput).toBeNull();
 		expect(warns.length).toBeGreaterThanOrEqual(1);
 	});
 
@@ -176,7 +170,6 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 				}
 				fetches.push("terminal-ok");
 				return {
-					costUsd: 0.3,
 					tokensInput: 200,
 					tokensOutput: 80,
 					tokensCacheRead: 0,
@@ -195,7 +188,6 @@ describe("bridgeRunStream — PiStatsClient (warren-a7dc)", () => {
 			source: source([evt(sandboxRunId, 1, { kind: "agent_start" }), piAgentEnd(sandboxRunId, 2)]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.3);
 		expect(after.tokensInput).toBe(200);
 	});
 
@@ -259,12 +251,11 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			runtimeProvider: makeProvider(),
 			source: source([
 				evt(sandboxRunId, 1, { kind: "agent_start" }),
-				piTurnEnd(sandboxRunId, 2, { input: 446, output: 44, costTotal: 0.000666 }),
+				piTurnEnd(sandboxRunId, 2, { input: 446, output: 44 }),
 				piAgentEnd(sandboxRunId, 3),
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.000666);
 		expect(after.tokensInput).toBe(446);
 		expect(after.tokensOutput).toBe(44);
 		expect(after.tokensCacheRead).toBe(0);
@@ -281,13 +272,12 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			runtimeProvider: makeProvider(),
 			source: source([
 				evt(sandboxRunId, 1, { kind: "agent_start" }),
-				piTurnEnd(sandboxRunId, 2, { input: 1658, output: 128, costTotal: 0.002298 }),
-				piTurnEnd(sandboxRunId, 3, { input: 1812, output: 56, costTotal: 0.002092 }),
+				piTurnEnd(sandboxRunId, 2, { input: 1658, output: 128 }),
+				piTurnEnd(sandboxRunId, 3, { input: 1812, output: 56 }),
 				piAgentEnd(sandboxRunId, 4),
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.00439);
 		expect(after.tokensInput).toBe(3470);
 		expect(after.tokensOutput).toBe(184);
 	});
@@ -303,7 +293,6 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			source: source([evt(sandboxRunId, 1, { kind: "agent_start" }), piAgentEnd(sandboxRunId, 2)]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeNull();
 		expect(after.tokensInput).toBeNull();
 	});
 
@@ -311,7 +300,6 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 		const piStats: PiStatsClient = {
 			async fetch() {
 				return {
-					costUsd: 9.99,
 					tokensInput: 1,
 					tokensOutput: 1,
 					tokensCacheRead: 0,
@@ -328,12 +316,11 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			runtimeProvider: makeProvider(),
 			piStats,
 			source: source([
-				piTurnEnd(sandboxRunId, 1, { input: 500, output: 200, costTotal: 0.123 }),
+				piTurnEnd(sandboxRunId, 1, { input: 500, output: 200 }),
 				piAgentEnd(sandboxRunId, 2),
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0);
 		expect(after.tokensInput).toBe(0);
 	});
 
@@ -346,7 +333,7 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			sandboxId: "bur_aaaaaaaaaaaa",
 			runtimeProvider: makeProvider(),
 			source: source([
-				piTurnEnd(sandboxRunId, 1, { input: 100, output: 25, costTotal: 0.001 }),
+				piTurnEnd(sandboxRunId, 1, { input: 100, output: 25 }),
 				evt(sandboxRunId, 2, {
 					kind: "state_change",
 					stream: "system",
@@ -355,7 +342,6 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.001);
 		expect(after.tokensInput).toBe(100);
 	});
 
@@ -377,7 +363,6 @@ describe("bridgeRunStream — in-stream pi cost extraction (warren-17a4)", () =>
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeNull();
 		expect(after.tokensInput).toBeNull();
 	});
 });
@@ -417,12 +402,10 @@ describe("bridgeRunStream — in-stream claude cost extraction (warren-87f9)", (
 					outputTokens: 400,
 					cacheReadInputTokens: 5000,
 					cacheCreationInputTokens: 200,
-					totalCostUsd: 0.0421,
 				}),
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.0421);
 		expect(after.tokensInput).toBe(1200);
 		expect(after.tokensOutput).toBe(400);
 		expect(after.tokensCacheRead).toBe(5000);
@@ -447,7 +430,6 @@ describe("bridgeRunStream — in-stream claude cost extraction (warren-87f9)", (
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeNull();
 		expect(after.tokensInput).toBeNull();
 	});
 
@@ -463,13 +445,11 @@ describe("bridgeRunStream — in-stream claude cost extraction (warren-87f9)", (
 				claudeResult(sandboxRunId, 1, {
 					inputTokens: 50,
 					outputTokens: 10,
-					totalCostUsd: 0.0009,
 					isError: true,
 				}),
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.0009);
 		expect(after.tokensInput).toBe(50);
 	});
 
@@ -482,16 +462,14 @@ describe("bridgeRunStream — in-stream claude cost extraction (warren-87f9)", (
 			sandboxId: "bur_aaaaaaaaaaaa",
 			runtimeProvider: makeProvider(),
 			source: source([
-				piTurnEnd(sandboxRunId, 1, { input: 100, output: 25, costTotal: 0.005 }),
+				piTurnEnd(sandboxRunId, 1, { input: 100, output: 25 }),
 				claudeResult(sandboxRunId, 2, {
 					inputTokens: 999,
 					outputTokens: 999,
-					totalCostUsd: 9.99,
 				}),
 			]),
 		});
 		const after = await repos.runs.require(runId);
-		expect(after.costUsd).toBeCloseTo(0.005);
 		expect(after.tokensInput).toBe(100);
 	});
 });

@@ -107,7 +107,6 @@ export interface BranchFreshnessInput {
 	/** The follow-up dispatch coordinates (conflict path only). */
 	readonly project?: string;
 	readonly agent?: string;
-	readonly maxCostUsd?: number;
 	readonly policyDigest?: string | null;
 }
 
@@ -116,7 +115,6 @@ export type BranchFreshnessDispatchFn = (input: {
 	project: string;
 	agent: string;
 	prompt: string;
-	maxCostUsd: number;
 	existingBranch: string;
 	idempotencyKey: string;
 }) => Promise<{ runId: string }>;
@@ -319,7 +317,6 @@ async function handleConflictRepair(
 			project: input.project ?? "",
 			agent: input.agent ?? "",
 			prompt,
-			maxCostUsd: input.maxCostUsd ?? 0,
 			existingBranch: input.pr.headRef,
 			idempotencyKey: actionKey,
 		});

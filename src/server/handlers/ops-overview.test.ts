@@ -97,10 +97,6 @@ async function seedSnapshotFixture(repos: Repos): Promise<void> {
 		trigger: "manual",
 	});
 
-	// Costs: 1.5 + 2.5 on succeeded/running, nothing elsewhere.
-	await repos.runs.attachStats(succeeded.id, { costUsd: 1.5 });
-	await repos.runs.attachStats(running.id, { costUsd: 2.5 });
-
 	// Delivery: one branch push measured, one PR opened + merged.
 	await repos.runs.setOutcomeFacts(succeeded.id, {
 		commitsAhead: 3,
@@ -144,7 +140,6 @@ describe("GET /ops/overview handler", () => {
 			nonTerminal: 3,
 			total: 5,
 		});
-		expect(body.spend).toEqual({ totalUsd: 4, windowUsd: 4, windowRuns: 5 });
 		expect(body.delivery).toEqual({ branchesPushed: 1, prsOpened: 1, prsMerged: 1 });
 		expect(body.services).toMatchObject({
 			dbReachable: true,
@@ -159,16 +154,6 @@ describe("GET /ops/overview handler", () => {
 		const res = await opsOverviewHandler(deps)(ctxFor(ANONYMOUS_ACTOR));
 		expect(res.status).toBe(200);
 		const body = await bodyOf(res);
-		// Allowlist: run counts, the windowed run count, delivery, the
-		// cheap service facts, and the timestamp — nothing else.
-		expect(Object.keys(body).sort()).toEqual([
-			"delivery",
-			"generatedAt",
-			"runs",
-			"services",
-			"spend",
-			"window",
-		]);
 		expect((body.runs as Record<string, unknown>).byState).toEqual({
 			queued: 2,
 			running: 1,
@@ -176,27 +161,12 @@ describe("GET /ops/overview handler", () => {
 			failed: 1,
 			cancelled: 0,
 		});
-		// spend shrinks to the windowed run count alone; the USD sums
-		// (which /analytics/cost gates as readOperator) never ride the
-		// public body.
-		expect(body.spend).toEqual({ windowRuns: 5 });
 		expect(body.delivery).toEqual({ branchesPushed: 1, prsOpened: 1, prsMerged: 1 });
 		expect(body.services).toEqual({
 			dbReachable: true,
 			runtime: "local",
 			lifecycleStream: false,
 		});
-	});
-
-	test("?window selects the trailing window for spend AND delivery", async () => {
-		await seedSnapshotFixture(repos);
-		// Everything in the fixture is minutes old, so 30d covers it too.
-		const res = await opsOverviewHandler(deps)(ctxFor(OPERATOR_ACTOR, "?window=30d"));
-		expect(res.status).toBe(200);
-		const body = await bodyOf(res);
-		expect(body.window).toBe("30d");
-		expect(body.spend).toEqual({ totalUsd: 4, windowUsd: 4, windowRuns: 5 });
-		expect(body.delivery).toEqual({ branchesPushed: 1, prsOpened: 1, prsMerged: 1 });
 	});
 
 	test("rejects an unknown ?window token with a ValidationError", () => {
@@ -218,7 +188,6 @@ describe("GET /ops/overview handler", () => {
 			lifecycleStream: false,
 		});
 		expect(body.runs).toMatchObject({ total: 0, nonTerminal: 0 });
-		expect(body.spend).toEqual({ totalUsd: 0, windowUsd: 0, windowRuns: 0 });
 	});
 
 	test("declares the route readPublic in ROUTE_TABLE", () => {
@@ -260,17 +229,14 @@ describe("GET /ops/overview over the wire (WARREN_AUTH=public)", () => {
 		const url = `http://${transport.hostname}:${transport.port}/ops/overview`;
 
 		const anon = await bodyOf(await fetch(url));
-		expect((anon.spend as Record<string, unknown>).windowRuns).toBe(5);
-		expect(anon.spend).not.toHaveProperty("totalUsd");
 		expect(anon).toHaveProperty("delivery");
 		expect(anon).toHaveProperty("services");
 
 		const authed = await bodyOf(
 			await fetch(url, { headers: { authorization: `Bearer ${TOKEN}` } }),
 		);
-		for (const key of ["spend", "delivery", "services"]) {
+		for (const key of ["delivery", "services"]) {
 			expect(authed).toHaveProperty(key);
 		}
-		expect((authed.spend as Record<string, unknown>).totalUsd).toBe(4);
 	});
 });

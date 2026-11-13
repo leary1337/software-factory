@@ -14,7 +14,7 @@ async function standalone(page: Page) {
 	Object.assign(run, { prompt: TITLE, seedId: null, parentRunId: null, retryOf: null, projectId });
 	await page.route(/\/plan-runs(?:\?.*)?$/, (route) => route.fulfill({ json: { planRuns: [] } }));
 	await page.route(/\/runs(?:\?.*)?$/, (route) =>
-		route.fulfill({ json: { runs: [run], total: 1, limit: 200, offset: 0, costPricedCount: 0 } }),
+		route.fulfill({ json: { runs: [run], total: 1, limit: 200, offset: 0 } }),
 	);
 	await page.route(`**/runs/${run.id}`, (route) => route.fulfill({ json: { run } }));
 	return run;

@@ -54,12 +54,6 @@ export interface DispatchSpawnInput {
 	readonly seedId?: string;
 	readonly metadata?: unknown;
 	/**
-	 * Per-trigger spend cap (warren-a63d). Forwarded to the spawn flow as
-	 * `maxCostUsdOverride` so the cron entry's `maxCostUsd` overrides the
-	 * agent's own cap. Omitted when the trigger declares none.
-	 */
-	readonly maxCostUsd?: number;
-	/**
 	 * Fired once with the warren run id the moment the row is created, before
 	 * runtime contact (warren-a0a2). Lets the cron dispatcher learn the row id
 	 * even when the spawn later throws, so its bounded-retry GC can reclaim the
@@ -222,7 +216,6 @@ export async function dispatchCronTrigger(input: DispatchCronInput): Promise<Dis
 				cron: input.trigger.cron,
 				...(input.trigger.seed !== undefined ? { seed: input.trigger.seed } : {}),
 			},
-			...(input.trigger.maxCostUsd !== undefined ? { maxCostUsd: input.trigger.maxCostUsd } : {}),
 			// Learn the row id even if the spawn throws — the GC below reclaims it.
 			onRowCreated: (id) => {
 				createdRunId = id;

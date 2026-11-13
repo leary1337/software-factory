@@ -1,24 +1,11 @@
 import type { RunRow } from "@/api/types.ts";
 import {
 	CardFigure,
-	CardFigureNote,
 	InventoryCardList,
 	InventoryRowCard,
 } from "@/components/ui/inventory-card.tsx";
-import { costNoteToneOf, stateCellOf, sublineOf } from "@/pages/runs/runs-card.helpers.ts";
-import { formatDuration, projectLabel, runCostLabel } from "@/pages/runs/runs-format.ts";
-
-/**
- * The mobile arm of the Runs inventory (warren-dea8 / pl-7e38 step 20):
- * the table degrades to the artboard row-card pattern
- * (docs/ui-revamp/screens/mobile/runs.jsx) below `md`. Same rows, same
- * data, token colors only; the desktop table stays untouched.
- *
- * warren-f8a2 collapsed the card to the mock's two-line anatomy: no meta
- * row, one-contextual-extra subline, cancelled on the neutral tone, and a
- * warning-tinted cost note near the cap. The cell/subline decisions live
- * in runs-card.helpers.ts (pure, tested there).
- */
+import { stateCellOf, sublineOf } from "@/pages/runs/runs-card.helpers.ts";
+import { formatDuration, projectLabel } from "@/pages/runs/runs-format.ts";
 
 function RunCard({ row, projectName, now }: { row: RunRow; projectName: string; now: number }) {
 	const state = stateCellOf(row);
@@ -29,12 +16,7 @@ function RunCard({ row, projectName, now }: { row: RunRow; projectName: string; 
 			title={row.id}
 			titleTo={`/runs/${encodeURIComponent(row.id)}`}
 			subline={sublineOf(row, projectName)}
-			figures={
-				<>
-					<CardFigure value={formatDuration(row, now)} />
-					<CardFigureNote value={runCostLabel(row)} tone={costNoteToneOf(row)} />
-				</>
-			}
+			figures={<CardFigure value={formatDuration(row, now)} />}
 		/>
 	);
 }

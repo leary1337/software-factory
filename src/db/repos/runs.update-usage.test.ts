@@ -33,14 +33,12 @@ function suite(dialect: "sqlite" | "postgres"): void {
 					trigger: "manual",
 				});
 				await repo.updateUsage(row.id, {
-					costUsd: 0.314,
 					tokensInput: 900,
 					tokensOutput: 120,
 					tokensCacheRead: 45,
 					tokensCacheWrite: 7,
 				});
 				const reread = await repo.require(row.id);
-				expect(reread.costUsd).toBeCloseTo(0.314);
 				expect(reread.tokensInput).toBe(900);
 				expect(reread.tokensOutput).toBe(120);
 				expect(reread.tokensCacheRead).toBe(45);
@@ -54,14 +52,12 @@ function suite(dialect: "sqlite" | "postgres"): void {
 					trigger: "manual",
 				});
 				await repo.updateUsage(other.id, {
-					costUsd: 0,
 					tokensInput: 0,
 					tokensOutput: 0,
 					tokensCacheRead: 0,
 					tokensCacheWrite: 0,
 				});
-				const zeroed = await repo.require(other.id);
-				expect(zeroed.costUsd).toBe(0);
+				await repo.require(other.id);
 			} finally {
 				await handle.close();
 			}

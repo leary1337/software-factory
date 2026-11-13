@@ -141,3 +141,28 @@ describe("review merge delivery", () => {
 		expect(await loadReviewMergeResult(h.input.repos, h.run.id)).toBeNull();
 	});
 });
+
+test("waiting for CI does not exhaust the transient error budget", async () => {
+	let ticks = 0;
+	const h = harness(async () =>
+		++ticks < 6 ? { ...RETRY, reason: "checks_pending" } : { kind: "merged" },
+	);
+	for (let i = 0; i < 6; i++) await h.tick();
+	expect(h.calls()).toBe(6);
+	expect(await loadReviewMergeResult(h.input.repos, h.run.id)).toEqual({ kind: "merged" });
+});
+
+test("unacknowledged merge attempts still exhaust their budget after restart", async () => {
+	const h = harness(async () => ({ kind: "merged" }));
+	for (let i = 0; i < 3; i++)
+		h.events.push({
+			kind: "plan_run.review_merge_attempt",
+			payloadJson: { reviewedCommit: COMMIT },
+		});
+	await h.tick();
+	expect(h.calls()).toBe(0);
+	expect(await loadReviewMergeResult(h.input.repos, h.run.id)).toMatchObject({
+		kind: "blocked",
+		reason: "merge_unconfirmed",
+	});
+});

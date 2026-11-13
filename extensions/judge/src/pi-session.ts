@@ -128,7 +128,6 @@ class PiJudgeSession implements JudgeSession {
 					cacheWrite: number;
 					total: number;
 				};
-				cost: number;
 			};
 			readonly state: { readonly errorMessage?: string };
 			dispose(): void;
@@ -147,7 +146,7 @@ class PiJudgeSession implements JudgeSession {
 
 	public getSessionStats(): SessionStatsSnapshot {
 		const stats = this.session.getSessionStats();
-		return { tokens: { ...stats.tokens }, costUsd: stats.cost };
+		return { tokens: { ...stats.tokens } };
 	}
 
 	public getLastError(): string | null {

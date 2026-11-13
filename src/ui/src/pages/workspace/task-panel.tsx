@@ -10,9 +10,9 @@ import { Spinner } from "@/components/ui/spinner.tsx";
 import { useEventStream } from "@/hooks/use-event-stream.ts";
 import { formatError } from "@/lib/format-error.ts";
 import { DeploymentIncident } from "../plan-run-detail/deployment-incident.tsx";
+import { RetryReview } from "../plan-run-detail/retry-review.tsx";
 import { TaskHistory } from "../plan-run-detail/task-history.tsx";
 import { EventTail } from "../run-detail/event-tail.tsx";
-import { TaskCostPanel } from "../tasks/cost-panel.tsx";
 import { taskUrl } from "../tasks/task-attempts.ts";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
@@ -111,6 +111,13 @@ export function TaskPanel({ task, onClose }: { task: WorkspaceTask; onClose: () 
 					{task.attention ? " · Требуется твоё действие" : ""}
 				</DialogDescription>
 				<TaskAttention task={task} />
+				{current ? (
+					<RetryReview
+						key={`${current.child.planRunId}:${current.child.seq}:${current.child.reviewStage}:${current.child.reviewFailure}`}
+						plan={current.detail.planRun}
+						child={current.child}
+					/>
+				) : null}
 				<div className="flex flex-wrap gap-2">
 					{implementation?.prUrl ? (
 						<Button variant="outline" asChild>
@@ -149,7 +156,7 @@ export function TaskPanel({ task, onClose }: { task: WorkspaceTask; onClose: () 
 				{current ? (
 					<>
 						<TaskBudgetPanel child={current.child} />
-						<TaskCostPanel child={current.child} run={implementation} />
+
 						<details className="rounded-lg border border-(--color-border) p-3">
 							<summary className="cursor-pointer text-sm">Review и история попытки</summary>
 							<div className="mt-3">

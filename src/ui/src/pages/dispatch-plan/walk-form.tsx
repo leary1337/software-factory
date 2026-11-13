@@ -66,7 +66,6 @@ export interface WalkFormProps {
 	readonly planSelectorUnavailable: boolean;
 	readonly openChildCount: number | null;
 	readonly issueStatuses: readonly { id: string; status: string | null }[];
-	readonly costCapError: string | null;
 	readonly submitError: string | null;
 	readonly pending: boolean;
 	readonly canSubmit: boolean;
@@ -80,7 +79,6 @@ export interface WalkFormProps {
 	readonly onProvider: (value: string) => void;
 	readonly onModel: (value: string) => void;
 	readonly onPrompt: (value: string) => void;
-	readonly onCostCap: (value: string) => void;
 	readonly onCancel: () => void;
 	readonly onSubmit: () => void;
 }
@@ -97,7 +95,6 @@ export function WalkForm(props: WalkFormProps) {
 			<TargetSection {...props} />
 			<RuntimeSection {...props} />
 			<ChildrenSection {...props} />
-			<GuardrailsSection {...props} />
 			<IntentSection {...props} />
 			<Footer {...props} />
 		</form>
@@ -378,32 +375,6 @@ function planChildrenSummary(d: WalkDraft, p: SectionProps): string {
 		return `${p.openChildCount} OPEN CHILDREN · RUN IN PLAN ORDER`;
 	}
 	return "CHILDREN RUN IN PLAN ORDER";
-}
-
-function GuardrailsSection(p: SectionProps) {
-	const d = p.draft;
-	return (
-		<MobileCard title="Guardrails">
-			<Section title="Guardrails" description="Optional limits, applied per child run.">
-				<div className="grid gap-[12px] sm:grid-cols-2">
-					<Field
-						label="Cost cap per child (USD)"
-						hint={p.costCapError ?? "EACH CHILD RUN STOPS AT THIS SPEND"}
-					>
-						<input
-							className={`${controlClass} ${p.costCapError ? "border-(--color-danger)" : ""} font-mono`}
-							value={d.costCap}
-							onChange={(e) => p.onCostCap(e.target.value)}
-							placeholder="unset"
-							inputMode="decimal"
-							autoComplete="off"
-							spellCheck={false}
-						/>
-					</Field>
-				</div>
-			</Section>
-		</MobileCard>
-	);
 }
 
 function IntentSection(p: SectionProps) {

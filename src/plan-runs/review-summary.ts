@@ -5,6 +5,16 @@ import { type ReviewRepos, readResultText } from "./review.ts";
 import { currentReviewEvents } from "./review-delivery.ts";
 import { latestMergeResult } from "./review-merge-delivery.ts";
 
+/** A dispatch failure has no reviewer run, so expose its persisted report on the task. */
+export async function loadReviewFailure(repos: ReviewRepos, runId: string): Promise<string | null> {
+	const events = currentReviewEvents(await repos.events.listByRun(runId));
+	const event = events.find((entry) => entry.kind === "plan_run.review_finished");
+	const payload = event?.payloadJson as { outcome?: unknown; report?: unknown } | undefined;
+	return payload?.outcome !== "passed" && typeof payload?.report === "string"
+		? payload.report
+		: null;
+}
+
 /** Operator-only latest merge decision for the current reviewed head. */
 export async function loadReviewMergeResult(
 	repos: ReviewRepos,

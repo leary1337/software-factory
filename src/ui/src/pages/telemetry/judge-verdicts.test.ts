@@ -18,7 +18,7 @@ function row(overrides: Partial<JudgeStoreRow> = {}): JudgeStoreRow {
 		verdict: {
 			runId: "run-1",
 			assignments: [{ class: "clean", confidence: "high" }],
-			provenance: { provider: "p", model: "m", rubricVersion: "v", judgedAt: "t", costUsd: 0 },
+			provenance: { provider: "p", model: "m", rubricVersion: "v", judgedAt: "t" },
 		},
 		reason: null,
 		detail: null,
@@ -143,7 +143,7 @@ describe("summarizeJudgeVerdicts", () => {
 			verdict: {
 				runId: "run-2",
 				assignments: [{ class: "tests_failing", confidence: "high" }],
-				provenance: { provider: "p", model: "m", rubricVersion: "v", judgedAt: "t", costUsd: 0 },
+				provenance: { provider: "p", model: "m", rubricVersion: "v", judgedAt: "t" },
 			},
 		});
 		const s = summarizeJudgeVerdicts([
@@ -173,7 +173,7 @@ describe("summarizeJudgeVerdicts", () => {
 					{ class: "tests_failing", confidence: "low" },
 					{ class: "scope_creep", confidence: "medium" },
 				],
-				provenance: { provider: "p", model: "m", rubricVersion: "v", judgedAt: "t", costUsd: 0 },
+				provenance: { provider: "p", model: "m", rubricVersion: "v", judgedAt: "t" },
 			},
 		});
 		const s = summarizeJudgeVerdicts([row(), failing]);

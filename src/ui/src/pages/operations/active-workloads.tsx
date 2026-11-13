@@ -2,12 +2,9 @@ import { Link } from "react-router-dom";
 import type { ProjectRow, RunRow } from "@/api/types.ts";
 import {
 	CardFigure,
-	CardFigureNote,
 	InventoryCardList,
 	InventoryRowCard,
 } from "@/components/ui/inventory-card.tsx";
-import { formatCostUsd } from "@/pages/run-detail-format.ts";
-import { costNoteToneOf } from "@/pages/runs/runs-card.helpers.ts";
 import {
 	activeWorkloads,
 	activityLine,
@@ -17,21 +14,6 @@ import {
 	shortRepo,
 } from "./operations.helpers.ts";
 import { StatePill } from "./state-tone.tsx";
-
-/**
- * Active workloads table (warren-d903): the non-terminal runs from the
- * shared newest-runs window, oldest phase first (the row that has waited
- * longest is the one the operator judges). The ACTIVITY column shows the
- * prompt's first line — the live toolcall feed the canvas sketches needs
- * per-run event tails this page does not open; a one-poll snapshot stays
- * honest with dispatch intent.
- *
- * Mobile (warren-10d3, mobile/operations.jsx:213-337): the header lives
- * on an in-card --color-thead bar, rows render as dot-only
- * InventoryRowCards with "awaiting admission" folded into the subline and
- * a warning tint on near-cap costs, and the UPDATED footer is
- * visible below md too. The md+ table is unchanged.
- */
 
 const MAX_ROWS = 8;
 
@@ -136,9 +118,6 @@ export function ActiveWorkloads({
 						<span className="w-[48px] shrink-0 text-right font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							ELAPSED
 						</span>
-						<span className="w-[52px] shrink-0 text-right font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
-							COST
-						</span>
 					</div>
 					{active.map((run) => (
 						<Link
@@ -166,9 +145,6 @@ export function ActiveWorkloads({
 							<span className="w-[48px] shrink-0 text-right font-mono text-(--color-text-2) text-xs leading-4">
 								{formatDurationMs(phaseElapsedMs(run, now))}
 							</span>
-							<span className="w-[52px] shrink-0 text-right font-mono text-(--color-text-2) text-xs leading-4">
-								{run.costUsd === null ? "—" : formatCostUsd(run.costUsd)}
-							</span>
 						</Link>
 					))}
 					<div className="flex h-[38px] shrink-0 items-center gap-3 border-(--color-border) border-t px-2.5">
@@ -186,9 +162,6 @@ export function ActiveWorkloads({
 	);
 }
 
-/** Mobile active-workload card (warren-dea8 / warren-10d3): dot-only
- *  state, agent · project · "awaiting admission" subline, activity meta,
- *  elapsed · cost figures with a warning tint near the cost cap. */
 function ActiveWorkloadCard({
 	run,
 	projectLabel,
@@ -209,15 +182,7 @@ function ActiveWorkloadCard({
 					? `${run.agentName} · ${projectLabel} · awaiting admission`
 					: `${run.agentName} · ${projectLabel}`
 			}
-			figures={
-				<>
-					<CardFigure value={formatDurationMs(phaseElapsedMs(run, now))} />
-					<CardFigureNote
-						value={run.costUsd === null ? "—" : formatCostUsd(run.costUsd)}
-						tone={costNoteToneOf(run)}
-					/>
-				</>
-			}
+			figures={<CardFigure value={formatDurationMs(phaseElapsedMs(run, now))} />}
 			meta={run.state === "queued" ? undefined : activityLine(run.prompt)}
 		/>
 	);

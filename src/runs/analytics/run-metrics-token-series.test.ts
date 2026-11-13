@@ -11,7 +11,6 @@ const ROW_DEFAULTS: Omit<RunMetricsRow, "runId"> = {
 	seedId: null,
 	state: "succeeded",
 	failureReason: null,
-	costUsd: null,
 	tokensInput: null,
 	tokensCacheRead: null,
 	tokensOutput: null,

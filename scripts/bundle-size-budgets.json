@@ -19,18 +19,18 @@
 	"$comment_outcomes_histogram_2026_10_08": "BOUNDED AUTO-RAISE, RAW JS ONLY (warren-e9cd via warren-9fd7): the telemetry run-outcomes chart gains loop-tab.buckets.ts (pad the series to one column per UTC day, weekly at 90 days) and telemetryWindowBounds. Net +699 B raw js measured by check-bundle-size; totals.raw.js takes measured + HEADROOM_RAW from a laptop --update. CI gzips about 1.8 KB hotter than the laptop, so the bundle-size-autoheal workflow then re-baselined the gzip and css figures from the CI measure (+514 B gzip js).",
 	"totals": {
 		"raw": {
-			"js": 767406,
-			"css": 57412
+			"js": 740082,
+			"css": 56945
 		},
 		"gzip": {
-			"js": 223178,
-			"css": 10782
+			"js": 216380,
+			"css": 10683
 		}
 	},
 	"largest": {
 		"gzip": {
-			"js": 223178,
-			"css": 10782
+			"js": 216380,
+			"css": 10683
 		}
 	},
 	"$comment_workspace_2026_11_12": "warren-f105: deliberate feature baseline for the approved Overview and Kanban screens, shared project scope, task side panel and new-task/plan workflow over existing APIs. No new dependencies. Measured growth exceeds AUTO_RAISE_CAP by about 3 KB raw / 0.5 KB gzip; regenerate via WARREN_BUNDLE_SIZE_ALLOW_RAISE=1 bun run check:bundle-size --update. Existing legacy routes remain compatible."

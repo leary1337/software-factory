@@ -121,8 +121,6 @@ export interface CreatePlanRunInput {
 	ref?: string | null;
 	providerOverride?: string | null;
 	modelOverride?: string | null;
-	/** warren-a63d: per-child USD spend cap the coordinator forwards on each dispatch. */
-	maxCostUsd?: number | null;
 	dispatcherHandle?: string;
 	trigger?: string;
 	/**
@@ -215,7 +213,6 @@ export class PlanRunsRepo {
 			ref: input.ref ?? null,
 			providerOverride: input.providerOverride ?? null,
 			modelOverride: input.modelOverride ?? null,
-			maxCostUsd: input.maxCostUsd ?? null,
 			dispatcherHandle: input.dispatcherHandle ?? "operator",
 			trigger: input.trigger ?? "manual",
 			parentRunId: input.parentRunId ?? null,
@@ -263,14 +260,6 @@ export class PlanRunsRepo {
 		return row;
 	}
 
-	/**
-	 * For a set of `runs.id` values, return the `(runId, planId, planRunId)`
-	 * tuple for those that were dispatched as children of a plan-run. Powers
-	 * the cost analytics endpoint (warren-cf63 / pl-b0c0 step 6) which needs
-	 * to attribute spend to a `planId` without an N+1 fanout. Runs that are
-	 * not part of any plan-run are silently omitted; the caller treats them
-	 * as `planId=null`.
-	 */
 	async resolvePlanForRunIds(
 		runIds: readonly string[],
 	): Promise<{ runId: string; planId: string | null; planRunId: string }[]> {

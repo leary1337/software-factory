@@ -97,18 +97,12 @@ export interface RunListPage {
 	readonly offset: number;
 }
 
-/**
- * The run facts the judge reads from `GET /runs/:id`: outcome, failure
- * reason, cost, and PR ground truth. Nullable columns read as "none" or
- * "unknown" per the schema comments — never as zero / not-merged.
- */
+
 export interface RunDetail {
 	readonly id: string;
 	readonly state: RunState;
 	/** Infrastructure failure cause; null on success / pre-column rows. */
 	readonly failureReason: RunFailureReason | null;
-	/** USD spend; null when the runtime never reported session stats. */
-	readonly costUsd: number | null;
 	/** Null when no PR was opened (auto-open off, push failed, …). */
 	readonly prUrl: string | null;
 	/** Merge-watcher PR facts; null = unknown, never "not merged". */
@@ -217,9 +211,6 @@ export function parseRunDetail(value: unknown): RunDetail {
 		id,
 		state: asEnum(run.state, `run[${id}].state`, RUN_STATES),
 		failureReason: asNullableEnum(run.failureReason, `run[${id}].failureReason`, RUN_FAILURE_REASONS),
-		costUsd: run.costUsd === null || run.costUsd === undefined
-			? null
-			: asNumber(run.costUsd, `run[${id}].costUsd`),
 		prUrl: asNullableString(run.prUrl, `run[${id}].prUrl`),
 		prState: asNullableEnum(run.prState, `run[${id}].prState`, PULL_REQUEST_LIFECYCLES),
 		prMergedAt: asNullableString(run.prMergedAt, `run[${id}].prMergedAt`),

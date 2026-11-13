@@ -8,8 +8,6 @@
  */
 
 import {
-	REDACTED_COST_PER_MERGED_PR_BUCKET_FIELDS,
-	REDACTED_COST_PER_MERGED_PR_OVERALL_FIELDS,
 	REDACTED_RUN_GROUP_FIELDS,
 	REDACTED_RUN_TOTALS_FIELDS,
 } from "../../../src/server/handlers/runs/analytics.ts";
@@ -133,35 +131,11 @@ export function assertNoLeak(label: string, body: string): void {
 	}
 }
 
-/**
- * `GET /analytics/runs`: the USD rollups whose names collide with public
- * ones, checked structurally at the level they live on rather than by
- * substring. Field lists are imported so a re-classification reaches here.
- * warren-97ae: also walks `outcomes.costPerMergedPr` — the `overall` shape
- * and the byAgent/byModel/byProvider buckets — against the REDACTED
- * constants, so the public instance-wide `costPerMergedPrUsd` is fenced by
- * an explicit allowlist instead of the walk simply never descending there.
- */
 export function assertAnalyticsRollupsAbsent(body: Record<string, unknown>): void {
 	assertObject(body.totals, "totals");
 	assertFieldsAbsent("totals", body.totals as Record<string, unknown>, REDACTED_RUN_TOTALS_FIELDS);
 	for (const groupKey of ["byAgent", "byModel", "byProvider"]) {
 		assertGroupRollupsAbsent(groupKey, body[groupKey], REDACTED_RUN_GROUP_FIELDS);
-	}
-	const outcomes = assertObject(body.outcomes, "outcomes") as Record<string, unknown>;
-	const costPerMergedPr = assertObject(outcomes.costPerMergedPr, "outcomes.costPerMergedPr");
-	const overall = assertObject(costPerMergedPr.overall, "outcomes.costPerMergedPr.overall");
-	assertFieldsAbsent(
-		"outcomes.costPerMergedPr.overall",
-		overall,
-		REDACTED_COST_PER_MERGED_PR_OVERALL_FIELDS,
-	);
-	for (const groupKey of ["byAgent", "byModel", "byProvider"]) {
-		assertGroupRollupsAbsent(
-			`outcomes.costPerMergedPr.${groupKey}`,
-			costPerMergedPr[groupKey],
-			REDACTED_COST_PER_MERGED_PR_BUCKET_FIELDS,
-		);
 	}
 }
 

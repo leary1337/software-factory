@@ -131,45 +131,6 @@ describe("tickWatchdog — terminal-reconcile net (warren-c433)", () => {
 		);
 	});
 
-	test("warren-fe9b: a vanished pod WITH a cancel.requested event reconciles to cancelled through reap (the costUsd-finalization path)", async () => {
-		const runId = await seedRunningWithBurrow("2026-06-05T00:00:00Z");
-		// The cancel intent record: cancelRun appended this when it forwarded the
-		// pod delete — warren itself deleted the pod, so the NotFound → lost
-		// reconciliation must NOT override the operator's cancel.
-		await repos.events.append({
-			runId,
-			sandboxEventSeq: 1,
-			ts: "2026-06-05T00:04:30Z",
-			kind: "cancel.requested",
-			stream: "system",
-			payload: { mode: "forwarded" },
-		});
-		const { provider } = makeStatusProvider(statusOf({ exists: false, phase: "failed" }));
-		const reapCalls: ReapRunInput[] = [];
-		const result = await tickWatchdog({
-			repos,
-			runtimeProvider: provider,
-			heartbeatTimeoutMs: 45 * 60_000,
-			terminalReconcileGraceMs: 60_000,
-			now: () => new Date("2026-06-05T00:05:00Z"),
-			reap: async (input) => {
-				reapCalls.push(input);
-				return fakeReapResult("cancelled");
-			},
-		});
-		expect(result.reconciled).toEqual([{ runId, idleMs: 30_000, outcome: "cancelled" }]);
-		expect(reapCalls).toHaveLength(1);
-		expect(reapCalls[0]?.outcome).toBe("cancelled");
-		expect(reapCalls[0]?.failureReason).toBeUndefined();
-
-		const events = await repos.events.listByRun(runId);
-		const reconciled = events.find((e) => e.kind === WATCHDOG_TERMINAL_RECONCILED_KIND);
-		expect(reconciled).toBeDefined();
-		expect(
-			(reconciled?.payloadJson as { cancelRequested?: boolean } | undefined)?.cancelRequested,
-		).toBe(true);
-	});
-
 	test("warren-fe9b: the cancel fast path probes a cancel-intent run BEFORE the full reconcile grace elapses", async () => {
 		const runId = await seedRunningWithBurrow("2026-06-05T00:00:00Z");
 		await repos.events.append({

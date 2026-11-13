@@ -4,7 +4,7 @@ import { AgentsRepo } from "./agents.ts";
 import { DrizzleAdapter } from "./drizzle-adapter.ts";
 import { ProjectsRepo } from "./projects.ts";
 import { RunsRepo } from "./runs.ts";
-import { aggregateRunCost, countNonTerminal, countRunsByState } from "./runs-stats.ts";
+import { aggregateRunTokens, countNonTerminal, countRunsByState } from "./runs-stats.ts";
 
 function suite(dialect: "sqlite" | "postgres"): void {
 	describe(`runs-stats (${dialect})`, () => {
@@ -89,18 +89,17 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			}
 		});
 
-		test("aggregateRunCost sums cost + tokens, coalescing nulls to zero", async () => {
+		test("aggregateRunTokens sums tokens, coalescing nulls to zero", async () => {
 			const { handle, adapter, repo, agentName, projectId } = await open();
 			try {
-				const empty = await aggregateRunCost(adapter);
-				expect(empty).toEqual({ costUsd: 0, tokensInput: 0, tokensOutput: 0 });
+				const empty = await aggregateRunTokens(adapter);
+				expect(empty).toEqual({ tokensInput: 0, tokensOutput: 0 });
 				const a = await spawn(repo, agentName, projectId);
 				const b = await spawn(repo, agentName, projectId);
 				await spawn(repo, agentName, projectId); // null cost — coalesced
-				await repo.attachStats(a.id, { costUsd: 0.25, tokensInput: 100, tokensOutput: 40 });
-				await repo.attachStats(b.id, { costUsd: 0.75, tokensInput: 200, tokensOutput: 60 });
-				const agg = await aggregateRunCost(adapter);
-				expect(agg.costUsd).toBeCloseTo(1.0);
+				await repo.attachStats(a.id, { tokensInput: 100, tokensOutput: 40 });
+				await repo.attachStats(b.id, { tokensInput: 200, tokensOutput: 60 });
+				const agg = await aggregateRunTokens(adapter);
 				expect(agg.tokensInput).toBe(300);
 				expect(agg.tokensOutput).toBe(100);
 			} finally {

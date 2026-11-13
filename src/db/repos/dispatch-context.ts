@@ -46,18 +46,10 @@ export interface DispatchContextAnalyticsRow {
 	readonly projectId: string | null;
 	readonly state: RunState;
 	readonly failureReason: RunFailureReason | null;
-	readonly costUsd: number | null;
 	readonly prState: PullRequestLifecycle | null;
 }
 
-/**
- * Per-run dispatch facts the runs list overlays onto its projected rows
- * (warren-a0f4): the USD spend cap plus the runtime backend kind
- * (`local` | `docker` | `k8s`) frozen pre-spawn. NULL means unknown
- * (no dispatch-context row, or a row written before the column).
- */
 export interface DispatchFacts {
-	readonly maxCostUsd: number | null;
 	readonly runtimeBackend: string | null;
 }
 
@@ -94,23 +86,21 @@ export class DispatchContextRepo {
 		);
 	}
 
-	/** Widened from getMaxCostUsdByRunIds (warren-a0f4) to carry runtimeBackend too. */
 	async getDispatchFactsByRunIds(runIds: readonly string[]): Promise<Map<string, DispatchFacts>> {
 		const facts = new Map<string, DispatchFacts>();
 		if (runIds.length === 0) return facts;
 		const dc = this.dispatchContext;
 		const rows = await this.adapter.pickAll<{
 			runId: string;
-			maxCostUsd: number | null;
 			runtimeBackend: string | null;
 		}>(
 			this.db
-				.select({ runId: dc.runId, maxCostUsd: dc.maxCostUsd, runtimeBackend: dc.runtimeBackend })
+				.select({ runId: dc.runId, runtimeBackend: dc.runtimeBackend })
 				.from(dc)
 				.where(inArray(dc.runId, [...runIds])),
 		);
 		for (const row of rows) {
-			facts.set(row.runId, { maxCostUsd: row.maxCostUsd, runtimeBackend: row.runtimeBackend });
+			facts.set(row.runId, { runtimeBackend: row.runtimeBackend });
 		}
 		return facts;
 	}
@@ -155,7 +145,6 @@ export class DispatchContextRepo {
 				projectId: runs.projectId,
 				state: runs.state,
 				failureReason: runs.failureReason,
-				costUsd: runs.costUsd,
 				prState: runs.prState,
 			})
 			.from(dc)

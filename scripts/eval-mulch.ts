@@ -1,37 +1,4 @@
 #!/usr/bin/env bun
-/**
- * Mulch A/B eval: does mulch make agent runs better, or only different?
- *
- * Dispatches PAIRED runs of the same task through warren's HTTP API, one
- * with the mulch arm "on" (warren installs mulch's Claude Code hooks:
- * SessionStart `ml prime` + PreToolUse `ml hook`) and one with "off" (no
- * hooks, no mulch prompt fragment). It then reports outcome, cost/tokens,
- * and wall time per arm from the recorded runs, plus which mulch records
- * were injected (the `mulch.usage` event finalize records on every run).
- *
- * Usage:
- *   bun run scripts/eval-mulch.ts dispatch --tasks tasks.json --out eval.json [--repeat N] [--dry-run]
- *   bun run scripts/eval-mulch.ts report --manifest eval.json [--json]
- *
- * `tasks.json` is an array of task specs. To replay a closed seeds issue, pin
- * `baseCommit` to the commit before its fix landed and reuse its prompt:
- *   [{ "id": "warren-1234", "project": "<projectId>", "prompt": "...",
- *      "agent": "claude-code", "baseCommit": "<40-hex>", "seedId": "warren-1234" }]
- *
- * `dispatch` spends real money: every task costs 2 x --repeat runs. Use
- * `--dry-run` to print the plan first. The arm order alternates per pair, so
- * neither arm always dispatches first. The manifest records every run id, and
- * `report` is read-only, so you can run it again while runs finish (runs that
- * are not terminal yet are listed as pending).
- *
- * Confounds to control: hooks the target repo checks in
- * (`.claude/settings.json`) or AGENTS.md text telling the agent to run
- * `ml prime` reach the "off" arm too. The report flags any "off" run that
- * still logged injections as contaminated. Hooks exist only on the
- * claude-code harness.
- *
- * Connection: WARREN_BASE_URL / WARREN_API_TOKEN, or `warren login` config.
- */
 
 import { resolveClientConfig } from "../src/cli/client.ts";
 import { WarrenClient } from "../src/client/client.ts";
@@ -49,7 +16,6 @@ export interface EvalTask {
 	readonly baseCommit?: string;
 	readonly branch?: string;
 	readonly seedId?: string;
-	readonly maxCostUsd?: number;
 }
 
 export interface EvalPair {
@@ -95,7 +61,6 @@ export function dispatchInput(task: EvalTask, arm: Arm): DispatchRunInput {
 		...(task.baseCommit !== undefined ? { baseCommit: task.baseCommit } : {}),
 		...(task.branch !== undefined ? { branch: task.branch } : {}),
 		...(task.seedId !== undefined ? { seedId: task.seedId } : {}),
-		...(task.maxCostUsd !== undefined ? { maxCostUsd: task.maxCostUsd } : {}),
 	};
 }
 
@@ -134,7 +99,6 @@ export interface RunOutcome {
 	readonly succeeded: boolean;
 	readonly prOpened: boolean;
 	readonly prMerged: boolean;
-	readonly costUsd: number | null;
 	readonly tokens: number | null;
 	readonly wallSeconds: number | null;
 	readonly injections: number;
@@ -174,7 +138,6 @@ export async function readOutcome(
 		succeeded: run.state === "succeeded",
 		prOpened: run.prUrl !== null,
 		prMerged: run.prState === "merged",
-		costUsd: run.costUsd,
 		tokens,
 		wallSeconds: wall !== null && Number.isFinite(wall) ? wall : null,
 		injections: usage.injections ?? 0,
@@ -188,7 +151,6 @@ export interface ArmSummary {
 	readonly successRate: number | null;
 	readonly prRate: number | null;
 	readonly mergedRate: number | null;
-	readonly meanCostUsd: number | null;
 	readonly meanTokens: number | null;
 	readonly meanWallSeconds: number | null;
 	readonly meanInjections: number | null;
@@ -225,7 +187,6 @@ function summarizeArm(outcomes: readonly RunOutcome[]): ArmSummary {
 		successRate: rate(done, (o) => o.succeeded),
 		prRate: rate(done, (o) => o.prOpened),
 		mergedRate: rate(done, (o) => o.prMerged),
-		meanCostUsd: mean(done.map((o) => o.costUsd)),
 		meanTokens: mean(done.map((o) => o.tokens)),
 		meanWallSeconds: mean(done.map((o) => o.wallSeconds)),
 		meanInjections: mean(done.map((o) => o.injections)),
@@ -278,7 +239,7 @@ function fmt(v: number | null, digits = 2, pct = false): string {
 export function renderMarkdown(report: EvalReport): string {
 	const rows = ARMS.map((arm) => {
 		const s = report.arms[arm];
-		return `| ${arm} | ${s.runs} | ${s.pending} | ${fmt(s.successRate, 0, true)} | ${fmt(s.prRate, 0, true)} | ${fmt(s.mergedRate, 0, true)} | ${fmt(s.meanCostUsd, 4)} | ${fmt(s.meanTokens, 0)} | ${fmt(s.meanWallSeconds, 0)} | ${fmt(s.meanInjections, 1)} |`;
+		return `| ${arm} | ${s.runs} | ${s.pending} | ${fmt(s.successRate, 0, true)} | ${fmt(s.prRate, 0, true)} | ${fmt(s.mergedRate, 0, true)} | ${fmt(s.meanTokens, 0)} | ${fmt(s.meanWallSeconds, 0)} | ${fmt(s.meanInjections, 1)} |`;
 	});
 	const lines = [
 		"## Mulch eval",

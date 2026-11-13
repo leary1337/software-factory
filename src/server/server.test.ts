@@ -336,8 +336,6 @@ describe("startServer — routes", () => {
 		const body = (await res.json()) as Record<string, unknown>;
 		expect(body.runs).toEqual([]);
 		expect(body.total).toBe(0);
-		expect(body.costTotalUsd).toBe(0);
-		expect(body.costPricedCount).toBe(0);
 		expect(body.limit).toBe(100);
 		expect(body.offset).toBe(0);
 	});
@@ -364,24 +362,6 @@ describe("startServer — routes", () => {
 		handle = startServer(await depsFor(repos), tcpOpts());
 		const res = await fetch(`${tcpUrl(handle)}/runs/run_unknown`);
 		expect(res.status).toBe(404);
-	});
-
-	test("GET /analytics/cost returns the empty analytics envelope (warren-cf63)", async () => {
-		handle = startServer(await depsFor(repos), tcpOpts());
-		const res = await fetch(`${tcpUrl(handle)}/analytics/cost`);
-		expect(res.status).toBe(200);
-		const body = (await res.json()) as Record<string, unknown>;
-		expect(body.totals).toEqual({ runs: 0, priced: 0, costUsd: 0 });
-		const breakdowns = body.breakdowns as Record<string, unknown[]>;
-		for (const dim of ["date", "project", "plan", "run", "agent", "model", "provider"]) {
-			expect(breakdowns[dim]).toEqual([]);
-		}
-	});
-
-	test("GET /analytics/cost rejects malformed ?from (warren-cf63)", async () => {
-		handle = startServer(await depsFor(repos), tcpOpts());
-		const res = await fetch(`${tcpUrl(handle)}/analytics/cost?from=not-a-date`);
-		expect(res.status).toBe(400);
 	});
 
 	test("/readyz returns 503 when any mirrored check fails", async () => {

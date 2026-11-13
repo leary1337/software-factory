@@ -101,7 +101,6 @@ export function DispatchPlanPage() {
 					planSelectorUnavailable={s.planSelectorUnavailable}
 					openChildCount={s.openChildCount}
 					issueStatuses={s.issueStatuses}
-					costCapError={s.costCapError}
 					submitError={s.submitError}
 					pending={s.pending}
 					canSubmit={s.valid}
@@ -115,7 +114,6 @@ export function DispatchPlanPage() {
 					onProvider={s.setProvider}
 					onModel={s.setModel}
 					onPrompt={s.setPrompt}
-					onCostCap={s.setCostCap}
 					onCancel={s.cancel}
 					onSubmit={s.submit}
 				/>
@@ -126,7 +124,6 @@ export function DispatchPlanPage() {
 						agent: s.draft.agent,
 						provider: s.draft.providerOverride.trim(),
 						model: s.draft.modelOverride.trim(),
-						costCap: s.draft.costCap,
 						planId: s.draft.planId,
 						issuesText: s.draft.issuesText,
 						sourceMode: s.draft.sourceMode,
