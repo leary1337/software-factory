@@ -38,7 +38,7 @@ export function recoverReview(
 	if (stalled) {
 		if (
 			steps.some((step) => step.recoveryReason === STALLED) ||
-			steps.filter((step) => step.step === "rework").length >= budget.maxReworks
+			steps.filter((step) => step.step === "rework").length >= (budget.maxReworks ?? Infinity)
 		)
 			return decision;
 		return { kind: "spawn", step: "rework", findings: decision.report, recoveryReason: STALLED };

@@ -3,29 +3,30 @@ import type { ReviewDecision, ReviewStepRecord } from "./review.ts";
 
 export const MAX_REWORKS = 8;
 export interface ReviewLoopBudget {
-	readonly maxReworks: number;
-	readonly maxSteps: number;
-	readonly maxActiveMs: number;
+	readonly maxReworks?: number;
+	readonly maxSteps?: number;
+	readonly maxActiveMs?: number;
 }
-export const DEFAULT_REVIEW_BUDGET: ReviewLoopBudget = {
-	maxReworks: MAX_REWORKS,
-	maxSteps: 24,
-	maxActiveMs: 7_200_000,
-};
+export const DEFAULT_REVIEW_BUDGET: ReviewLoopBudget = {};
 
 export function loadReviewBudget(
 	env: Record<string, string | undefined> = process.env,
 ): ReviewLoopBudget {
-	const value = (key: string, fallback: number) => {
+	const value = (key: string) => {
 		const raw = env[key];
-		const number = raw === undefined ? fallback : Number(raw);
+		if (raw === undefined) return undefined;
+		const number = Number(raw);
 		if (!Number.isFinite(number) || number <= 0) throw new Error(`Invalid ${key}`);
 		return number;
 	};
+	const count = (key: string) => {
+		const limit = value(key);
+		return limit === undefined ? undefined : Math.max(1, Math.floor(limit));
+	};
 	return {
-		maxReworks: Math.max(1, Math.floor(value("WARREN_REWORK_MAX_ROUNDS", MAX_REWORKS))),
-		maxSteps: Math.max(1, Math.floor(value("WARREN_REWORK_MAX_STEPS", 24))),
-		maxActiveMs: value("WARREN_REWORK_MAX_ACTIVE_MS", 7_200_000),
+		maxReworks: count("WARREN_REWORK_MAX_ROUNDS"),
+		maxSteps: count("WARREN_REWORK_MAX_STEPS"),
+		maxActiveMs: value("WARREN_REWORK_MAX_ACTIVE_MS"),
 	};
 }
 
@@ -33,8 +34,10 @@ export function reviewBudgetReason(
 	steps: readonly ReviewStepRecord[],
 	budget: ReviewLoopBudget,
 ): string | null {
+	if (budget.maxSteps !== undefined && steps.length >= budget.maxSteps)
+		return "step_budget_exhausted";
+	if (budget.maxActiveMs === undefined) return null;
 	if (steps.some((step) => step.activeMs === null)) return "budget_unknown";
-	if (steps.length >= budget.maxSteps) return "step_budget_exhausted";
 	if (steps.reduce((sum, step) => sum + (step.activeMs ?? 0), 0) >= budget.maxActiveMs)
 		return "time_budget_exhausted";
 	return null;
