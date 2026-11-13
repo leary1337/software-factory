@@ -98,7 +98,6 @@
 				"!src/ui/src/components/ui/**",
 				"!src/ui/src/pages/login.tsx",
 				"!src/ui/src/pages/runs/runs-table.tsx",
-				"!src/ui/src/pages/telemetry/economics-panels.tsx",
 				"!src/ui/src/pages/telemetry/judge-tab.tsx",
 				"!src/ui/src/pages/telemetry/loop-tab.tsx",
 				"!src/ui/src/pages/telemetry/meter-bar.tsx"

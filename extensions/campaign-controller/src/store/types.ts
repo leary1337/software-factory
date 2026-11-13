@@ -15,7 +15,6 @@ export type CampaignStatus =
 	| "approved"
 	| "running"
 	| "paused_operator"
-	| "paused_budget"
 	| "needs_attention"
 	| "completed"
 	| "failed"
@@ -80,9 +79,6 @@ export type ActionErrorClass =
 	| "dispatch_rejected"
 	| "unknown";
 
-/** Budget reservation lifecycle. */
-export type ReservationState = "active" | "settled" | "released";
-
 /** A persisted campaign row. */
 export interface CampaignRow {
 	readonly id: string;
@@ -91,7 +87,6 @@ export interface CampaignRow {
 	/** Immutable manifest JSON as approved. Approval binds this digest. */
 	readonly manifestJson: string;
 	readonly policyDigest: string | null;
-	readonly budgetCapUsdCents: number | null;
 	readonly createdAtMs: number;
 	readonly updatedAtMs: number;
 	readonly approvedAtMs: number | null;
@@ -125,7 +120,6 @@ export interface ActionRow {
 	readonly policyDigest: string | null;
 	readonly state: ActionState;
 	readonly attempt: number;
-	readonly reservedUsdCents: number | null;
 	readonly startedAtMs: number | null;
 	readonly settledAtMs: number | null;
 	readonly resultRunId: string | null;
@@ -226,18 +220,6 @@ export interface FollowUpProgressRow {
 	readonly headBranch: string | null;
 	readonly createdAtMs: number;
 	readonly updatedAtMs: number;
-}
-
-/** A budget reservation in the campaign ledger. */
-export interface ReservationRow {
-	readonly id: string;
-	readonly campaignId: string;
-	readonly actionId: string | null;
-	readonly amountUsdCents: number;
-	readonly state: ReservationState;
-	readonly settledUsdCents: number | null;
-	readonly createdAtMs: number;
-	readonly settledAtMs: number | null;
 }
 
 /** A leased work claim (design record §9). */

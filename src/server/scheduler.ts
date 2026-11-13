@@ -165,7 +165,6 @@ export function bootScheduler(input: BootSchedulerInput): SchedulerHandle {
 			dispatchOrigin,
 			...(args.seedId !== undefined ? { seedId: args.seedId } : {}),
 			...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
-			...(args.maxCostUsd !== undefined ? { maxCostUsdOverride: args.maxCostUsd } : {}),
 			projectsConfig: input.projectsConfig,
 			projectSpawn: input.projectSpawn,
 			gitCredential: gitSecret,

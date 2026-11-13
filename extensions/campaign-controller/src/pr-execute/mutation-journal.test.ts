@@ -39,7 +39,6 @@ beforeEach(() => {
 	const campaign = store.campaigns.createCampaign({
 		manifestDigest: "digest-mutations",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	});
 	campaignId = campaign.id;
 	workItemId = store.campaigns.addWorkItem({

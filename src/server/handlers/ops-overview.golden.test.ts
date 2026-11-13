@@ -27,7 +27,6 @@ const FIXTURE_OVERVIEW: OpsOverview = {
 		total: 9,
 	},
 	window: "24h",
-	spend: { totalUsd: 12.5, windowUsd: 3.25, windowRuns: 4 },
 	delivery: { branchesPushed: 4, prsOpened: 3, prsMerged: 2 },
 	services: { dbReachable: true, runtime: "local", lifecycleStream: true },
 	generatedAt: "2026-08-27T00:00:00.000Z",

@@ -10,7 +10,6 @@ export const CODEX_BIN = "codex";
 
 export const codexAdapter: AgentRuntimeAdapter = {
 	runtimeId: CODEX_RUNTIME_ID,
-	costBasis: "subscription_estimate",
 	defaultTimeoutMs: 20 * 60_000,
 	harnessStatePrefixes: [".codex/sessions/"],
 	commitExcludes: [".codex/auth.json", ".codex/sessions/"],
@@ -22,6 +21,8 @@ export const codexAdapter: AgentRuntimeAdapter = {
 		return prepareCodexCredentials(homePath);
 	},
 	buildSpawnCommand(ctx) {
+		if (ctx.frontmatter?.provider && ctx.frontmatter.provider !== "openai")
+			throw new Error("Codex ChatGPT runs require the openai provider");
 		const home = process.platform === "linux" ? "/home/sandbox" : ctx.homePath;
 		return {
 			argv: [

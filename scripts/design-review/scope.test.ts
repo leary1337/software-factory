@@ -39,15 +39,13 @@ describe("pagesForFile", () => {
 		expect(pagesForFile("src/ui/src/pages/dispatch/dispatch-form.tsx")).toEqual(["dispatch"]);
 	});
 
-	test("maps a telemetry tab to its page and shared telemetry code to all four", () => {
+	test("maps a telemetry tab to its page and shared telemetry code to all three", () => {
 		expect(pagesForFile("src/ui/src/pages/telemetry/loop-tab.buckets.ts")).toEqual([
 			"telemetry-loop",
 		]);
-		expect(pagesForFile("src/ui/src/pages/telemetry/economics-panels.tsx")).toEqual([
-			"telemetry-economics",
-		]);
-		expect(pagesForFile("src/ui/src/pages/telemetry/meter-bar.tsx")).toHaveLength(4);
-		expect(pagesForFile("src/ui/src/pages/telemetry.tsx")).toHaveLength(4);
+		expect(pagesForFile("src/ui/src/pages/telemetry/judge-tab.tsx")).toEqual(["telemetry-judge"]);
+		expect(pagesForFile("src/ui/src/pages/telemetry/meter-bar.tsx")).toHaveLength(3);
+		expect(pagesForFile("src/ui/src/pages/telemetry.tsx")).toHaveLength(3);
 	});
 
 	test("returns null (every page) for shared code and unknown page files", () => {

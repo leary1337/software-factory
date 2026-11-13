@@ -2,7 +2,6 @@ import { expect, type Page, test } from "@playwright/test";
 import type { PlanRunDetailResponse } from "../../../src/ui/src/api/types.ts";
 import { harnessCases, openCase, screenshotCase } from "../harness.ts";
 
-// warren-f102: long review chains, implementation-only costs and unreadable plan tables.
 const { fixture, cases } = harnessCases();
 const TASK = "Синхронизация: плохая связь, другие телефоны и сохранение истории тренировок";
 const PLAN = "Стабильный ввод тренировки и исправление ошибок во всех разделах приложения";
@@ -22,7 +21,6 @@ async function installHistory(page: Page) {
 	detail.planRun.state = "succeeded";
 	detail.children = [child];
 	detail.runs = [run];
-	run.costUsd = 0.843;
 	Object.assign(child, {
 		title: TASK,
 		state: "merged",
@@ -32,11 +30,8 @@ async function installHistory(page: Page) {
 	});
 	child.metrics = {
 		...child.metrics,
-		costUsd: 8.56,
-		costUnknownRuns: 0,
 		incomplete: false,
 		missingRunCount: 0,
-		subscriptionEstimateRuns: 29,
 		runCount: 29,
 		reviewCount: 20,
 		reworkCount: 8,
@@ -87,9 +82,8 @@ async function installHistory(page: Page) {
 for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 	test.describe(`warren-f102 ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
-		let detail: PlanRunDetailResponse;
 		test.beforeEach(async ({ page }) => {
-			detail = await installHistory(page);
+			await installHistory(page);
 		});
 
 		test("puts the latest review first and collapses old detailed reports", async ({
@@ -115,20 +109,6 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 			await expect(page.getByText(/^Older detailed report 1\./)).toBeVisible();
 			await page.getByRole("combobox", { name: "History type" }).selectOption("ui_review");
 			await expect(page.getByText("No steps match this filter.", { exact: true })).toBeVisible();
-		});
-
-		test("shows the same whole-task cost on the plan and task screens", async ({ page }) => {
-			await openCase(page, c, fixture);
-			await expect(page.getByRole("region", { name: "Plan cost", exact: true })).toContainText(
-				"$8.56",
-			);
-			await page.getByRole("link", { name: new RegExp(TASK) }).click();
-			await expect(page.getByRole("region", { name: "Task cost", exact: true })).toContainText(
-				"$8.56",
-			);
-			await expect(page.getByRole("region", { name: "Task cost", exact: true })).toContainText(
-				"$0.843",
-			);
 		});
 
 		test("keeps task and plan names readable without truncation", async ({ page }, info) => {
@@ -162,31 +142,6 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 				).toBeLessThanOrEqual(1);
 			}
 		});
-		test("keeps partial and unavailable costs explicit across the plan list and details", async ({
-			page,
-		}) => {
-			const child = detail.children[0];
-			if (!child?.metrics) throw new Error("Missing metrics");
-			const metrics = child.metrics;
-			child.metrics = { ...metrics, costUnknownRuns: 2, incomplete: true };
-			await openCase(page, c, fixture);
-			await expect(page.getByRole("region", { name: "Plan cost", exact: true })).toContainText(
-				"$8.56 + unknown",
-			);
-			await page.goto(`${fixture.baseUrl}/#/plan-runs`);
-			await expect(page.getByText("$8.56 + unknown", { exact: true })).toBeVisible();
-			child.metrics = undefined;
-			await page.goto(`${fixture.baseUrl}${c.url}?task=1`);
-			await page.reload();
-			const taskCost = page.getByRole("region", { name: "Task cost", exact: true });
-			await expect(taskCost).toContainText("Unknown");
-			await expect(taskCost).toContainText("$0.843");
-			await expect(taskCost).not.toContainText("$0.00");
-			child.metrics = { ...metrics, costUsd: 0 };
-			await page.reload();
-			await expect(taskCost).toContainText("$0.00");
-			await expect(taskCost).not.toContainText("+ unknown");
-		});
 
 		test("searches plan names and IDs and handles an empty result", async ({ page }) => {
 			await openCase(page, { ...c, url: "/#/plan-runs" }, fixture);
@@ -199,42 +154,6 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 			await expect(page.getByText(/No plan runs match this filter/)).toBeVisible();
 			await page.getByRole("button", { name: "Clear", exact: true }).click();
 			await expect(page.getByRole("link", { name: PLAN, exact: true })).toBeVisible();
-		});
-
-		test("recovers unavailable plan data without presenting a zero cost", async ({ page }) => {
-			await page.route(`**/plan-runs/${fixture.ids.planRun.id}`, (route) =>
-				route.fulfill({ status: 503, json: { error: "Temporarily unavailable" } }),
-			);
-			await openCase(page, { ...c, url: "/#/plan-runs" }, fixture);
-			await expect(page.getByText("Progress unknown", { exact: true })).toBeVisible();
-			await expect(page.getByText("Unknown", { exact: true })).toBeVisible();
-			await expect(page.getByText("$0.00", { exact: true })).toHaveCount(0);
-			await page.route(`**/plan-runs/${fixture.ids.planRun.id}`, (route) =>
-				route.fulfill({ json: detail }),
-			);
-			await page.getByRole("button", { name: "Retry plan data", exact: true }).click();
-			await expect(page.getByText("$8.56", { exact: true })).toBeVisible();
-			await expect(page.getByRole("button", { name: "Retry plan data" })).toHaveCount(0);
-		});
-
-		test("keeps redacted history and limits distinct from empty data", async ({ page }) => {
-			const child = detail.children[0];
-			if (!child) throw new Error("Missing task");
-			child.metrics = undefined;
-			child.reviewSteps = undefined;
-			detail.planRun.maxCostUsd = undefined;
-			await openCase(page, { ...c, url: `${c.url}?task=1` }, fixture);
-			const history = page.getByRole("region", { name: "Execution history", exact: true });
-			await expect(history).toContainText("Detailed review history is available to the operator.");
-			await expect(history).not.toContainText("0 code reviews");
-			await page.getByRole("link", { name: "← Back to plan", exact: true }).click();
-			await expect(page.getByText("Unavailable", { exact: true })).toBeVisible();
-			await expect(page.getByText("No limit declared", { exact: true })).toHaveCount(0);
-			await page.goto(`${fixture.baseUrl}/#/plan-runs`);
-			await expect(
-				page.getByText("Implementation run limit: Unavailable", { exact: true }),
-			).toBeVisible();
-			await expect(page.getByText("Unknown", { exact: true })).toBeVisible();
 		});
 	});
 }

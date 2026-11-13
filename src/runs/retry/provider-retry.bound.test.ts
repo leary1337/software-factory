@@ -44,7 +44,6 @@ describe("the provider-retry attempt bound", () => {
 			frontmatter: {
 				provider: "openrouter",
 				model: "deepseek/deepseek-v4-pro-0813",
-				maxCostUsd: 6,
 			},
 		});
 		const { spawn } = await fire(fixture);
@@ -52,7 +51,6 @@ describe("the provider-retry attempt bound", () => {
 		const call = spawn.calls[0] as SpawnCall;
 		expect(call.providerOverride).toBe("openrouter");
 		expect(call.modelOverride).toBe("deepseek/deepseek-v4-pro-0813");
-		expect(call.maxCostUsdOverride).toBe(6);
 	});
 
 	test("stays silent with no provider signal, even once the bound is spent", async () => {

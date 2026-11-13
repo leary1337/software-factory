@@ -19,8 +19,6 @@ describe("resolveConfig", () => {
 		expect(config.warrenBaseUrl).toBe("https://warren.example.com");
 		expect(config.dbPath).toBe("./data/judge.db");
 		expect(config.pollIntervalMs).toBe(30_000);
-		expect(config.maxCostUsdPerJudgment).toBe(0.25);
-		expect(config.dailyBudgetUsd).toBe(5);
 		expect(config.maxRetries).toBe(2);
 		expect(config.maxPages).toBe(40);
 		expect(config.eventsPageSize).toBe(200);
@@ -54,13 +52,9 @@ describe("resolveConfig", () => {
 			...BASE_ENV,
 			JUDGE_DB_PATH: "/tmp/judge.db",
 			JUDGE_POLL_INTERVAL_MS: "1000",
-			JUDGE_MAX_COST_USD: "0.05",
-			JUDGE_DAILY_BUDGET_USD: "1.5",
 		});
 		expect(config.dbPath).toBe("/tmp/judge.db");
 		expect(config.pollIntervalMs).toBe(1000);
-		expect(config.maxCostUsdPerJudgment).toBe(0.05);
-		expect(config.dailyBudgetUsd).toBe(1.5);
 	});
 
 	test("strips a trailing slash from the base URL", () => {
@@ -75,23 +69,12 @@ describe("resolveConfig", () => {
 		);
 	});
 
-	test("resolves the legacy per-judgment cap spelling as a fallback alias", () => {
-		const config = resolveConfig({ ...BASE_ENV, JUDGE_MAX_COST_USD_PER_JUDGMENT: "0.07" });
-		expect(config.maxCostUsdPerJudgment).toBe(0.07);
-		const both = resolveConfig({
-			...BASE_ENV,
-			JUDGE_MAX_COST_USD: "0.09",
-			JUDGE_MAX_COST_USD_PER_JUDGMENT: "0.07",
-		});
-		expect(both.maxCostUsdPerJudgment).toBe(0.09);
-	});
-
 	test("rejects a malformed numeric knob", () => {
-		expect(() => resolveConfig({ ...BASE_ENV, JUDGE_DAILY_BUDGET_USD: "lots" })).toThrow(
-			/JUDGE_DAILY_BUDGET_USD/,
+		expect(() => resolveConfig({ ...BASE_ENV, JUDGE_POLL_INTERVAL_MS: "invalid" })).toThrow(
+			/JUDGE_POLL_INTERVAL_MS/,
 		);
 		expect(() =>
-			resolveConfig({ ...BASE_ENV, JUDGE_MAX_COST_USD_PER_JUDGMENT: "-1" }),
+			resolveConfig({ ...BASE_ENV, JUDGE_POLL_INTERVAL_MS: "invalid" }),
 		).toThrow(ConfigError);
 	});
 });

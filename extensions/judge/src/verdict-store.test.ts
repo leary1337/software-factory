@@ -26,7 +26,6 @@ function makeVerdict(overrides?: {
 			model: overrides?.model ?? "cheap-model",
 			rubricVersion: overrides?.rubricVersion ?? "rubric-v1-abc",
 			judgedAt: "2026-08-15T12:00:00.000Z",
-			costUsd: 0.0042,
 		},
 	};
 }
@@ -100,14 +99,12 @@ describe("VerdictStore.recordUnjudged", () => {
 			runId: "run-1",
 			rubricVersion: "rubric-v1-abc",
 			judgeModelId: "cheap-model",
-			reason: "budget_exceeded",
-			detail: "accrued cost $0.2500 reached per-judgment cap",
+			reason: "malformed_verdict",
+			detail: "exhausted verdict attempts",
 		});
 		expect(id).toBe(1);
 		const row = store.rowsForRun("run-1")[0];
 		expect(row?.kind).toBe("unjudged");
-		expect(row?.reason).toBe("budget_exceeded");
-		expect(row?.detail).toBe("accrued cost $0.2500 reached per-judgment cap");
 		expect(row?.verdict).toBeNull();
 		store.close();
 	});
@@ -276,5 +273,32 @@ describe("VerdictStore.calibrationPairs", () => {
 		});
 		expect(store.calibrationPairs("rubric-v1-abc", "cheap-model", "strong-model")).toEqual([]);
 		store.close();
+	});
+});
+
+describe("retired monetary storage", () => {
+	test("removes the ledger and monetary provenance while preserving verdict history", () => {
+		const dir = mkdtempSync(join(tmpdir(), "judge-retire-costs-"));
+		const path = join(dir, "judge.db");
+		try {
+			const original = new VerdictStore(path);
+			original.recordVerdict(makeVerdict());
+			original.recordUnjudged({ runId: "run-2", rubricVersion: "v1", judgeModelId: "model", reason: "judge_error" });
+			original.close();
+			const raw = new Database(path);
+			raw.exec("CREATE TABLE judge_spend (cost_usd REAL); INSERT INTO judge_spend VALUES (1.5)");
+			raw.exec("UPDATE verdict_rows SET verdict = json_set(verdict, '$.provenance.costUsd', 1.5) WHERE kind = 'verdict'");
+			raw.exec("UPDATE verdict_rows SET reason = 'budget_exceeded' WHERE kind = 'unjudged'");
+			raw.close();
+			const migrated = new VerdictStore(path);
+			expect(migrated.count()).toBe(2);
+			expect(migrated.rowsForRun("run-1")[0]).toMatchObject({ verdict: makeVerdict() });
+			expect(migrated.rowsForRun("run-2")[0]).toMatchObject({ kind: "unjudged", reason: "judge_error" });
+			migrated.close();
+			const check = new Database(path);
+			expect(check.query("SELECT name FROM sqlite_master WHERE name = 'judge_spend'").all()).toEqual([]);
+			expect(check.query("SELECT json_extract(verdict, '$.provenance.costUsd') AS cost FROM verdict_rows WHERE kind = 'verdict'").get()).toEqual({ cost: null });
+			check.close();
+		} finally { rmSync(dir, { recursive: true, force: true }); }
 	});
 });

@@ -302,12 +302,6 @@ describe("wire paths", () => {
 		{ name: "meta.healthz", call: (a) => a.metaApi.healthz(), url: "/healthz" },
 		{ name: "meta.readyz", call: (a) => a.metaApi.readyz(), url: "/readyz" },
 		{ name: "meta.version", call: (a) => a.metaApi.version(), url: "/version" },
-		{ name: "analytics.cost", call: (a) => a.analyticsApi.cost(), url: "/analytics/cost" },
-		{
-			name: "analytics.cost (filtered)",
-			call: (a) => a.analyticsApi.cost({ projectId: "p1", from: "2026-01-01" }),
-			url: "/analytics/cost?projectId=p1&from=2026-01-01",
-		},
 		{ name: "runAnalytics.runs", call: (a) => a.runAnalyticsApi.runs(), url: "/analytics/runs" },
 		{
 			name: "runAnalytics.behavior",

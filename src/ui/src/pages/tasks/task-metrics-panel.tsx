@@ -1,5 +1,4 @@
 import type { PlanRunChildRow } from "@/api/types.ts";
-import { costText, taskCost } from "./cost-summary.ts";
 
 function duration(ms: number | null): string {
 	if (ms === null) return "Unknown";
@@ -10,16 +9,12 @@ export function TaskMetricsPanel({ child }: { child: PlanRunChildRow }) {
 	const metrics = child.metrics;
 	if (!metrics) return null;
 	const partial =
-		metrics.incomplete ||
-		metrics.costUnknownRuns > 0 ||
-		metrics.tokenUnknownRuns > 0 ||
-		metrics.durationUnknownRuns > 0;
+		metrics.incomplete || metrics.tokenUnknownRuns > 0 || metrics.durationUnknownRuns > 0;
 	const figures = [
 		["Runs in this task", String(metrics.runCount)],
 		["Active execution time", duration(metrics.activeMs)],
 		["Time to delivery", duration(metrics.deliveryMs)],
 		["Tokens reported", metrics.totalTokens?.toLocaleString() ?? "Unknown"],
-		["Reported cost / API estimate", costText(taskCost(child))],
 		["Reworks", String(metrics.reworkCount)],
 		[
 			"Accepted without rework",
@@ -43,15 +38,13 @@ export function TaskMetricsPanel({ child }: { child: PlanRunChildRow }) {
 				))}
 			</dl>
 			<p className="text-(--color-text-2) text-xs">
-				Includes implementation, reviews and reworks. Subscription amounts are API-equivalent
-				estimates, not subscription charges. Manual edits and rollbacks outside the factory are not
-				measured.
+				Includes implementation, reviews and reworks. Manual edits and rollbacks outside the factory
+				are not measured.
 			</p>
 			{partial ? (
 				<p className="text-(--color-warning) text-sm">
-					Partial totals. Unknown measurements: cost for {metrics.costUnknownRuns} runs, tokens for{" "}
-					{metrics.tokenUnknownRuns} runs, time for {metrics.durationUnknownRuns} runs. Missing
-					linked runs: {metrics.missingRunCount}.
+					Partial totals. Unknown measurements: tokens for {metrics.tokenUnknownRuns} runs, time for{" "}
+					{metrics.durationUnknownRuns} runs. Missing linked runs: {metrics.missingRunCount}.
 				</p>
 			) : null}
 		</section>

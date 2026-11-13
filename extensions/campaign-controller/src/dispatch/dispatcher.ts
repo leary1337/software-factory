@@ -1,42 +1,8 @@
-/**
- * Durable Warren dispatch and restart reconciliation (plan pl-91b6 step 7,
- * warren-2a0a).
- *
- * This module is the paid-work boundary of the controller. Its invariants:
- *
- * 1. **Intent before I/O.** Reserving the full per-run cap and persisting a
- *    deterministic `warren_dispatch` action with the exact request digest
- *    happen in ONE store transaction before any network request. A crash
- *    between that commit and the POST replans onto the same action key with
- *    the same idempotency key.
- * 2. **Stable idempotency key.** The action key IS the `Idempotency-Key`
- *    sent to warren, so a replayed delivery of the same attempt dedupes
- *    server-side for as long as warren's store remembers it.
- * 3. **Correlate confirmed runs, then read.** A confirmed POST persists the
- *    run id (`correlateRun`) before anything else; from then on the only
- *    warren interaction is the safe, retryable `GET /runs/:id` until the
- *    run reaches a terminal state.
- * 4. **Fail closed on ambiguity.** An ambiguous POST outcome with no known
- *    run settles the action `uncertain`, moves the work item to
- *    `dispatch_uncertain`, creates an attention item, and is NEVER retried
- *    — neither by this process nor after a restart — because warren's
- *    idempotency store is not durable across its own restarts.
- * 5. **Restart reconciles, never re-POSTs.** On boot: expire leases, resume
- *    known-run reads to terminal, and fail closed (uncertain + attention)
- *    for every unfinished action with no known run.
- * 6. **Conservative ledger.** The full cap stays reserved until the run is
- *    terminal with a KNOWN cost; an unknown terminal cost keeps the
- *    reservation active until an operator resolves it.
- *
- * Failure terminal records the structured outcome (state + failure reason)
- * on the action without advancing the work item.
- */
-
 import type { IdGenerator } from "../clock.ts";
 import { canonicalJson, sha256Hex } from "../digest.ts";
 import { StateError } from "../errors.ts";
 import type { CampaignStateStore } from "../store/state-store.ts";
-import type { ActionRow, ReservationRow, WorkItemStatus } from "../store/types.ts";
+import type { ActionRow, WorkItemStatus } from "../store/types.ts";
 import { TERMINAL_ACTION_STATES } from "../store/types.ts";
 import {
 	DispatchUncertainError,
@@ -62,7 +28,6 @@ export interface WarrenDispatchRequestSpec {
 	readonly prompt: string;
 	readonly provider?: string;
 	readonly model?: string;
-	readonly maxCostUsd?: number;
 	/** Dispatch onto this existing branch instead of a fresh workspace branch (warren-326f). */
 	readonly existingBranch?: string;
 }
@@ -108,8 +73,6 @@ export interface RunReconcileResult {
 	readonly settledNow: boolean;
 	readonly workItemStatus: WorkItemStatus | null;
 	readonly branch: string | null;
-	/** Known terminal cost in cents, or null while unknown/conservative. */
-	readonly costUsdCents: number | null;
 }
 
 export interface RestartFailClosedEntry {
@@ -123,10 +86,6 @@ export interface RestartReconcileResult {
 	readonly failClosed: readonly RestartFailClosedEntry[];
 }
 
-function usdToCents(usd: number): number {
-	return Math.round(usd * 100);
-}
-
 /** The exact body warren receives, built once so the digest is over truth. */
 function dispatchBody(request: WarrenDispatchRequestSpec): Record<string, unknown> {
 	return {
@@ -135,7 +94,6 @@ function dispatchBody(request: WarrenDispatchRequestSpec): Record<string, unknow
 		prompt: request.prompt,
 		...(request.provider !== undefined ? { providerOverride: request.provider } : {}),
 		...(request.model !== undefined ? { modelOverride: request.model } : {}),
-		...(request.maxCostUsd !== undefined ? { maxCostUsd: request.maxCostUsd } : {}),
 		...(request.existingBranch !== undefined ? { existingBranch: request.existingBranch } : {}),
 	};
 }
@@ -163,8 +121,6 @@ export class WarrenDispatcher {
 		campaignId: string;
 		workItemId: string;
 		request: WarrenDispatchRequestSpec;
-		/** The reservation admission took, when admission reserved already. */
-		reservationId?: string | null;
 	}): Promise<DispatchOutcome> {
 		const scope = `dispatch:${input.workItemId}`;
 		// Claim the work item first: a concurrent tick holding the lease is
@@ -209,7 +165,6 @@ export class WarrenDispatcher {
 		campaignId: string;
 		workItemId: string;
 		request: WarrenDispatchRequestSpec;
-		reservationId?: string | null;
 	}): Promise<DispatchOutcome> {
 		const campaign = this.#store.campaigns.getCampaign(input.campaignId);
 		if (campaign === null) throw new StateError(`unknown campaign: ${input.campaignId}`);
@@ -228,21 +183,6 @@ export class WarrenDispatcher {
 				policyDigest: campaign.policyDigest,
 				attempt,
 			});
-			let reservation: ReservationRow | null = null;
-			if (input.reservationId != null) {
-				this.#store.budget.attachReservation(input.reservationId, planned.id);
-			} else {
-				reservation = this.#store.budget.reserve({
-					campaignId: input.campaignId,
-					actionId: planned.id,
-					amountUsdCents: usdToCents(input.request.maxCostUsd ?? 0),
-				});
-			}
-			if (reservation !== null && reservation.amountUsdCents <= 0) {
-				throw new StateError(
-					"dispatch without maxCostUsd cannot reserve the per-run cap; supply maxCostUsd or an admission reservation",
-				);
-			}
 			this.#store.campaigns.setWorkItemStatus(input.workItemId, "dispatch_intent");
 			return planned;
 		});
@@ -255,7 +195,6 @@ export class WarrenDispatcher {
 				prompt: input.request.prompt,
 				provider: input.request.provider,
 				model: input.request.model,
-				maxCostUsd: input.request.maxCostUsd,
 				existingBranch: input.request.existingBranch,
 				idempotencyKey: actionKey,
 			});
@@ -350,7 +289,6 @@ export class WarrenDispatcher {
 					errorClass: "warren_rejected",
 					errorJson: canonicalJson({ code: "rate_limited", retryAfterMs: error.retryAfterMs }),
 				});
-				this.#releaseReservation(action.id);
 				if (action.workItemId !== null) {
 					this.#store.campaigns.setWorkItemStatus(action.workItemId, "admitted");
 				}
@@ -376,7 +314,6 @@ export class WarrenDispatcher {
 						message: error.message,
 					}),
 				});
-				this.#releaseReservation(action.id);
 				if (action.workItemId !== null) {
 					this.#store.campaigns.setWorkItemStatus(action.workItemId, "needs_attention");
 				}
@@ -453,7 +390,6 @@ export class WarrenDispatcher {
 				settledNow: false,
 				workItemStatus: workItemId === null ? null : "running",
 				branch: runPushedBranch(run),
-				costUsdCents: null,
 			};
 		}
 		if (action === null || TERMINAL_ACTION_STATES.includes(action.state)) {
@@ -465,7 +401,6 @@ export class WarrenDispatcher {
 				settledNow: false,
 				workItemStatus: null,
 				branch: runPushedBranch(run),
-				costUsdCents: run.costUsd === null ? null : usdToCents(run.costUsd),
 			};
 		}
 		const succeeded = run.state === "succeeded";
@@ -482,12 +417,6 @@ export class WarrenDispatcher {
 			if (workItemId !== null) {
 				this.#store.campaigns.setWorkItemStatus(workItemId, succeeded ? "terminal" : "failed");
 			}
-			// Conservative ledger: settle on the ACTUAL cost only when known;
-			// an unknown cost keeps the full reservation active.
-			const reservation = this.#store.budget.getReservationByAction(action.id);
-			if (reservation !== null && reservation.state === "active" && run.costUsd !== null) {
-				this.#store.budget.settleReservation(reservation.id, usdToCents(run.costUsd));
-			}
 		});
 		return {
 			runId: run.id,
@@ -496,17 +425,9 @@ export class WarrenDispatcher {
 			settledNow: true,
 			workItemStatus: succeeded ? "terminal" : "failed",
 			branch: runPushedBranch(run),
-			costUsdCents: run.costUsd === null ? null : usdToCents(run.costUsd),
 		};
 	}
 
-	/**
-	 * Boot-time reconciliation. Expires abandoned leases, resumes known-run
-	 * reads to terminal, reconstructs the reservation picture (reservations
-	 * are durable; settlement happens wherever a terminal cost is known),
-	 * and fails closed every unfinished action with no correlated run. It
-	 * never issues a POST.
-	 */
 	async reconcileAfterRestart(): Promise<RestartReconcileResult> {
 		const expiredLeases = this.#store.leases.expireLeases();
 		const resumedRuns: RunReconcileResult[] = [];
@@ -552,13 +473,6 @@ export class WarrenDispatcher {
 
 	#runLinkOfWorkItem(runId: string): string | null {
 		return this.#store.events.getRunLink(runId)?.workItemId ?? null;
-	}
-
-	#releaseReservation(actionId: string): void {
-		const reservation = this.#store.budget.getReservationByAction(actionId);
-		if (reservation !== null && reservation.state === "active") {
-			this.#store.budget.releaseReservation(reservation.id);
-		}
 	}
 
 	#nextAttempt(workItemId: string): number {

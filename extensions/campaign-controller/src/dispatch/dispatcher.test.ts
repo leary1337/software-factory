@@ -1,21 +1,3 @@
-/**
- * Durable Warren dispatch and restart reconciliation (plan pl-91b6 step 7,
- * warren-2a0a).
- *
- * Every scenario runs against the deterministic fake Warren server through
- * the real WarrenClient, on an in-memory store with a pinned clock and
- * sequential ids. The acceptance set from the seed:
- *
- * - normal dispatch (intent before I/O, confirmed correlation);
- * - concurrent tick exclusion (second dispatch never POSTs);
- * - accepted-response-loss (run exists, response lost → dispatch_uncertain,
- *   attention, no second POST);
- * - restart with a known run (reads resume to terminal, ledger settles);
- * - restart with an unknown run (fails closed, attention, no POST);
- * - terminal settlement (actual cost replaces the reservation);
- * - unknown-cost reservation (conservative reservation stays active);
- * - no second POST for an uncertain action, including after restart.
- */
 import { describe, expect, test } from "bun:test";
 import {
 	admitWorkItem,
@@ -90,7 +72,6 @@ function signedManifest(): Record<string, unknown> {
 			model: "claude-sonnet-4-5",
 		},
 		prompt: "Fix the assigned OpenClaw issue end to end.",
-		budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 		maxConcurrentRuns: 2,
 		expiresAt: "2026-12-31T00:00:00.000Z",
 	};
@@ -112,7 +93,6 @@ interface Harness {
 	readonly dispatcher: WarrenDispatcher;
 	readonly campaign: CampaignRow;
 	readonly workItem: WorkItemRow;
-	readonly reservationId: string;
 }
 
 const ISSUE: IssueSnapshot = {
@@ -130,7 +110,6 @@ const REQUEST: WarrenDispatchRequestSpec = {
 	prompt: "Fix issue 812 end to end.",
 	provider: "anthropic",
 	model: "claude-sonnet-4-5",
-	maxCostUsd: 5,
 };
 
 function harness(): Harness {
@@ -174,7 +153,6 @@ function harness(): Harness {
 		dispatcher,
 		campaign: imported.campaign,
 		workItem: admission.workItem,
-		reservationId: admission.reservation.id,
 	};
 }
 
@@ -190,7 +168,6 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		expect(outcome.status).toBe("dispatched");
 		expect(outcome.runId).not.toBeNull();
@@ -211,13 +188,6 @@ describe("WarrenDispatcher", () => {
 		// Run correlation is durable; work item progressed.
 		expect(h.store.events.getRunLink(outcome.runId as string)?.actionId).toBe(action?.id);
 		expect(h.store.campaigns.getWorkItem(h.workItem.id)?.status).toBe("running");
-
-		// The admission reservation was attached to the action, not doubled.
-		const reservations = h.store.budget.listReservations(h.campaign.id);
-		expect(reservations).toHaveLength(1);
-		expect(reservations[0]?.actionId).toBe(action?.id);
-		expect(reservations[0]?.state).toBe("active");
-		expect(reservations[0]?.amountUsdCents).toBe(500);
 	});
 
 	test("excludes a concurrent tick: the second dispatch never POSTs", async () => {
@@ -249,7 +219,6 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		// Let dispatcherA reach and hold the POST.
 		await Bun.sleep(10);
@@ -257,7 +226,6 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		expect(second.status).toBe("excluded");
 		expect(postRequests(h.warren)).toBe(0);
@@ -274,7 +242,6 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		expect(outcome.status).toBe("dispatch_uncertain");
 		// The server DID create the run — the client just never learned it.
@@ -287,9 +254,6 @@ describe("WarrenDispatcher", () => {
 		const attention = h.store.events.listOpenAttention(h.campaign.id);
 		expect(attention).toHaveLength(1);
 		expect(attention[0]?.reason).toBe("dispatch_uncertain");
-
-		// The reservation stays conservatively active.
-		expect(h.store.budget.listReservations(h.campaign.id)[0]?.state).toBe("active");
 	});
 
 	test("settles resultBranch from the composed run branch when no targetBranch override exists (warren-5255)", async () => {
@@ -298,14 +262,12 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		const runId = outcome.runId as string;
 		// The live-bug shape: a default dispatch has no targetBranch override;
 		// warren serves only the composed `branch` (warren-5255).
 		h.warren.setRunState(runId, {
 			state: "succeeded",
-			costUsd: 0.55,
 			branch: "burrow/run_seq-1",
 		});
 		const reconciled = await h.dispatcher.reconcileRun(runId);
@@ -314,50 +276,6 @@ describe("WarrenDispatcher", () => {
 		const action = h.store.actions.listActionsForWorkItem(h.workItem.id)[0] as ActionAssert;
 		expect(action.state).toBe("succeeded");
 		expect(action.resultBranch).toBe("burrow/run_seq-1");
-	});
-
-	test("restart with a known run resumes reads and settles terminal cost", async () => {
-		const h = harness();
-		const outcome = await h.dispatcher.dispatch({
-			campaignId: h.campaign.id,
-			workItemId: h.workItem.id,
-			request: REQUEST,
-			reservationId: h.reservationId,
-		});
-		const runId = outcome.runId as string;
-		// Simulate a controller restart: fresh dispatcher, same store, fake
-		// warren keeps the run (its idempotency store is irrelevant now).
-		h.warren.restart();
-		h.warren.setRunState(runId, {
-			state: "succeeded",
-			costUsd: 1.25,
-			targetBranch: "warren/run_seq-1",
-		});
-		const dispatcher = new WarrenDispatcher({
-			store: h.store,
-			client: h.client,
-			ids: new SequentialIdGenerator(),
-		});
-		const restart = await dispatcher.reconcileAfterRestart();
-		expect(restart.failClosed).toHaveLength(0);
-		expect(restart.resumedRuns).toHaveLength(1);
-		expect(restart.resumedRuns[0]?.runId).toBe(runId);
-		expect(restart.resumedRuns[0]?.terminal).toBe(true);
-		expect(restart.resumedRuns[0]?.settledNow).toBe(true);
-		expect(restart.resumedRuns[0]?.branch).toBe("warren/run_seq-1");
-
-		// Terminal success records the pushed branch/ref on the action.
-		const action = h.store.actions.listActionsForWorkItem(h.workItem.id)[0] as ActionAssert;
-		expect(action.state).toBe("succeeded");
-		expect(action.resultBranch).toBe("warren/run_seq-1");
-		expect(h.store.campaigns.getWorkItem(h.workItem.id)?.status).toBe("terminal");
-
-		// Actual cost replaced the reservation.
-		const reservation = h.store.budget.listReservations(h.campaign.id)[0];
-		expect(reservation?.state).toBe("settled");
-		expect(reservation?.settledUsdCents).toBe(125);
-		// No second POST ever happened.
-		expect(postRequests(h.warren)).toBe(1);
 	});
 
 	test("restart with an unknown run fails closed without any POST", async () => {
@@ -396,13 +314,11 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		const runId = outcome.runId as string;
 		h.warren.setRunState(runId, {
 			state: "failed",
 			failureReason: "provider_error",
-			costUsd: 0.5,
 		});
 		const result = await h.dispatcher.reconcileRun(runId);
 		expect(result.terminal).toBe(true);
@@ -415,31 +331,6 @@ describe("WarrenDispatcher", () => {
 			failureReason: "provider_error",
 		});
 		expect(h.store.campaigns.getWorkItem(h.workItem.id)?.status).toBe("failed");
-		// Known failure cost still settles the ledger.
-		expect(h.store.budget.listReservations(h.campaign.id)[0]?.settledUsdCents).toBe(50);
-	});
-
-	test("unknown terminal cost keeps the conservative reservation", async () => {
-		const h = harness();
-		const outcome = await h.dispatcher.dispatch({
-			campaignId: h.campaign.id,
-			workItemId: h.workItem.id,
-			request: REQUEST,
-			reservationId: h.reservationId,
-		});
-		h.warren.setRunState(outcome.runId as string, {
-			state: "succeeded",
-			costUsd: null,
-			targetBranch: "warren/run_seq-1",
-		});
-		const result = await h.dispatcher.reconcileRun(outcome.runId as string);
-		expect(result.terminal).toBe(true);
-		expect(result.costUsdCents).toBeNull();
-		const reservation = h.store.budget.listReservations(h.campaign.id)[0];
-		expect(reservation?.state).toBe("active");
-		expect(reservation?.amountUsdCents).toBe(500);
-		// The work item still reached terminal; only the ledger waits.
-		expect(h.store.campaigns.getWorkItem(h.workItem.id)?.status).toBe("terminal");
 	});
 
 	test("an uncertain action is never re-dispatched, even after restart", async () => {
@@ -449,7 +340,6 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		expect(postRequests(h.warren)).toBe(1);
 
@@ -490,13 +380,11 @@ describe("WarrenDispatcher", () => {
 			campaignId: h.campaign.id,
 			workItemId: h.workItem.id,
 			request: REQUEST,
-			reservationId: h.reservationId,
 		});
 		const first = await h.dispatcher.reconcileRun(outcome.runId as string);
 		expect(first.terminal).toBe(false);
 		const second = await h.dispatcher.reconcileRun(outcome.runId as string);
 		expect(second.terminal).toBe(false);
-		expect(h.store.budget.listReservations(h.campaign.id)[0]?.state).toBe("active");
 		expect(postRequests(h.warren)).toBe(1);
 	});
 });

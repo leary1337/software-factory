@@ -49,7 +49,6 @@ export interface ReviewStepRecord {
 	readonly gateVerified?: boolean;
 	readonly evidenceRequired?: boolean;
 	readonly evidence?: ReviewEvidence;
-	readonly costUsd?: number | null;
 	readonly activeMs?: number | null;
 }
 
@@ -146,7 +145,6 @@ async function loadStep(
 		gateVerified,
 		evidenceRequired: payload.evidenceRequired,
 		...(evidence ? { evidence } : {}),
-		costUsd: stepRun.costUsd,
 		activeMs: activeDuration(stepRun),
 		step: payload.step,
 		reviewedCommit: payload.reviewedCommit ?? stepRun.baseCommit ?? "",

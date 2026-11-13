@@ -5,12 +5,11 @@ describe("inheritedDispatchOverrides", () => {
 	test("reads the three override slots off the frozen frontmatter", () => {
 		expect(
 			inheritedDispatchOverrides({
-				frontmatter: { provider: "openrouter", model: "deepseek/deepseek-v4-pro", maxCostUsd: 4 },
+				frontmatter: { provider: "openrouter", model: "deepseek/deepseek-v4-pro" },
 			}),
 		).toEqual({
 			providerOverride: "openrouter",
 			modelOverride: "deepseek/deepseek-v4-pro",
-			maxCostUsdOverride: 4,
 		});
 	});
 
@@ -45,20 +44,5 @@ describe("inheritedDispatchOverrides", () => {
 
 	test("ignores an empty or non-string provider and model", () => {
 		expect(inheritedDispatchOverrides({ frontmatter: { provider: "", model: 42 } })).toEqual({});
-	});
-
-	test("defers to readMaxCostUsd on a cap that is not a plain number", () => {
-		// Measured, not assumed: the reader coerces a numeric string on purpose
-		// (the `cn --fm` trap its own module doc describes), and drops a
-		// negative, a zero and an unparseable one. The retry inherits whatever
-		// the original run's cap resolved to, including that coercion.
-		expect(inheritedDispatchOverrides({ frontmatter: { maxCostUsd: "4" } })).toEqual({
-			maxCostUsdOverride: 4,
-		});
-		for (const cap of [-1, 0, "abc", null]) {
-			expect(inheritedDispatchOverrides({ frontmatter: { maxCostUsd: cap } }), `${cap}`).toEqual(
-				{},
-			);
-		}
 	});
 });

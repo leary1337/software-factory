@@ -1,33 +1,3 @@
-/**
- * Run-level analytics aggregator (warren-368e / pl-ad0f step 1).
- *
- * Pure, dialect-agnostic companion to `src/runs/cost-analytics.ts`. Takes a
- * flat list of "run metric rows" — one per `runs` row, carrying the columns
- * the dashboard needs plus a `provider` / `model` pair already extracted from
- * `renderedAgentJson.frontmatter` — and emits the KPIs + breakdowns the
- * `GET /analytics/runs` endpoint (step 2) serves:
- *
- *   - `totals`: run count, terminal-state counts, success rate, duration
- *     percentiles (avg/median/p95), context-token + cost summaries
- *   - `timeSeries`: one bucket per calendar day (UTC `YYYY-MM-DD`), with
- *     per-state run counts and total context tokens, sorted chronologically
- *   - `byAgent` / `byModel` / `byProvider`: per-group rollups
- *   - `byFailureReason`: failed-run counts grouped by `failureReason`
- *   - `topSeedsByContext`: seed-originated runs ranked by total context tokens
- *
- * Context tokens = `tokensInput + tokensCacheRead` (the bytes an agent re-reads
- * each turn — the "how much context did this burn" question the cost view can't
- * answer). Per pl-ad0f risk #3, token/cost columns are best-effort and null for
- * agents that emit neither pi `turn_end` nor claude-code `result`; null rows are
- * excluded from averages rather than counted as zero. Per risk #4, `seedId` is
- * null for ad-hoc runs, so `topSeedsByContext` excludes nulls — it covers
- * seed-originated runs only.
- *
- * Determinism: time-series is sorted by date ascending (NONE_KEY last); every
- * other breakdown is sorted by its primary metric descending with ties broken
- * by run count then key ascending, so golden/unit tests are stable.
- */
-
 import type { PullRequestLifecycle, RunFailureReason, RunState } from "../../db/schema.ts";
 import {
 	buildFailureReasons,
@@ -71,7 +41,6 @@ export interface RunMetricsRow {
 	readonly seedId: string | null;
 	readonly state: RunState;
 	readonly failureReason: RunFailureReason | null;
-	readonly costUsd: number | null;
 	readonly tokensInput: number | null;
 	readonly tokensCacheRead: number | null;
 	readonly tokensOutput: number | null;
@@ -139,18 +108,6 @@ export interface RunTotals {
 	readonly queueWaitMs: StatSummary;
 	readonly contextTokens: StatSummary;
 	readonly tokens: TokenBreakdown;
-	/**
-	 * Per-run cost distribution (warren-ea4e): median / p95 cost across the
-	 * rows whose costUsd was non-null. Complements the `cost` rollup below,
-	 * which carries only the total and the mean.
-	 */
-	readonly costUsd: StatSummary;
-	readonly cost: {
-		readonly total: number;
-		readonly avg: number | null;
-		/** rows whose costUsd was non-null. */
-		readonly priced: number;
-	};
 }
 
 export interface RunDayBucket {
@@ -177,8 +134,6 @@ export interface RunGroupBucket {
 	readonly contextTokensTotal: number;
 	readonly avgContextTokens: number | null;
 	readonly tokens: TokenBreakdown;
-	readonly costUsd: number;
-	readonly priced: number;
 	readonly avgDurationMs: number | null;
 }
 
@@ -292,13 +247,10 @@ function computeTotals(rows: readonly RunMetricsRow[]): RunTotals {
 	let active = 0;
 	let prStateKnown = 0;
 	let prsMerged = 0;
-	let costTotal = 0;
-	let priced = 0;
 	let tokens: TokenBreakdown = ZERO_TOKENS;
 	const durations: number[] = [];
 	const queueWaits: number[] = [];
 	const contexts: number[] = [];
-	const costs: number[] = [];
 	for (const r of rows) {
 		if (r.state === "succeeded") succeeded += 1;
 		else if (r.state === "failed") failed += 1;
@@ -307,11 +259,6 @@ function computeTotals(rows: readonly RunMetricsRow[]): RunTotals {
 		const landed = landedOf(r);
 		prStateKnown += landed.known;
 		prsMerged += landed.merged;
-		if (r.costUsd !== null) {
-			priced += 1;
-			costTotal += r.costUsd;
-			costs.push(r.costUsd);
-		}
 		const dur = durationMsOf(r);
 		if (dur !== null) durations.push(dur);
 		const wait = queueWaitMsOf(r);
@@ -335,8 +282,6 @@ function computeTotals(rows: readonly RunMetricsRow[]): RunTotals {
 		queueWaitMs: summarize(queueWaits),
 		contextTokens: summarize(contexts),
 		tokens,
-		costUsd: summarize(costs),
-		cost: { total: costTotal, avg: priced === 0 ? null : costTotal / priced, priced },
 	};
 }
 
@@ -386,8 +331,6 @@ interface GroupAcc {
 	contextTotal: number;
 	contextCount: number;
 	tokens: TokenBreakdown;
-	costUsd: number;
-	priced: number;
 	durations: number[];
 }
 
@@ -402,8 +345,6 @@ function emptyGroupAcc(): GroupAcc {
 		contextTotal: 0,
 		contextCount: 0,
 		tokens: ZERO_TOKENS,
-		costUsd: 0,
-		priced: 0,
 		durations: [],
 	};
 }
@@ -416,10 +357,6 @@ function accumulateGroup(g: GroupAcc, r: RunMetricsRow): void {
 	const landed = landedOf(r);
 	g.prStateKnown += landed.known;
 	g.prsMerged += landed.merged;
-	if (r.costUsd !== null) {
-		g.priced += 1;
-		g.costUsd += r.costUsd;
-	}
 	const ctx = contextTokensOf(r);
 	if (ctx !== null) {
 		g.contextTotal += ctx;
@@ -445,8 +382,6 @@ function finalizeGroup(key: string, g: GroupAcc): RunGroupBucket {
 		contextTokensTotal: g.contextTotal,
 		avgContextTokens: g.contextCount === 0 ? null : g.contextTotal / g.contextCount,
 		tokens: g.tokens,
-		costUsd: g.costUsd,
-		priced: g.priced,
 		avgDurationMs: g.durations.length === 0 ? null : summarize(g.durations).avg,
 	};
 }

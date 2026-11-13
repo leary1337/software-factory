@@ -126,21 +126,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /analytics/cost:
-    get:
-      operationId: listCostAnalyticsHandler
-      tags:
-        - analytics
-      summary: GET /analytics/cost
-      responses:
-        '200':
-          description: Successful response.
-        default:
-          description: Error response (see `src/core/errors.ts`).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
   /analytics/dispatch:
     get:
       operationId: listDispatchAnalyticsHandler
@@ -171,10 +156,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-      description: >-
-        warren-97ae: spectators get the reduced projection — counts, rates and timings survive; USD
-        aggregates stay redacted, including the per-agent/per-model/per-provider buckets, because
-        ratio × merged count reconstructs spend (instance-wide cost/merged-PR ratio excepted).
   /events:
     get:
       operationId: listEventsHandler
@@ -967,19 +948,11 @@ paths:
                     type: integer
                   offset:
                     type: integer
-                  costTotalUsd:
-                    type:
-                      - number
-                      - 'null'
-                  costPricedCount:
-                    type: integer
                 required:
                   - runs
                   - total
                   - limit
                   - offset
-                  - costTotalUsd
-                  - costPricedCount
         default:
           description: Error response (see `src/core/errors.ts`).
           content:
@@ -1372,11 +1345,6 @@ components:
       type: string
       enum:
         - batch
-    RunCostBasis:
-      type: string
-      enum:
-        - api
-        - subscription_estimate
     CloneKind:
       type: string
       enum:
@@ -1643,10 +1611,6 @@ components:
           type:
             - string
             - 'null'
-        costUsd:
-          type:
-            - number
-            - 'null'
         tokensInput:
           type:
             - integer
@@ -1689,8 +1653,6 @@ components:
           type:
             - string
             - 'null'
-        costBasis:
-          $ref: '#/components/schemas/RunCostBasis'
       required:
         - id
         - agentName
@@ -1698,7 +1660,6 @@ components:
         - state
         - prompt
         - trigger
-        - costBasis
     PlanRun:
       type: object
       properties:
@@ -1730,10 +1691,6 @@ components:
         modelOverride:
           type:
             - string
-            - 'null'
-        maxCostUsd:
-          type:
-            - number
             - 'null'
         dispatcherHandle:
           type: string

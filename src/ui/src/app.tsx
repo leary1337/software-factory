@@ -25,7 +25,6 @@ import { SetupLandingRoute, SetupPage } from "@/pages/setup.tsx";
 import { TasksPage } from "@/pages/tasks.tsx";
 import {
 	TelemetryBehaviorTab,
-	TelemetryEconomicsTab,
 	TelemetryIndexRedirect,
 	TelemetryJudgeTab,
 	TelemetryLoopTab,
@@ -171,22 +170,8 @@ export function App() {
 									<Route path="loop" element={<TelemetryLoopTab />} />
 									<Route path="behavior" element={<TelemetryBehaviorTab />} />
 									<Route path="judge" element={<TelemetryJudgeTab />} />
-									<Route
-										path="economics"
-										element={
-											// GET /analytics/cost is readOperator (the
-											// instance-wide USD rollup), so the tab keeps the
-											// guard the legacy /cost-analytics route carried.
-											<OperatorRoute capability="readOperator">
-												<TelemetryEconomicsTab />
-											</OperatorRoute>
-										}
-									/>
 								</Route>
-								<Route
-									path="/cost-analytics"
-									element={<Navigate to="/telemetry/economics" replace />}
-								/>
+
 								<Route
 									path="/run-analytics"
 									element={<Navigate to="/telemetry/behavior" replace />}

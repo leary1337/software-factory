@@ -33,7 +33,6 @@ beforeEach(() => {
 	const campaign = store.campaigns.createCampaign({
 		manifestDigest: "digest-follow-up",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	});
 	campaignId = campaign.id;
 	workItemId = store.campaigns.addWorkItem({
@@ -65,8 +64,6 @@ function ctx(overrides: Partial<FollowUpWorkItemContext> = {}): FollowUpWorkItem
 		project: "openclaw",
 		agent: "pi",
 		headBranch: "warren/issue-42",
-		maxCostUsd: 2,
-		budgetHeadroomUsdCents: 100_00,
 		...overrides,
 	};
 }
@@ -174,17 +171,6 @@ describe("FollowUpCoordinator", () => {
 		expect(calls).toHaveLength(0);
 		const attention = store.events.listOpenAttention(campaignId);
 		expect(attention.some((a) => a.reason === FOLLOW_UP_STOPPED_REASON)).toBe(true);
-	});
-
-	test("budget shortfall refuses closed", async () => {
-		addFinding("needs_test");
-		const coordinator = new FollowUpCoordinator({
-			store: deps,
-			dispatch: fakeDispatch(),
-		});
-		await expect(
-			coordinator.coordinate(ctx({ budgetHeadroomUsdCents: 1 }), policy()),
-		).rejects.toThrow("follow-up run needs");
 	});
 
 	test("missing head branch refuses closed", async () => {

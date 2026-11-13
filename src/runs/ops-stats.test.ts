@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ValidationError } from "../core/errors.ts";
-import type { RunCostAggregate } from "../db/repos/runs-stats.ts";
+import type { RunTokenAggregate } from "../db/repos/runs-stats.ts";
 import type { RunState } from "../db/schema.ts";
 import {
 	DEFAULT_OPS_STATS_TICK_MS,
@@ -13,7 +13,7 @@ import {
 
 function makeStats(
 	byState: Partial<Record<RunState, number>>,
-	cost: RunCostAggregate,
+	cost: RunTokenAggregate,
 ): OpsStatsProvider {
 	const dense: Record<RunState, number> = {
 		queued: 0,
@@ -25,7 +25,7 @@ function makeStats(
 	};
 	return {
 		countByState: async () => dense,
-		aggregateCost: async () => cost,
+		aggregateTokens: async () => cost,
 	};
 }
 
@@ -67,26 +67,22 @@ describe("loadOpsStatsConfigFromEnv", () => {
 });
 
 describe("runOpsStatsTick", () => {
-	test("emits one ops.stats line with state, bridge, and cost fields", async () => {
+	test("emits one ops.stats line with state, bridge, and token fields", async () => {
 		const logger = recordingLogger();
 		let n = 0;
 		const snapshot = await runOpsStatsTick({
-			stats: makeStats(
-				{ running: 2, queued: 1 },
-				{ costUsd: 1.5, tokensInput: 300, tokensOutput: 100 },
-			),
+			stats: makeStats({ running: 2, queued: 1 }, { tokensInput: 300, tokensOutput: 100 }),
 			bridges: { size: () => 3 },
 			logger,
 			clock: () => (n += 5),
 		});
 		expect(snapshot.activeBridges).toBe(3);
 		expect(snapshot.runsByState.running).toBe(2);
-		expect(snapshot.cost.costUsd).toBe(1.5);
+		expect(snapshot.tokens).toEqual({ tokensInput: 300, tokensOutput: 100 });
 		expect(snapshot.collectMs).toBe(5);
 		expect(logger.lines).toHaveLength(1);
 		expect(logger.lines[0]?.msg).toBe("ops.stats");
 		expect(logger.lines[0]?.obj.activeBridges).toBe(3);
-		expect(logger.lines[0]?.obj.costUsd).toBe(1.5);
 	});
 });
 
@@ -94,7 +90,7 @@ describe("startOpsStatsWorker", () => {
 	test("disabled worker installs no timer and runOnce is a no-op", async () => {
 		let installed = false;
 		const handle = startOpsStatsWorker({
-			stats: makeStats({}, { costUsd: 0, tokensInput: 0, tokensOutput: 0 }),
+			stats: makeStats({}, { tokensInput: 0, tokensOutput: 0 }),
 			bridges: { size: () => 0 },
 			config: { tickMs: 1000, disabled: true },
 			setInterval: () => {
@@ -109,7 +105,7 @@ describe("startOpsStatsWorker", () => {
 
 	test("runOnce collects a snapshot and counts ticks", async () => {
 		const handle = startOpsStatsWorker({
-			stats: makeStats({ succeeded: 4 }, { costUsd: 2, tokensInput: 0, tokensOutput: 0 }),
+			stats: makeStats({ succeeded: 4 }, { tokensInput: 0, tokensOutput: 0 }),
 			bridges: { size: () => 1 },
 			config: { tickMs: 1000, disabled: false },
 			setInterval: () => ({}),
@@ -139,7 +135,7 @@ describe("startOpsStatsWorker", () => {
 				counted += 1;
 				return dense;
 			},
-			aggregateCost: async () => ({ costUsd: 0, tokensInput: 0, tokensOutput: 0 }),
+			aggregateTokens: async () => ({ tokensInput: 0, tokensOutput: 0 }),
 		};
 		const handle = startOpsStatsWorker({
 			stats: slow,
@@ -162,7 +158,7 @@ describe("startOpsStatsWorker", () => {
 			countByState: async () => {
 				throw new Error("db down");
 			},
-			aggregateCost: async () => ({ costUsd: 0, tokensInput: 0, tokensOutput: 0 }),
+			aggregateTokens: async () => ({ tokensInput: 0, tokensOutput: 0 }),
 		};
 		const handle = startOpsStatsWorker({
 			stats: boom,

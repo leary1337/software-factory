@@ -26,25 +26,11 @@ import type { DrizzleAdapter } from "./drizzle-adapter.ts";
 
 type RunsTable = DrizzleAdapter["schema"]["runs"];
 
-/**
- * Order key for the listAll / listByProject / listByAgent triplet
- * (warren-fd4b). 'started' = startedAt DESC, the historical default
- * (covered by runsProjectStarted). 'cost' = costUsd, with explicit
- * NULLS LAST in both directions so unbilled runs always sink — the
- * "spot expensive runs" goal cares about the populated tail, and a
- * pile of NULLs at the top of a DESC sort would defeat the feature.
- * id ASC remains the stable tiebreaker.
- */
 function orderByClause(
 	runs: RunsTable,
-	sort: "started" | "cost" = "started",
+	_sort: "started" = "started",
 	dir: "asc" | "desc" = "desc",
 ): SQL[] {
-	if (sort === "cost") {
-		const col = runs.costUsd;
-		const primary = dir === "asc" ? sql`${col} ASC NULLS LAST` : sql`${col} DESC NULLS LAST`;
-		return [primary, asc(runs.id)];
-	}
 	const col = runs.startedAt;
 	return [dir === "asc" ? asc(col) : desc(col), asc(runs.id)];
 }
@@ -54,7 +40,7 @@ export async function listAll(
 	options: {
 		limit?: number;
 		offset?: number;
-		sort?: "started" | "cost";
+		sort?: "started";
 		dir?: "asc" | "desc";
 	} = {},
 ): Promise<RunRow[]> {
@@ -77,7 +63,7 @@ export async function listByProject(
 	options: {
 		limit?: number;
 		offset?: number;
-		sort?: "started" | "cost";
+		sort?: "started";
 		dir?: "asc" | "desc";
 	} = {},
 ): Promise<RunRow[]> {
@@ -101,7 +87,7 @@ export async function listByAgent(
 	options: {
 		limit?: number;
 		offset?: number;
-		sort?: "started" | "cost";
+		sort?: "started";
 		dir?: "asc" | "desc";
 	} = {},
 ): Promise<RunRow[]> {
@@ -119,22 +105,11 @@ export async function listByAgent(
 	);
 }
 
-/**
- * Filtered-set aggregates for the Runs page header (warren-ee50 /
- * pl-b0c0 step 1). Returns the full `total` count + cost rollup for the
- * same predicate the list*() siblings page over. `costTotalUsd` sums
- * runs.cost_usd where non-null; `costPricedCount` counts those rows.
- * Ghost runs whose cost is only recoverable via in-stream extraction
- * (hydrateRunsUsage) are NOT folded in — a deliberate trade-off to keep
- * the header cheap (single DB pass) at a small underestimate.
- */
 export async function aggregate(
 	adapter: DrizzleAdapter,
 	filter: { projectId?: string; agentName?: string } = {},
 ): Promise<{
 	total: number;
-	costTotalUsd: number;
-	costPricedCount: number;
 }> {
 	const db = adapter.drizzle as SqliteDrizzleDb;
 	const runs = adapter.schema.runs;
@@ -149,29 +124,15 @@ export async function aggregate(
 	const baseQuery = db
 		.select({
 			total: sql<number>`count(*)`,
-			costTotalUsd: sql<number | null>`sum(${runs.costUsd})`,
-			costPricedCount: sql<number>`count(${runs.costUsd})`,
 		})
 		.from(runs);
 	const rows = await adapter.pickAll(where === undefined ? baseQuery : baseQuery.where(where));
 	const row = rows[0];
 	return {
 		total: Number(row?.total ?? 0),
-		costTotalUsd: Number(row?.costTotalUsd ?? 0),
-		costPricedCount: Number(row?.costPricedCount ?? 0),
 	};
 }
 
-/**
- * Filtered listing for the cost analytics endpoint (warren-cf63 /
- * pl-b0c0 step 6). `from`/`to` clip on `startedAt` as ISO8601 strings
- * (lexicographic == chronological). Both optional; omitting both returns
- * every row (the endpoint defaults to the last 30 days). Rows with a null
- * `startedAt` are excluded when either bound is set, mirroring SQL.
- * Capped at {@link ANALYTICS_MAX_ROWS} as defence in depth: the handler
- * already bounds the window (warren-30cc), but a caller that reaches
- * this repo directly still can't pull the whole table.
- */
 export const ANALYTICS_MAX_ROWS = 10_000;
 
 export async function listForAnalytics(

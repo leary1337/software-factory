@@ -31,9 +31,6 @@ export type AdmissionInvariant =
 	| "mutation_flag_enabled"
 	| "protected_path"
 	| "warren_target_invalid"
-	| "budget_caps_invalid"
-	| "budget_insufficient"
-	| "daily_budget_exhausted"
 	| "concurrency_exceeded"
 	| "attempt_already_active";
 

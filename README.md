@@ -97,7 +97,7 @@ bun run factory:start
 4. Запусти тикеты по порядку:
 
 ```bash
-bun src/cli/main.ts plan run --project <prj_id> --agent implementer --issues <id1,id2> --max-cost-usd 5
+bun src/cli/main.ts plan run --project <prj_id> --agent implementer --issues <id1,id2>
 ```
 
 5. Разбирай PR, которые ревью или политика безопасности не пропустили. Автослияние требует явного `pr.autoMerge` в default branch проекта, подключение само его не включает.
@@ -153,7 +153,7 @@ Runs, Operations, Agents, Telemetry и Events находятся в **More**.
 
 Stable (`0.19.3`): версия Warren, на которой основан форк. Ограничения:
 
-- Лимиты подписки общие с другими сессиями Codex. `maxCostUsd` показывает оценку эквивалентного API-расхода в конце запуска. Время работы ограничено 20 минутами по умолчанию.
+- Лимиты подписки общие с другими сессиями Codex. Время работы ограничено 20 минутами по умолчанию.
 - Запуск через Docker после удаления Kubernetes не проверялся, навыки туда не доставляются.
 - Рабочий режим проверен только на macOS.
 

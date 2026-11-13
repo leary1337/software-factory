@@ -165,7 +165,6 @@ describe("amendment flow end-to-end", () => {
 		expect(runId).toBeDefined();
 		warren.setRunState(runId as string, {
 			state: "succeeded",
-			costUsd: 1.0,
 			targetBranch: FORK_BRANCH,
 		});
 

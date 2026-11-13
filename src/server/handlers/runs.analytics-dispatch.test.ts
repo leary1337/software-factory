@@ -60,7 +60,6 @@ describe("GET /analytics/dispatch", () => {
 		queueRunningRuns?: number | null;
 		state?: "succeeded" | "failed" | "cancelled";
 		failureReason?: "crashed" | "sandbox_run_lost" | null;
-		costUsd?: number | null;
 		prState?: "open" | "merged" | "closed_unmerged";
 	}): Promise<string> {
 		const runId = await seedRun(repos, {
@@ -70,7 +69,6 @@ describe("GET /analytics/dispatch", () => {
 			model: opts.model ?? "sonnet",
 			state: opts.state ?? "succeeded",
 			failureReason: opts.failureReason ?? null,
-			costUsd: opts.costUsd ?? 0.25,
 			startedAt: opts.createdAt,
 			endedAt: opts.createdAt,
 		});
@@ -116,7 +114,6 @@ describe("GET /analytics/dispatch", () => {
 			dispatchOrigin: "api",
 			retryKind: "none",
 			state: "succeeded",
-			costUsd: 1.0,
 			prState: "merged",
 			queueQueuedRuns: 0,
 			queueRunningRuns: 1,
@@ -145,7 +142,6 @@ describe("GET /analytics/dispatch", () => {
 				runId: string;
 				state: string;
 				failureReason: string | null;
-				costUsd: number | null;
 				prState: string | null;
 				dispatchOrigin: string | null;
 			}[];
@@ -175,13 +171,6 @@ describe("GET /analytics/dispatch", () => {
 			state: "failed",
 			failureReason: "sandbox_run_lost",
 			dispatchOrigin: "cron",
-		});
-		expect(body.rows[1]).toMatchObject({
-			runId: r1,
-			state: "succeeded",
-			costUsd: 1.0,
-			prState: "merged",
-			dispatchOrigin: "api",
 		});
 	});
 

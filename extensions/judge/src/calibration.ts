@@ -1,39 +1,7 @@
-/**
- * The calibration re-judge (plan pl-17ca step 7, agent-analytics §12.5).
- *
- * Full coverage by a cheap model inverts the sampling question: a periodic
- * strong-model pass re-judges a small RANDOM sample of already-judged runs
- * under the SAME rubric version, and the cheap↔strong disagreement rate is
- * itself the tracked metric that drives any future taxonomy narrowing.
- *
- * Append discipline: the strong pass records verdicts with the strong
- * model's `provider/model` as the judge model id, so the verdict store's
- * dedupe key `(runId, rubricVersion, judgeModelId)` makes every calibration
- * verdict an APPEND — the cheap verdict is never overwritten, and a replay
- * of the same sample is an exact no-op.
- *
- * Budget gates apply to calibration judgments exactly as to first-pass
- * ones: the fleet daily budget and the per-judgment cap are shared. Past
- * the daily budget the sampled run is DEFERRED — no marker, no store
- * write — mirroring the collector's semantics (PR #969): a
- * `budget_exceeded` marker under the strong model id would occupy the
- * dedupe key and permanently exclude the run from every future sample.
- * The deferral stays visible in the cycle stats and the once-per-pass
- * deferral log line. Per-judgment failures (judge_error,
- * malformed_verdict, a mid-attempt cap breach) still record markers,
- * because the attempts were billed. A failure that cost $0 was not
- * billed, so it is skipped the same way a deferral is (warren-d8df): an
- * expired key or a missing model would otherwise take the dedupe key and
- * drop the run from every future sample without a model ever reading it.
- *
- * The agreement rate is computed from the store's calibration join and
- * persisted per rubric version in the `calibration_metrics` table, so the
- * metric is queryable without recomputing the join.
- */
+
 
 import { Database } from "bun:sqlite";
 import type { JudgeFn } from "./collector.ts";
-import { dayKey, type SpendLedger } from "./spend-ledger.ts";
 import type { CalibrationPair, VerdictStore } from "./verdict-store.ts";
 import { VERDICT_CLASSES, type VerdictClass } from "./wire.ts";
 
@@ -246,7 +214,6 @@ export class CalibrationMetricStore {
 export interface CalibrationDeps {
 	readonly verdicts: VerdictStore;
 	readonly metrics: CalibrationMetricStore;
-	readonly spend: SpendLedger;
 	/** The strong-model judge seam — same shape as the collector's. */
 	readonly judge: JudgeFn;
 	readonly rubricVersion: string;
@@ -256,29 +223,17 @@ export interface CalibrationDeps {
 	readonly strongModelId: string;
 	/** Random sample size per pass (JUDGE_CALIBRATION_SAMPLE_SIZE). */
 	readonly sampleSize: number;
-	/** Per-judgment USD cap, shared with the first-pass budget. */
-	readonly maxCostUsdPerJudgment: number;
-	/** Fleet-wide daily USD budget, shared with the first-pass budget. */
-	readonly dailyBudgetUsd: number;
 	readonly now?: () => Date;
 	/** Injectable entropy source for the random sample (tests). */
 	readonly random?: () => number;
 	readonly onRunError?: (runId: string, err: unknown) => void;
 	readonly onJudgment?: (runId: string, outcome: string) => void;
-	/** Once per pass, on the first budget deferral — loud by design (§12.5). */
-	readonly onBudgetDeferred?: (runId: string, detail: string) => void;
-	/** Once per pass, when a $0 failure is skipped instead of marked. */
-	readonly onZeroCostSkipped?: (runId: string, detail: string) => void;
 }
 
 export interface CalibrationCycleStats {
 	readonly candidates: number;
 	readonly sampled: number;
 	readonly rejudged: number;
-	/** Sampled runs deferred by the exhausted daily budget — no row written. */
-	readonly budgetDeferred: number;
-	/** Runs skipped (not marked) because the attempt cost nothing. */
-	readonly zeroCostSkipped: number;
 	readonly report: AgreementReport;
 }
 
@@ -325,7 +280,7 @@ function sampleRuns(candidates: string[], size: number, random: () => number): s
 }
 
 /**
- * One calibration pass: sample, budget-gate, re-judge, append, then compute
+ * One calibration pass: sample, re-judge, append, then compute
  * and persist the agreement report. The report is computed over the FULL
  * join (every run both models have judged), not just this pass's sample, so
  * the metric accumulates across passes.
@@ -338,33 +293,10 @@ export async function calibrateOnce(deps: CalibrationDeps): Promise<CalibrationC
 	const sample = sampleRuns(candidates, deps.sampleSize, random);
 
 	let rejudged = 0;
-	let budgetDeferred = 0;
-	let zeroCostSkipped = 0;
-	let zeroCostAnnounced = false;
-	let deferralAnnounced = false;
 	for (const runId of sample) {
 		try {
-			const today = dayKey(now());
-			const spentToday = deps.spend.spendForDay(today);
-			const remaining = deps.dailyBudgetUsd - spentToday;
-			if (remaining <= 0) {
-				// DEFER, never mark (PR #969 semantics): a budget_exceeded
-				// marker under the strong id would occupy the dedupe key and
-				// permanently exclude this run from every future sample. No
-				// write means the next pass can re-draw it.
-				budgetDeferred += 1;
-				if (!deferralAnnounced) {
-					deferralAnnounced = true;
-					deps.onBudgetDeferred?.(
-						runId,
-						`fleet daily budget $${deps.dailyBudgetUsd.toFixed(4)} exhausted ` +
-							`($${spentToday.toFixed(4)} spent on ${today})`,
-					);
-				}
-				continue;
-			}
-			const maxCostUsd = Math.min(deps.maxCostUsdPerJudgment, remaining);
-			const outcome = await deps.judge(runId, { maxCostUsd });
+			const outcome = await deps.judge(runId, {});
+			if (outcome.kind === "unjudged" && outcome.reason === "judge_error") continue;
 			if (outcome.kind === "verdict") {
 				// Stamp the strong model's provider-qualified id onto the
 				// provenance: the dedupe key derives from it, and the
@@ -378,33 +310,7 @@ export async function calibrateOnce(deps: CalibrationDeps): Promise<CalibrationC
 						model: strongId,
 					},
 				});
-			} else if (outcome.stats.costUsd === 0) {
-				// SKIP, never mark: the marker rationale above is that the
-				// attempts were billed, and a $0 attempt was not. Writing one
-				// would occupy the dedupe key over a failure no model was paid
-				// for, so the run leaves the pool for good. No write means the
-				// next pass re-draws it.
-				zeroCostSkipped += 1;
-				if (!zeroCostAnnounced) {
-					zeroCostAnnounced = true;
-					deps.onZeroCostSkipped?.(
-						runId,
-						`${outcome.reason} at $0.0000, not marked: ${outcome.detail}`,
-					);
-				}
-				continue;
-			} else {
-				deps.verdicts.recordUnjudged({
-					runId,
-					rubricVersion: deps.rubricVersion,
-					judgeModelId: strongId,
-					reason: outcome.reason,
-					detail: outcome.detail,
-				});
-			}
-			// Spend is ledgered for every outcome — an unjudged marker is not a
-			// refund, the provider billed the attempts either way.
-			deps.spend.record(outcome.stats.costUsd, now());
+			} else { deps.verdicts.recordUnjudged({ runId, rubricVersion: deps.rubricVersion, judgeModelId: strongId, reason: outcome.reason, detail: outcome.detail }); }
 			deps.onJudgment?.(runId, outcome.kind);
 			rejudged += 1;
 		} catch (err) {
@@ -426,8 +332,6 @@ export async function calibrateOnce(deps: CalibrationDeps): Promise<CalibrationC
 		candidates: candidates.length,
 		sampled: sample.length,
 		rejudged,
-		budgetDeferred,
-		zeroCostSkipped,
 		report,
 	};
 }

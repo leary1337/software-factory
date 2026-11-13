@@ -1,18 +1,4 @@
-/**
- * @warren-ext/judge entrypoint: the collector daemon.
- *
- * Resolves the environment contract, opens the extension-owned stores
- * (verdicts, judgment cursors, spend ledger — all in the one SQLite file),
- * builds the pi-SDK judge session factory, and runs the collector loop:
- * poll `GET /runs` for newly-terminal runs, judge each under rubric v1,
- * checkpoint only after the verdict store accepts. SIGTERM/SIGINT aborts
- * the loop between cycles, so the in-flight judgment always finishes and
- * checkpoints before exit.
- *
- * Boundary contract (enforced by scripts/check-layers.ts): this package
- * imports nothing from warren's `src/` or `scripts/`. Everything it knows
- * about warren's wire shapes is hand-derived in `warren-wire.ts`.
- */
+
 import { CalibrationMetricStore, runCalibrationLoop } from "./calibration.ts";
 import { createClient } from "./client.ts";
 import { type JudgeFn, runJudgeCollector } from "./collector.ts";
@@ -22,7 +8,6 @@ import { createExportServer } from "./server.ts";
 import { judgeRun } from "./judge-loop.ts";
 import { createPiSessionFactory } from "./pi-session.ts";
 import { computeRubricVersion } from "./rubric.ts";
-import { SpendLedger } from "./spend-ledger.ts";
 import { VerdictStore } from "./verdict-store.ts";
 
 export const EXTENSION_NAME = "judge";
@@ -43,7 +28,6 @@ export { JudgmentCursorStore, type JudgmentCursor } from "./cursor-store.ts";
 export { type JudgeOutcome, judgeRun } from "./judge-loop.ts";
 export { computeRubricVersion, renderJudgeSystemPrompt } from "./rubric.ts";
 export { createExportServer, createFetchHandler } from "./server.ts";
-export { dayKey, SpendLedger } from "./spend-ledger.ts";
 export { VerdictStore } from "./verdict-store.ts";
 
 async function main(): Promise<void> {
@@ -62,14 +46,13 @@ async function main(): Promise<void> {
 	});
 	const verdicts = new VerdictStore(config.dbPath);
 	const cursors = new JudgmentCursorStore(config.dbPath);
-	const spend = new SpendLedger(config.dbPath);
 	const rubricVersion = computeRubricVersion();
 	const sessionFactory = createPiSessionFactory({
 		provider: config.provider,
 		model: config.model,
 	});
 
-	const judge: JudgeFn = (runId, { maxCostUsd }) =>
+	const judge: JudgeFn = (runId, { }) =>
 		judgeRun({
 			client,
 			runId,
@@ -80,7 +63,6 @@ async function main(): Promise<void> {
 			maxRetries: config.maxRetries,
 			maxPages: config.maxPages,
 			eventsPageSize: config.eventsPageSize,
-			maxCostUsdPerJudgment: maxCostUsd,
 		});
 
 	const ctrl = new AbortController();
@@ -100,8 +82,7 @@ async function main(): Promise<void> {
 			: runCalibrationLoop({
 					verdicts,
 					metrics,
-					spend,
-					judge: (runId, { maxCostUsd }) =>
+					judge: (runId, { }) =>
 						judgeRun({
 							client,
 							runId,
@@ -115,21 +96,18 @@ async function main(): Promise<void> {
 							maxRetries: config.maxRetries,
 							maxPages: config.maxPages,
 							eventsPageSize: config.eventsPageSize,
-							maxCostUsdPerJudgment: maxCostUsd,
 						}),
 					rubricVersion,
 					cheapModelId: config.model,
 					strongProvider: calibration.provider,
 					strongModelId: calibration.model,
 					sampleSize: calibration.sampleSize,
-					maxCostUsdPerJudgment: config.maxCostUsdPerJudgment,
-					dailyBudgetUsd: config.dailyBudgetUsd,
 					intervalMs: calibration.intervalMs,
 					signal: ctrl.signal,
 					onCycle: (stats) =>
 						console.error(
 							`${EXTENSION_NAME}: calibration — ${stats.sampled} sampled, ` +
-								`${stats.rejudged} re-judged, ${stats.budgetDeferred} budget-deferred, ` +
+								`${stats.rejudged} re-judged, ` +
 								`agreement ${String(stats.report.overallRate)} over ` +
 								`${stats.report.sampledPairs} pairs`,
 						),
@@ -137,8 +115,6 @@ async function main(): Promise<void> {
 						console.error(`${EXTENSION_NAME}: calibration pass failed:`, err),
 					onRunError: (runId, err) =>
 						console.error(`${EXTENSION_NAME}: calibration re-judge for run ${runId} failed:`, err),
-					onBudgetDeferred: (runId, detail) =>
-						console.error(`${EXTENSION_NAME}: calibration deferring from run ${runId}: ${detail}`),
 				});
 	exportServer =
 		config.exportToken === null
@@ -169,9 +145,7 @@ async function main(): Promise<void> {
 	console.error(
 		`${EXTENSION_NAME} ${EXTENSION_VERSION}: judging ${config.warrenBaseUrl} ` +
 			`every ${config.pollIntervalMs}ms (db ${config.dbPath}, ` +
-			`judge=${config.provider}/${config.model}, rubric=${rubricVersion}, ` +
-			`caps $${config.maxCostUsdPerJudgment}/judgment, ` +
-			`$${config.dailyBudgetUsd}/day)`,
+			`judge=${config.provider}/${config.model}, rubric=${rubricVersion})`,
 	);
 	await Promise.all([
 		...(calibrationLoop === null ? [] : [calibrationLoop]),
@@ -179,19 +153,15 @@ async function main(): Promise<void> {
 		client,
 		verdicts,
 		cursors,
-		spend,
 		judge,
 		rubricVersion,
 		judgeModelId: config.model,
-		maxCostUsdPerJudgment: config.maxCostUsdPerJudgment,
-		dailyBudgetUsd: config.dailyBudgetUsd,
 		pollIntervalMs: config.pollIntervalMs,
 		signal: ctrl.signal,
 		onCycle: (stats) =>
 			console.error(
 				`${EXTENSION_NAME}: cycle — ${stats.terminalRuns} terminal, ` +
-					`${stats.judged} judged, ${stats.alreadyJudged} current, ` +
-					`${stats.budgetDeferred} budget-deferred`,
+					`${stats.judged} judged, ${stats.alreadyJudged} current`,
 			),
 		onCycleError: (err) => console.error(`${EXTENSION_NAME}: cycle failed:`, err),
 		onRunError: (runId, err) =>
@@ -207,13 +177,10 @@ async function main(): Promise<void> {
 				);
 			}
 		},
-		onBudgetDeferred: (runId, detail) =>
-			console.error(`${EXTENSION_NAME}: deferring from run ${runId}: ${detail}`),
 		}),
 	]);
 	verdicts.close();
 	cursors.close();
-	spend.close();
 	metrics?.close();
 	console.error(`${EXTENSION_NAME}: stopped; ${verdicts.count()} verdict rows stored`);
 }

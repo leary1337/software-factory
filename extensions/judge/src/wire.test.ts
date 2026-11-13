@@ -14,7 +14,6 @@ const PROVENANCE = {
 	model: "claude-haiku-4-5",
 	rubricVersion: "sha256:abc123",
 	judgedAt: "2026-08-15T16:04:11.000Z",
-	costUsd: 0.0031,
 } as const;
 
 function validVerdict(): JudgeVerdict {
@@ -182,9 +181,6 @@ describe("parseVerdict", () => {
 	test("rejects a missing or incomplete provenance block", () => {
 		const verdict = validVerdict();
 		expect(() => parseVerdict({ ...verdict, provenance: undefined })).toThrow(/provenance/);
-		expect(() =>
-			parseVerdict({ ...verdict, provenance: { ...PROVENANCE, costUsd: -1 } }),
-		).toThrow(/costUsd/);
 		expect(() =>
 			parseVerdict({ ...verdict, provenance: { ...PROVENANCE, judgedAt: "not-a-date" } }),
 		).toThrow(/judgedAt/);

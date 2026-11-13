@@ -1,28 +1,3 @@
-/**
- * Minimal Warren HTTP client for the V0 campaign controller (warren-a732).
- *
- * Hand-derived from warren's published HTTP surface (docs/http-api.md,
- * docs/openapi.yaml) because the extension boundary forbids importing
- * warren's `src/` — everything here mirrors the documented wire shapes only:
- *
- * - `GET /whoami` — credential check.
- * - `POST /runs` — dispatch. Body fields `agent`, `project`, `prompt`,
- *   `providerOverride`, `modelOverride`, `maxCostUsd`; a stable
- *   `Idempotency-Key` header dedupes duplicate deliveries. Returns
- *   `201 {run}` (plus a `sandbox` member this client ignores).
- * - `GET /runs/:id` — detail. Returns `200 {run}`.
- *
- * Failure policy (plan pl-91b6 risk 2): a dispatch POST whose outcome is
- * unknown — network loss after the request was sent, or any 5xx — fails
- * closed as `dispatch_uncertain` and is NEVER retried inside this client,
- * because warren's idempotency store is not durable across restarts and a
- * blind repeat could duplicate paid work. Only safe reads (GET) honor
- * `Retry-After` and retry, on 429/5xx/network, with a bounded attempt count.
- *
- * Secrets: the bearer token exists only in the `Authorization` header. No
- * error message, code, or JSON payload ever embeds it, and the client logs
- * nothing — `redactSecret` exists for callers that must echo foreign text.
- */
 import type { Clock } from "./clock.ts";
 import { CampaignControllerError, StateError, ValidationError } from "./errors.ts";
 
@@ -49,7 +24,6 @@ export interface WarrenRunView {
 	branch: string | null;
 	provider: string | null;
 	model: string | null;
-	costUsd: number | null;
 }
 
 /**
@@ -73,7 +47,6 @@ export interface WarrenTerminalFacts {
 	ref: string | null;
 	targetBranch: string | null;
 	branch: string | null;
-	costUsd: number | null;
 }
 
 /** One explicit issue-derived dispatch onto warren. */
@@ -83,7 +56,6 @@ export interface WarrenDispatchInput {
 	prompt: string;
 	provider?: string;
 	model?: string;
-	maxCostUsd?: number;
 	/** Dispatch onto this existing branch instead of a fresh workspace branch (warren-326f). */
 	existingBranch?: string;
 	/** Required, stable, and caller-owned; a repeat delivery must reuse it. */
@@ -235,15 +207,9 @@ export function parseRunEnvelope(raw: unknown): WarrenRunView {
 		branch: asString(row.branch),
 		provider: asString(row.provider),
 		model: asString(row.model),
-		costUsd: typeof row.costUsd === "number" ? row.costUsd : null,
 	};
 }
 
-/**
- * Terminal branch/ref/outcome/cost facts. Throws `StateError` when the run
- * is not terminal yet, so reconciliation never reads a half-finished run as
- * settled.
- */
 export function readTerminalFacts(run: WarrenRunView): WarrenTerminalFacts {
 	if (!isTerminalRunState(run.state)) {
 		throw new StateError(`run ${run.id} is not terminal yet (state: ${run.state})`);
@@ -255,7 +221,6 @@ export function readTerminalFacts(run: WarrenRunView): WarrenTerminalFacts {
 		ref: run.ref,
 		targetBranch: run.targetBranch,
 		branch: run.branch,
-		costUsd: run.costUsd,
 	};
 }
 
@@ -332,7 +297,6 @@ export class WarrenClient {
 			prompt: input.prompt,
 			...(input.provider !== undefined ? { providerOverride: input.provider } : {}),
 			...(input.model !== undefined ? { modelOverride: input.model } : {}),
-			...(input.maxCostUsd !== undefined ? { maxCostUsd: input.maxCostUsd } : {}),
 			...(input.existingBranch !== undefined ? { existingBranch: input.existingBranch } : {}),
 		});
 		let res: Response;
