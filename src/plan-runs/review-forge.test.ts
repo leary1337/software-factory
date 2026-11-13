@@ -11,6 +11,21 @@ import {
 
 const SHA = "a".repeat(40);
 const BASE = "b".repeat(40);
+test("reviewed delivery honors the owner's base-branch path delegation", async () => {
+	const h = await harness({
+		config: {
+			method: "merge",
+			verification: "warren",
+			requiredChecks: ["test"],
+			protectedPaths: [],
+			reviewedPaths: ["scripts/**"],
+		},
+		changedPaths: { kind: "changed", paths: ["scripts/replay.py"] },
+	});
+	expect(await h.merge()).toMatchObject({ reason: "merge_confirmation_pending" });
+	expect(h.publishes).toHaveLength(1);
+});
+
 async function harness(snapshot: Partial<AutoMergeSnapshot> = {}, head = SHA) {
 	const fake = new FakeForge();
 	fake.setAutoMergeArmCapability(true);
@@ -23,11 +38,13 @@ async function harness(snapshot: Partial<AutoMergeSnapshot> = {}, head = SHA) {
 		baseBranch: "main",
 	});
 	if (!opened.ok) throw new Error("fixture");
+	const publishes: unknown[] = [];
 	const calls: Parameters<Forge["mergePullRequest"]>[2][] = [];
 	forge.getPullRequest = async () => ({
 		ok: true,
 		value: {
 			lifecycle: "open",
+			draft: false,
 			mergedAt: null,
 			headCommit: head,
 			baseBranch: "main",
@@ -42,7 +59,20 @@ async function harness(snapshot: Partial<AutoMergeSnapshot> = {}, head = SHA) {
 		ok: true,
 		value: { baseCommit: BASE, requiresUpToDate: true },
 	});
+	forge.readMergeChecks = async () => ({
+		ok: true,
+		value: {
+			conclusion: "passing",
+			runs: [
+				{ name: "test", status: "completed", conclusion: "success", jobId: "1", detailsUrl: null },
+			],
+		},
+	});
 	const merge = createReviewedMerge({
+		publishHead: async (input) => {
+			publishes.push(input);
+			return "published";
+		},
 		forge,
 		repos: {
 			projects: { require: async () => ({ gitUrl: "fake://o/r", localPath: "/tmp/review" }) },
@@ -61,7 +91,7 @@ async function harness(snapshot: Partial<AutoMergeSnapshot> = {}, head = SHA) {
 			...snapshot,
 		}),
 	});
-	return { merge: () => merge(opened.value.webUrl, "work", SHA, "p"), calls, forge };
+	return { merge: () => merge(opened.value.webUrl, "work", SHA, "p"), calls, forge, publishes };
 }
 
 test("merges only the reviewed head with the shared base policy", async () => {
@@ -113,6 +143,7 @@ test("reads only complete SHA values from a resolvable pull request", async () =
 		ok: true,
 		value: {
 			lifecycle: "open",
+			draft: false,
 			mergedAt: null,
 			headCommit: "short",
 			baseBranch: "main",
@@ -211,4 +242,81 @@ test("reads UI review paths only from the pinned remote snapshot", async () => {
 	expect(await read("fake://o/r/pulls/1", "work", "p", SHA)).toBeNull();
 	snapshot = { ...snapshot, headCommit: SHA, changedPaths: { kind: "unreadable" } };
 	expect(await read("fake://o/r/pulls/1", "work", "p", SHA)).toBeNull();
+});
+
+const WARREN = {
+	method: "merge",
+	protectedPaths: [],
+	verification: "warren",
+	requiredChecks: ["test"],
+} as const;
+test("Warren verification merges after checks without paid branch protection", async () => {
+	const h = await harness({ config: { ...WARREN, protectedPaths: [], requiredChecks: ["test"] } });
+	h.forge.readMergeProtection = async () => ({
+		ok: false,
+		error: { kind: "forbidden", detail: "Upgrade to Pro" },
+	});
+	expect(await h.merge()).toMatchObject({ kind: "retry", reason: "merge_confirmation_pending" });
+	expect(h.publishes).toHaveLength(1);
+	expect(h.calls).toHaveLength(0);
+});
+
+test("Warren verification waits for named CI and refuses failed or unreadable checks", async () => {
+	for (const conclusion of ["unknown", "pending", "failing"] as const) {
+		const h = await harness({
+			config: { ...WARREN, protectedPaths: [], requiredChecks: ["test"] },
+		});
+		h.forge.readMergeChecks = async () => ({ ok: true, value: { conclusion, runs: [] } });
+		expect(await h.merge()).toMatchObject({ kind: conclusion === "failing" ? "blocked" : "retry" });
+		expect(h.publishes).toHaveLength(0);
+	}
+	const h = await harness({
+		config: { ...WARREN, protectedPaths: [], requiredChecks: ["missing"] },
+	});
+	expect(await h.merge()).toMatchObject({ reason: "checks_pending" });
+	expect(h.publishes).toHaveLength(0);
+	h.forge.readMergeChecks = undefined;
+	expect(await h.merge()).toMatchObject({ reason: "checks_unavailable" });
+});
+test("Warren verification refreshes an outdated PR and requires a new review", async () => {
+	const h = await harness({
+		config: { ...WARREN, protectedPaths: [], requiredChecks: ["test"] },
+		baseIsAncestor: false,
+	});
+	let expected: string | undefined;
+	h.forge.updatePullRequestBranch = async (_ref, _pr, head) => {
+		expected = head;
+		return { ok: true, value: undefined };
+	};
+	expect(await h.merge()).toMatchObject({ reason: "branch_update_pending" });
+	expect(expected).toBe(SHA);
+	expect(h.publishes).toHaveLength(0);
+});
+test("Warren verification retains protected-path and draft restrictions", async () => {
+	const h = await harness({
+		config: { ...WARREN, protectedPaths: [], requiredChecks: ["test"] },
+		changedPaths: { kind: "changed", paths: [".github/workflows/checks.yml"] },
+	});
+	expect(await h.merge()).toMatchObject({ reason: "protected_path" });
+	expect(h.publishes).toHaveLength(0);
+	const draft = await harness({
+		config: { ...WARREN, protectedPaths: [], requiredChecks: ["test"] },
+	});
+	const get = draft.forge.getPullRequest;
+	draft.forge.getPullRequest = async (...args) => {
+		const r = await get(...args);
+		return r.ok ? { ...r, value: { ...r.value, draft: true } } : r;
+	};
+	expect(await draft.merge()).toMatchObject({ reason: "draft_pr" });
+	expect(draft.publishes).toHaveLength(0);
+});
+
+test("a published head waits for PR confirmation without another write", async () => {
+	const h = await harness({
+		config: { ...WARREN, protectedPaths: [], requiredChecks: ["test"] },
+		baseCommit: SHA,
+		changedPaths: { kind: "changed", paths: [] },
+	});
+	expect(await h.merge()).toMatchObject({ reason: "merge_confirmation_pending" });
+	expect(h.publishes).toHaveLength(0);
 });

@@ -10,7 +10,7 @@
  * (deploy/k8s/servicemonitor.yaml).
  *
  * Two sources, assembled per scrape:
- *   - **Gauges** read live from SQLite (`countRunsByState` / `aggregateRunCost`,
+ *   - **Gauges** read live from SQLite (`countRunsByState` / `aggregateRunTokens`,
  *     the same aggregates the periodic `ops.stats` log line uses) + the live
  *     bridge-registry size. No state of its own.
  *   - **Counters** from the in-process `MetricsRegistry` (log-line rates by
@@ -21,7 +21,7 @@
  * The adapter is boot-wired (warren-89a6); this handler does not build one.
  */
 
-import { aggregateRunCost, countRunsByState } from "../../db/repos/runs-stats.ts";
+import { aggregateRunTokens, countRunsByState } from "../../db/repos/runs-stats.ts";
 import type { CounterSnapshot } from "../../observability/metrics-registry.ts";
 import {
 	PROMETHEUS_CONTENT_TYPE,
@@ -38,9 +38,9 @@ export function metricsHandler(deps: ServerDeps): RouteHandler {
 
 		const adapter = deps.dbAdapter;
 		if (adapter !== undefined) {
-			const [byState, cost] = await Promise.all([
+			const [byState, tokens] = await Promise.all([
 				countRunsByState(adapter),
-				aggregateRunCost(adapter),
+				aggregateRunTokens(adapter),
 			]);
 			metrics.push({
 				name: "warren_runs",
@@ -48,9 +48,8 @@ export function metricsHandler(deps: ServerDeps): RouteHandler {
 				type: "gauge",
 				samples: Object.entries(byState).map(([state, value]) => ({ labels: { state }, value })),
 			});
-			metrics.push(gauge("warren_cost_usd", "Cumulative agent cost in USD.", cost.costUsd));
-			metrics.push(gauge("warren_tokens_input", "Cumulative input tokens.", cost.tokensInput));
-			metrics.push(gauge("warren_tokens_output", "Cumulative output tokens.", cost.tokensOutput));
+			metrics.push(gauge("warren_tokens_input", "Cumulative input tokens.", tokens.tokensInput));
+			metrics.push(gauge("warren_tokens_output", "Cumulative output tokens.", tokens.tokensOutput));
 		}
 
 		metrics.push(

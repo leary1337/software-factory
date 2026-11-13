@@ -27,6 +27,7 @@
  *     to deny-all (no `--share-net`) so callers can declare intent today.
  */
 
+import { join, relative } from "node:path";
 import type { SandboxProfile, SpawnCommand } from "./types.ts";
 
 export const SYSTEM_RO_MOUNTS: readonly string[] = [
@@ -128,6 +129,7 @@ export function buildBwrapArgv(
 	argv.push("--bind", profile.home, SANDBOX_HOME_PATH);
 
 	argv.push("--bind", profile.workspace, "/workspace");
+	argv.push(...verificationSourceBinds(profile));
 
 	const cwd = resolveCwd(command.cwd);
 	argv.push("--chdir", cwd);
@@ -138,6 +140,20 @@ export function buildBwrapArgv(
 
 	argv.push("--", ...command.argv);
 	return argv;
+}
+
+/** Protect both workspace aliases after their parent binds. Mount roots cannot be renamed. */
+function verificationSourceBinds(profile: SandboxProfile): string[] {
+	const sources = profile.verificationSources;
+	if (!sources) return [];
+	const mapped = join("/workspace", relative(profile.workspace, sources.directory));
+	const out: string[] = ["--bind", profile.workspace, profile.workspace];
+	for (const target of new Set([sources.directory, mapped])) {
+		out.push("--bind", sources.directory, target);
+		for (const file of sources.files)
+			out.push("--ro-bind", join(sources.directory, file), join(target, file));
+	}
+	return out;
 }
 
 function resolveCwd(cwd: string | undefined): string {

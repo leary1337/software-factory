@@ -21,7 +21,7 @@ export function preserveFailedReviewUsage(
 				event.payload.type === "result",
 		);
 	if (!result || typeof result.payload !== "object" || result.payload === null) return;
-	if (!("total_cost_usd" in result.payload) && !("usage" in result.payload)) return;
+	if (!("usage" in result.payload)) return;
 	store.appendEvent(record, {
 		kind: "state_change",
 		stream: "system",

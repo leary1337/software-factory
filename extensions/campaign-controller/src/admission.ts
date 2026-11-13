@@ -42,7 +42,7 @@ import {
 	validateRepositoryPolicy,
 } from "./repository-policy.ts";
 import type { CampaignStateStore } from "./store/state-store.ts";
-import type { CampaignRow, ReservationRow, WorkItemRow } from "./store/types.ts";
+import type { CampaignRow, WorkItemRow } from "./store/types.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -99,13 +99,8 @@ export interface IssueSnapshot {
 /** A successfully admitted work item with its reserved budget. */
 export interface AdmissionResult {
 	readonly workItem: WorkItemRow;
-	readonly reservation: ReservationRow;
 	readonly manifestDigest: string;
 	readonly policyDigest: string;
-}
-
-function usdToCents(usd: number): number {
-	return Math.round(usd * 100);
 }
 
 /**
@@ -206,7 +201,6 @@ export function importCampaign(
 			campaignId: prior.id,
 			reason: "superseded_by_new_manifest_version",
 			detailJson: JSON.stringify({
-				previousDigest: prior.manifestDigest,
 				newDigest: digest,
 			}),
 		});
@@ -217,7 +211,6 @@ export function importCampaign(
 		manifestDigest: digest,
 		manifestJson: JSON.stringify(manifest),
 		policyDigest,
-		budgetCapUsdCents: usdToCents(manifest.budget.totalUsd),
 		status: "awaiting_approval",
 	});
 	const workItems = manifest.issues.map((issue, index) =>
@@ -375,31 +368,10 @@ export function admitWorkItem(
 	verifyProtectedPaths(store, campaign, policy, workItem, input.issue);
 	verifyNoActiveAttempt(store, workItem, input.issue);
 	verifyConcurrency(store, campaign, manifest);
-	verifyDailyBudget(store, campaign, manifest, input.issue, input.nowMs);
-
-	// Budget reservation and the admission transition commit atomically.
-	const perRunCents = usdToCents(manifest.budget.perRunUsd);
-	const reservation: ReservationRow = store.transaction(() => {
-		let reserved: ReservationRow;
-		try {
-			reserved = store.budget.reserve({
-				campaignId: campaign.id,
-				amountUsdCents: perRunCents,
-			});
-		} catch (cause) {
-			throw new AdmissionRefusal(
-				"budget_insufficient",
-				`insufficient campaign budget for issue ${input.issue.number}: need ${perRunCents}c, ${store.budget.availableUsdCents(campaign.id)}c available of the approved ${campaign.budgetCapUsdCents}c`,
-				{ cause },
-			);
-		}
-		store.campaigns.setWorkItemStatus(workItem.id, "admitted");
-		return reserved;
-	});
+	store.campaigns.setWorkItemStatus(workItem.id, "admitted");
 
 	return {
 		workItem: store.campaigns.getWorkItem(workItem.id) as WorkItemRow,
-		reservation,
 		manifestDigest: campaign.manifestDigest,
 		policyDigest: campaign.policyDigest as string,
 	};
@@ -509,7 +481,7 @@ function stalenessViolation(policyInput: unknown, nowMs: number): string | null 
 
 /** Warren dispatch identity and layered caps must still hold. */
 function verifyWarrenTarget(manifest: CampaignManifest): void {
-	const { warren, budget } = manifest;
+	const { warren } = manifest;
 	if (
 		warren.project.length === 0 ||
 		warren.agent.length === 0 ||
@@ -519,16 +491,6 @@ function verifyWarrenTarget(manifest: CampaignManifest): void {
 		throw new AdmissionRefusal(
 			"warren_target_invalid",
 			"warren dispatch identity is incomplete — project, agent, provider, and model must all be bound",
-		);
-	}
-	if (
-		!(budget.perRunUsd > 0) ||
-		budget.perRunUsd > budget.dailyUsd ||
-		budget.dailyUsd > budget.totalUsd
-	) {
-		throw new AdmissionRefusal(
-			"budget_caps_invalid",
-			`budget caps must layer per-run ≤ daily ≤ total, got ${budget.perRunUsd} / ${budget.dailyUsd} / ${budget.totalUsd}`,
 		);
 	}
 }
@@ -662,33 +624,6 @@ function verifyConcurrency(
 		throw new AdmissionRefusal(
 			"concurrency_exceeded",
 			`campaign ${campaign.id} already runs ${active} concurrent work item(s); the approved maximum is ${manifest.maxConcurrentRuns}`,
-		);
-	}
-}
-
-/** Daily budget: settled spend plus active reservations started today. */
-function verifyDailyBudget(
-	store: CampaignStateStore,
-	campaign: CampaignRow,
-	manifest: CampaignManifest,
-	issue: IssueSnapshot,
-	nowMs: number,
-): void {
-	const perRunCents = usdToCents(manifest.budget.perRunUsd);
-	const dailyCents = usdToCents(manifest.budget.dailyUsd);
-	const dayStart = Math.floor(nowMs / DAY_MS) * DAY_MS;
-	let todayCommitted = 0;
-	for (const reservation of store.budget.listReservations(campaign.id)) {
-		if (reservation.createdAtMs < dayStart) continue;
-		todayCommitted +=
-			reservation.state === "active"
-				? reservation.amountUsdCents
-				: (reservation.settledUsdCents ?? 0);
-	}
-	if (todayCommitted + perRunCents > dailyCents) {
-		throw new AdmissionRefusal(
-			"daily_budget_exhausted",
-			`daily budget exhausted: ${todayCommitted}c committed today, per-run cap ${perRunCents}c would exceed the daily ${dailyCents}c for issue ${issue.number}`,
 		);
 	}
 }

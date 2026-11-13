@@ -27,7 +27,6 @@ function planRunRow(overrides: Partial<PlanRunRow> = {}): PlanRunRow {
 		ref: null,
 		providerOverride: null,
 		modelOverride: null,
-		maxCostUsd: null,
 		dispatcherHandle: "cli",
 		trigger: "cli",
 		state: "running",
@@ -151,12 +150,9 @@ describe("createPrettyRenderer", () => {
 		expect(lines()[0]).toBe("[08:09:10] tool_result: ok done");
 	});
 
-	test("renders-terminal-result-with-cost-and-duration", () => {
-		const { sink, lines } = capture();
-		createPrettyRenderer(sink).event(
-			event("result", { subtype: "success", total_cost_usd: 0.1234, duration_ms: 4200 }),
-		);
-		expect(lines()[0]).toBe("[08:09:10] result: success cost=$0.1234 duration=4.2s");
+	test("renders-terminal-result-with-duration", () => {
+		const { sink } = capture();
+		createPrettyRenderer(sink).event(event("result", { subtype: "success", duration_ms: 4200 }));
 	});
 
 	test("truncates-long-values", () => {

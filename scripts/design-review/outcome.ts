@@ -42,7 +42,6 @@ export type Outcome =
 	| { readonly kind: "invalid"; readonly errors: readonly string[] };
 
 export interface Usage {
-	readonly costUsd: number | null;
 	readonly turns: number | null;
 }
 
@@ -191,7 +190,6 @@ function linksLine(ctx: ReportContext): string {
 
 function usageLine(ctx: ReportContext): string {
 	const parts = [`model \`${cell(ctx.model)}\``];
-	if (ctx.usage?.costUsd != null) parts.push(`cost $${ctx.usage.costUsd.toFixed(2)}`);
 	if (ctx.usage?.turns != null) parts.push(plural(ctx.usage.turns, "turn"));
 	return `Evaluator: ${parts.join(", ")}. ${linksLine(ctx)}`;
 }

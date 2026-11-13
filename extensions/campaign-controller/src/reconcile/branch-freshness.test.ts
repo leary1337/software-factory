@@ -38,7 +38,6 @@ beforeEach(() => {
 	const campaign = store.campaigns.createCampaign({
 		manifestDigest: "digest-freshness",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	});
 	campaignId = campaign.id;
 	workItemId = store.campaigns.addWorkItem({
@@ -92,7 +91,6 @@ function fakeDispatch(calls: { existingBranch: string; prompt: string }[] = []) 
 		project: string;
 		agent: string;
 		prompt: string;
-		maxCostUsd: number;
 		existingBranch: string;
 		idempotencyKey: string;
 	}): Promise<{ runId: string }> => {
@@ -138,7 +136,6 @@ function baseInput(mergeableState: string | null) {
 		issueRef: "issue://42",
 		project: "openclaw",
 		agent: "pi",
-		maxCostUsd: 2,
 		policyDigest: "policy-digest-1",
 	};
 }

@@ -29,10 +29,12 @@ export async function readApprovedDefaults(
 		GIT_NO_REPLACE_OBJECTS: "1",
 		GIT_TERMINAL_PROMPT: "0",
 	};
-	const run = async (args: string[]) => {
+	const run = async (
+		args: string[],
+		failure = "Cannot read approved review policy from the base branch.",
+	) => {
 		const result = await spawn(["git", ...args], { cwd: root, env, timeoutMs: 30000 });
-		if (result.exitCode !== 0)
-			throw new Error("Cannot read approved review policy from the base branch.");
+		if (result.exitCode !== 0) throw new Error(failure);
 		return result.stdout;
 	};
 	try {
@@ -46,7 +48,10 @@ export async function readApprovedDefaults(
 			project.gitUrl,
 			`refs/heads/${branch}:refs/review/base`,
 		]);
-		const raw = await run(["show", "refs/review/base:.warren/config.yaml"]);
+		const raw = await run(
+			["show", "refs/review/base:.warren/config.yaml"],
+			"Cannot read .warren/config.yaml from the approved base branch. Configure qualityGate there, then retry review.",
+		);
 		const parsed = parseDefaultsConfig(load(raw));
 		if (!parsed.ok) throw new Error("Approved base branch must configure valid project defaults.");
 		return parsed.value;

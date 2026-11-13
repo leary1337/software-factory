@@ -133,7 +133,6 @@ describe("commentFor", () => {
 		expect(body.startsWith(`${DESIGN_REVIEW_MARKER}\n### Design review: PASS`)).toBe(true);
 		expect(body.indexOf("New gap.")).toBeLessThan(body.indexOf("Old gutter."));
 		expect(body).toContain("<details><summary>1 pre-existing finding (not counted)</summary>");
-		expect(body).toContain("cost $1.23, 17 turns");
 		expect(body).toContain("model `claude-opus-5-5`");
 	});
 

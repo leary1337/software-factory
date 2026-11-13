@@ -4,8 +4,8 @@ import { spawnReviewStep } from "./review-dispatch.ts";
 export { decideReviewStep } from "./review-decision.ts";
 
 import { failedGateChangesReport } from "../core/review-check-failure.ts";
-import type { ReviewEvidence } from "../core/review-findings.ts";
-import { parseReviewEvidence } from "../runtime/review-artifacts.ts";
+import type { ReviewEvidence, ReviewFinding } from "../core/review-findings.ts";
+import { parseReviewArtifacts, parseReviewEvidence } from "../runtime/review-artifacts.ts";
 import { loadReviewBudget, reviewBudgetReason } from "./review-progress.ts";
 
 export { MAX_REWORKS } from "./review-progress.ts";
@@ -19,7 +19,7 @@ import { includeUiReview } from "./ui-review.ts";
  */
 
 import { hasQualityGateWitness, reportWithVerifiedGate } from "../core/quality-gate.ts";
-import type { ReviewStage, ReviewStepKind } from "../core/wire.ts";
+import type { ReviewStage, ReviewStepKind, RunFailureReason } from "../core/wire.ts";
 
 export type { ReviewStage, ReviewStepKind } from "../core/wire.ts";
 
@@ -30,13 +30,20 @@ export { parseVerdict } from "./review-result.ts";
 import type { RunRow } from "../db/schema.ts";
 import type { CoordinatorRepos } from "./coordinator.ts";
 import type { HandleInFlightDecision, HandleInFlightInput } from "./in-flight.ts";
-import { currentReviewEvents, finishReview, pendingReviewDelivery } from "./review-delivery.ts";
+import {
+	currentReviewEvents,
+	finishReview,
+	hasPendingReviewRetry,
+	pendingReviewDelivery,
+} from "./review-delivery.ts";
 
 export const REVIEWED_AGENT = "implementer";
 
 export type ReviewOutcome = "passed" | "changes_left" | "broken";
 
 export interface ReviewStepRecord {
+	readonly failureReason?: RunFailureReason | null;
+	readonly recoveryReason?: string;
 	readonly step: ReviewStepKind;
 	readonly state: "running" | "succeeded" | "failed";
 	readonly resultText: string | null;
@@ -44,7 +51,7 @@ export interface ReviewStepRecord {
 	readonly gateVerified?: boolean;
 	readonly evidenceRequired?: boolean;
 	readonly evidence?: ReviewEvidence;
-	readonly costUsd?: number | null;
+	readonly artifacts?: readonly ReviewFinding[];
 	readonly activeMs?: number | null;
 }
 
@@ -53,8 +60,14 @@ export type ReviewDecision =
 			readonly kind: "spawn";
 			readonly step: "review" | "ui_review";
 			readonly reviewedCommit?: string;
+			readonly recoveryReason?: string;
 	  }
-	| { readonly kind: "spawn"; readonly step: "rework"; readonly findings: string }
+	| {
+			readonly kind: "spawn";
+			readonly step: "rework";
+			readonly findings: string;
+			readonly recoveryReason?: string;
+	  }
 	| { readonly kind: "wait" }
 	| { readonly kind: "finished"; readonly outcome: ReviewOutcome; readonly report: string };
 
@@ -75,6 +88,7 @@ export async function loadReviewStage(
 ): Promise<ReviewStage | null> {
 	if (agentName !== REVIEWED_AGENT) return null;
 	const events = await repos.events.listByRun(runId);
+	if (hasPendingReviewRetry(events)) return "reviewing";
 	const finished = currentReviewEvents(events).find(
 		(event) => event.kind === "plan_run.review_finished",
 	);
@@ -98,6 +112,7 @@ export async function loadSteps(
 			stepRunId: string;
 			reviewedCommit?: string;
 			evidenceRequired?: boolean;
+			recoveryReason?: string;
 		};
 		records.push(await loadStep(repos, payload));
 	}
@@ -118,6 +133,7 @@ async function loadStep(
 		stepRunId: string;
 		reviewedCommit?: string;
 		evidenceRequired?: boolean;
+		recoveryReason?: string;
 	},
 ): Promise<ReviewStepRecord> {
 	const stepRun = await repos.runs.require(payload.stepRunId);
@@ -135,12 +151,19 @@ async function loadStep(
 		.reverse()
 		.find((event) => event.stream === "system" && event.kind === "review_check.evidence");
 	const evidence = parseReviewEvidence(rawEvidence?.payloadJson);
-	const report = findings ?? (finishedCleanly ? await readResultText(repos, stepRun.id) : null);
+	const rawArtifacts = [...stepEvents]
+		.reverse()
+		.find((event) => event.stream === "system" && event.kind === "review_check.artifacts");
+	// A checker/protocol crash does not erase defects the reviewer already reported.
+	// The run state still prevents this text from being accepted as a passing review.
+	const report = findings ?? (await readResultText(repos, stepRun.id));
 	return {
+		failureReason: stepRun.state === "cancelled" ? null : stepRun.failureReason,
+		recoveryReason: payload.recoveryReason,
 		gateVerified,
 		evidenceRequired: payload.evidenceRequired,
 		...(evidence ? { evidence } : {}),
-		costUsd: stepRun.costUsd,
+		artifacts: parseReviewArtifacts(rawArtifacts?.payloadJson),
 		activeMs: activeDuration(stepRun),
 		step: payload.step,
 		reviewedCommit: payload.reviewedCommit ?? stepRun.baseCommit ?? "",
@@ -211,6 +234,8 @@ export async function advanceReview(
 ): Promise<HandleInFlightDecision | null> {
 	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
 	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
+	if (hasPendingReviewRetry(events))
+		return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
 	const steps = await loadSteps(input.repos, run.id);
 	const last = steps.at(-1);
 	const stale = await reviewHeadChanged(input, steps, prUrl);

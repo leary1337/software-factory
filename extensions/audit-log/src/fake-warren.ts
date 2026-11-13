@@ -88,7 +88,6 @@ export class FakeWarren {
 					startedAt: r.startedAt,
 					// Extra fields a real row carries — the collector must ignore them.
 					projectId: "proj-1",
-					costUsd: 0,
 				})),
 				total: this.runs.length,
 				limit,

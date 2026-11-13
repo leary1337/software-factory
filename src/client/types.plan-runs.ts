@@ -42,8 +42,6 @@ export interface PlanRunRow {
 	ref: string | null;
 	providerOverride: string | null;
 	modelOverride: string | null;
-	/** warren-a63d: per-child USD spend cap forwarded to every child dispatch. */
-	maxCostUsd: number | null;
 	dispatcherHandle: string;
 	trigger: string;
 	state: PlanRunState;
@@ -59,6 +57,7 @@ export interface PlanRunChildRow {
 	metrics?: TaskMetrics;
 	budget?: PlanRunBudgetSummary | null;
 	reviewSteps?: ReviewStepSummary[];
+	reviewFailure?: string | null;
 	planRunId: string;
 	seq: number;
 	seedId: string;
@@ -85,8 +84,6 @@ export interface CreatePlanRunInput {
 	ref?: string;
 	providerOverride?: string;
 	modelOverride?: string;
-	/** Per-child USD spend cap (warren-a63d); same validation as `POST /runs` maxCostUsd. */
-	maxCostUsd?: number;
 	dispatcherHandle?: string;
 }
 

@@ -118,6 +118,94 @@ server.listen(path, () => {
 			}
 		});
 
+		test("runs Python spawn workers with process-shared synchronization", async () => {
+			writeFileSync(
+				join(workspace, "workers.py"),
+				`
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
+
+def square(value):
+    return value * value
+
+if __name__ == "__main__":
+    context = multiprocessing.get_context("spawn")
+    with context.Lock():
+        with ProcessPoolExecutor(2, mp_context=context) as pool:
+            assert list(pool.map(square, [2, 3])) == [4, 9]
+    print("WORKERS_OK")
+`,
+			);
+			const proc = await runSandboxed(baseProfile(workspace, home), {
+				argv: ["/usr/bin/python3", "workers.py"],
+			});
+			const timeout = setTimeout(() => proc.cancel(), 10000);
+			try {
+				const [stdout, stderr, code] = await Promise.all([
+					Bun.readableStreamToText(proc.stdout),
+					Bun.readableStreamToText(proc.stderr),
+					proc.exited,
+				]);
+				expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
+				expect(stdout.trim()).toBe("WORKERS_OK");
+			} finally {
+				clearTimeout(timeout);
+				proc.cancel();
+			}
+		});
+
+		test("cannot reopen a Python semaphore owned by a host process", async () => {
+			const host = Bun.spawn(
+				[
+					"/usr/bin/python3",
+					"-u",
+					"-c",
+					`
+import multiprocessing, sys
+lock = multiprocessing.get_context("spawn").Lock()
+print(lock._semlock.name, flush=True)
+sys.stdin.read()
+`,
+				],
+				{ stdin: "pipe", stdout: "pipe", stderr: "pipe" },
+			);
+			const timeout = setTimeout(() => host.kill(), 4000);
+			try {
+				const reader = host.stdout.getReader();
+				const { value } = await reader.read();
+				reader.releaseLock();
+				const name = new TextDecoder().decode(value).trim();
+				expect(name).toMatch(/^\/mp-/);
+				const proc = await runSandboxed(baseProfile(workspace, home), {
+					argv: [
+						"/usr/bin/python3",
+						"-c",
+						`
+import _multiprocessing, sys
+try:
+    _multiprocessing.SemLock._rebuild(0, 1, 1, sys.argv[1])
+except PermissionError:
+    print("HOST_SEMAPHORE_BLOCKED")
+else:
+    raise AssertionError("host semaphore was accessible")
+`,
+						name,
+					],
+				});
+				const [stdout, stderr, code] = await Promise.all([
+					Bun.readableStreamToText(proc.stdout),
+					Bun.readableStreamToText(proc.stderr),
+					proc.exited,
+				]);
+				expect({ code, stderr }).toEqual({ code: 0, stderr: "" });
+				expect(stdout.trim()).toBe("HOST_SEMAPHORE_BLOCKED");
+			} finally {
+				host.stdin.end();
+				await host.exited;
+				clearTimeout(timeout);
+			}
+		});
+
 		test("reaches a local smoke server while external proxy destinations remain restricted", async () => {
 			const server = Bun.serve({
 				hostname: "127.0.0.1",

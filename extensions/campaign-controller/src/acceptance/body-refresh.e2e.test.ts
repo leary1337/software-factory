@@ -216,7 +216,6 @@ beforeEach(() => {
 	campaignId = h.store.campaigns.createCampaign({
 		manifestDigest: "digest-e2e",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	}).id;
 	workItemId = h.store.campaigns.addWorkItem({
 		campaignId,

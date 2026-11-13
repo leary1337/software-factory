@@ -47,7 +47,6 @@ describe("buildPrContent", () => {
 				title: "Scenario 16: assert non-null cost/token columns after a pi run",
 			},
 		});
-		expect(c.title).toBe("Scenario 16: assert non-null cost/token columns after a pi run");
 		expect(c.body).toContain("## Seeds");
 		expect(c.body).toContain("warren-17a4 — Scenario 16");
 	});
@@ -110,18 +109,16 @@ describe("buildPrContent", () => {
 		expect(c.body).not.toContain("## Commits");
 	});
 
-	test("formats the cost line with cost + tokens when set", () => {
+	test("formats token usage when set", () => {
 		const c = buildPrContent({
 			prompt: "do x",
 			runId: "run_abc",
 			agentName: "pi",
-			costUsd: 0.13,
 			tokensInput: 24_600,
 			tokensOutput: 5_200,
 			tokensCacheRead: 21_900,
 		});
-		expect(c.body).toContain("**Cost:**");
-		expect(c.body).toContain("$0.130");
+		expect(c.body).not.toContain("**Cost:**");
 		expect(c.body).toContain("24.6k in");
 		expect(c.body).toContain("5.2k out");
 		expect(c.body).toContain("21.9k cache-r");

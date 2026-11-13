@@ -7,26 +7,20 @@ planRunBudget:
   task:
     maxRuns: 8
     maxActiveMs: 7200000
-    maxCostUsd: 20
   plan:
     maxRuns: 30
     maxActiveMs: 21600000
-    maxCostUsd: 80
 ```
 
 Every number is positive; omit a limit to leave that resource unbounded.
 `maxRuns` includes implementation, code review, UI review, rework and linked
 retries. `maxActiveMs` sums their execution intervals, including runtime-owned
-checks, rather than time waiting for a human or a merge. `maxCostUsd` sums known
-run estimates. Subscription estimates are API-equivalent prices, not a bill or
-remaining subscription quota. These limits are independent of the existing
-per-run `maxCostUsd` setting.
+checks, rather than time waiting for a human or a merge.
 
 Before each coordinator dispatch, Warren checks both the child task and the
 whole plan. Reaching a limit stops the next dispatch. The current run is not
-cancelled by this admission check and can exceed the remaining time or cost;
-its normal runtime timeout still applies. Codex usage may arrive only when its
-turn ends. Missing cost or duration blocks admission when the corresponding
+cancelled by this admission check and can exceed the remaining time;
+its normal runtime timeout still applies. Missing duration blocks admission when its
 limit is configured; missing run history blocks any configured budget. Unknown
 usage is never treated as free work.
 

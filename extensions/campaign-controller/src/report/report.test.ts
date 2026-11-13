@@ -25,7 +25,6 @@ describe("buildCampaignReport", () => {
 	let campaignId: string;
 	let mergedItemId: string;
 	let closedItemId: string;
-	let openItemId: string;
 	let dir: string;
 	let dbPath: string;
 
@@ -40,13 +39,12 @@ describe("buildCampaignReport", () => {
 		const campaign = store.campaigns.createCampaign({
 			manifestDigest: "digest-report",
 			manifestJson: "{}",
-			budgetCapUsdCents: 100_00,
 		});
 		campaignId = campaign.id;
 
 		mergedItemId = seedItem(campaign.id, 1, "issue://1", "warren/issue-1", 101);
 		closedItemId = seedItem(campaign.id, 2, "issue://2", "warren/issue-2", 102);
-		openItemId = seedItem(campaign.id, 3, "issue://3", "warren/issue-3", 103);
+		seedItem(campaign.id, 3, "issue://3", "warren/issue-3", 103);
 
 		// Merged item: initial run (settled 500c) + one follow-up (settled 300c).
 		spendForItem(mergedItemId, "warren:dispatch:1", 500);
@@ -88,7 +86,7 @@ describe("buildCampaignReport", () => {
 		return item.id;
 	}
 
-	function spendForItem(workItemId: string, actionKey: string, settledUsdCents: number): void {
+	function spendForItem(workItemId: string, actionKey: string, _settledUsdCents: number): void {
 		const action = store.actions.beginAction({
 			actionKey,
 			campaignId,
@@ -96,12 +94,6 @@ describe("buildCampaignReport", () => {
 			actionType: "warren_dispatch",
 			requestDigest: `req-${actionKey}`,
 		});
-		const reservation = store.budget.reserve({
-			campaignId,
-			amountUsdCents: settledUsdCents,
-		});
-		store.budget.attachReservation(reservation.id, action.id);
-		store.budget.settleReservation(reservation.id, settledUsdCents);
 		store.actions.settleAction(action.id, { state: "succeeded" });
 	}
 
@@ -111,59 +103,18 @@ describe("buildCampaignReport", () => {
 		expect(report.prsMerged).toBe(1);
 		expect(report.prsClosedUnmerged).toBe(1);
 		expect(report.prsStillOpen).toBe(1);
-		expect(report.totalSpendUsdCents).toBe(1050);
-		expect(report.costPerMergedPrUsdCents).toBe(1050);
 
 		const [merged, closed, open] = report.items;
 		expect(merged?.issueRef).toBe("issue://1");
 		expect(merged?.prNumber).toBe(101);
 		expect(merged?.outcome).toBe("merged");
-		expect(merged?.totalSpendUsdCents).toBe(800);
 		expect(merged?.followUpIterations).toBe(1);
 		expect(merged?.openToTerminalMs).toBe(60_000);
 		expect(closed?.outcome).toBe("closed_unmerged");
-		expect(closed?.totalSpendUsdCents).toBe(250);
 		expect(closed?.followUpIterations).toBe(0);
 		expect(open?.outcome).toBeNull();
 		expect(open?.openToTerminalMs).toBeNull();
 		expect(open?.prNumber).toBe(103);
-	});
-
-	test("cost per merged PR is null while nothing has merged", () => {
-		store.campaigns.recordWorkItemOutcome(mergedItemId, "merged");
-		const fresh = new CampaignStateStore(":memory:", {
-			clock,
-			ids: new SequentialIdGenerator(),
-		});
-		const campaign = fresh.campaigns.createCampaign({
-			manifestDigest: "digest-empty",
-			manifestJson: "{}",
-			budgetCapUsdCents: 100_00,
-		});
-		fresh.campaigns.addWorkItem({
-			campaignId: campaign.id,
-			position: 1,
-			issueRef: "issue://x",
-		});
-		const report = buildCampaignReport(fresh, campaign.id);
-		expect(report.prsMerged).toBe(0);
-		expect(report.costPerMergedPrUsdCents).toBeNull();
-	});
-
-	test("active reservations count their full amount and released ones count nothing", () => {
-		const action = store.actions.beginAction({
-			actionKey: "warren:dispatch:3",
-			campaignId,
-			workItemId: openItemId,
-			actionType: "warren_dispatch",
-			requestDigest: "req-3",
-		});
-		const reserved = store.budget.reserve({ campaignId, amountUsdCents: 400 });
-		store.budget.attachReservation(reserved.id, action.id);
-		const released = store.budget.reserve({ campaignId, amountUsdCents: 100 });
-		store.budget.releaseReservation(released.id);
-		const report = buildCampaignReport(store, campaignId);
-		expect(report.totalSpendUsdCents).toBe(1450);
 	});
 
 	test("reopening the same database derives the same report", () => {

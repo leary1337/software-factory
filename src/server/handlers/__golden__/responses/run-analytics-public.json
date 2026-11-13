@@ -287,35 +287,6 @@
 			"merged": 1,
 			"autonomous": 1,
 			"rate": 1
-		},
-		"costPerMergedPr": {
-			"overall": {
-				"prStateKnown": 1,
-				"prsMerged": 1,
-				"costPerMergedPrUsd": 0
-			},
-			"byAgent": [
-				{
-					"key": "claude-code",
-					"prStateKnown": 1,
-					"prsMerged": 1
-				}
-			],
-			"byModel": [
-				{
-					"key": "sonnet",
-					"prStateKnown": 1,
-					"prsMerged": 1
-				}
-			],
-			"byProvider": [
-				{
-					"key": "anthropic",
-					"prStateKnown": 1,
-					"prsMerged": 1
-				}
-			],
-			"confidence": "low"
 		}
 	}
 }

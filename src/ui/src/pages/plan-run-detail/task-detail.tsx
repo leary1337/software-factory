@@ -2,15 +2,15 @@ import { Link } from "react-router-dom";
 import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
 import { useWorkspaceReturn } from "@/components/console/workspace-navigation.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
-import { TaskCostPanel } from "../tasks/cost-panel.tsx";
 import { TaskActivity } from "../tasks/task-activity.tsx";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
 import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
-import { AttemptCostPanel } from "./attempt-cost-panel.tsx";
+import { AttemptHistoryPanel } from "./attempt-history-panel.tsx";
 import { DeploymentIncident } from "./deployment-incident.tsx";
+import { RetryReview } from "./retry-review.tsx";
 import { TaskHistory } from "./task-history.tsx";
 
 export function TaskDetail({
@@ -58,6 +58,11 @@ export function TaskDetail({
 			>
 				<TaskStatusMessage status={status} />
 			</Alert>
+			<RetryReview
+				key={`${child.planRunId}:${child.seq}:${child.reviewStage}:${child.reviewFailure}`}
+				plan={detail.planRun}
+				child={child}
+			/>
 			<p className="text-(--color-text-2) text-sm">
 				Task {child.seq} of {detail.children.length}
 			</p>
@@ -66,8 +71,8 @@ export function TaskDetail({
 			{child.failureReason === "deployment_incident" ? (
 				<DeploymentIncident planRunId={detail.planRun.id} runId={child.runId} />
 			) : null}
-			<TaskCostPanel child={child} run={run} />
-			<AttemptCostPanel
+
+			<AttemptHistoryPanel
 				key={`attempts:${child.planRunId}:${child.seq}`}
 				detail={detail}
 				child={child}

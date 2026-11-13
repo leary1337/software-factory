@@ -91,7 +91,6 @@ async function harness() {
 	} as unknown as HandleInFlightInput;
 	async function complete(report = REPORT, gate = true) {
 		await repos.runs.markRunning(reviewer.id);
-		await repos.runs.attachStats(reviewer.id, { costUsd: 0 });
 		await repos.runs.finalize(reviewer.id, "succeeded");
 		await emit(reviewer.id, "state_change", { type: "result", result: report });
 		if (gate)
@@ -242,7 +241,6 @@ test.each(["PASS", "CHANGES", "finished CHANGES", "failed rework"])(
 				renderedAgentJson: {},
 			});
 			await h.repos.runs.markRunning(rework.id);
-			await h.repos.runs.attachStats(rework.id, { costUsd: 0 });
 			await h.repos.runs.finalize(rework.id, "failed", new Date(), "crashed");
 			await h.input.emit(h.run.id, "plan_run.review_step", {
 				step: "rework",
@@ -312,7 +310,6 @@ test.each(["PASS", "CHANGES", "finished CHANGES", "failed rework"])(
 			findings: [],
 			results: [],
 		});
-		await h.repos.runs.attachStats(freshRunId, { costUsd: 0 });
 		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
 		await advanceReview(input, h.run, "https://github.com/o/r/pull/1");
 		expect(merges).toBe(1);

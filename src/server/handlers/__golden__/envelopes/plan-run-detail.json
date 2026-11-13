@@ -11,7 +11,6 @@
 			"ref": null,
 			"providerOverride": null,
 			"modelOverride": null,
-			"maxCostUsd": null,
 			"dispatcherHandle": "operator",
 			"trigger": "manual",
 			"parentRunId": null,
@@ -38,14 +37,12 @@
 				"failureReason": null,
 				"retryCount": 0,
 				"title": null,
+				"productionVerification": null,
 				"reviewMerge": null,
 				"metrics": {
 					"runCount": 0,
 					"missingRunCount": 0,
 					"incomplete": false,
-					"costUsd": null,
-					"costUnknownRuns": 0,
-					"subscriptionEstimateRuns": 0,
 					"totalTokens": null,
 					"tokenUnknownRuns": 0,
 					"activeMs": null,
@@ -62,9 +59,9 @@
 					"postMergeIncidentCount": 0
 				},
 				"budget": null,
+				"reviewFailure": null,
 				"reviewSteps": [],
-				"reviewStage": null,
-				"productionVerification": null
+				"reviewStage": null
 			},
 			{
 				"planRunId": "planRun_golden7d84",
@@ -80,14 +77,12 @@
 				"failureReason": null,
 				"retryCount": 0,
 				"title": null,
+				"productionVerification": null,
 				"reviewMerge": null,
 				"metrics": {
 					"runCount": 0,
 					"missingRunCount": 0,
 					"incomplete": false,
-					"costUsd": null,
-					"costUnknownRuns": 0,
-					"subscriptionEstimateRuns": 0,
 					"totalTokens": null,
 					"tokenUnknownRuns": 0,
 					"activeMs": null,
@@ -104,9 +99,9 @@
 					"postMergeIncidentCount": 0
 				},
 				"budget": null,
+				"reviewFailure": null,
 				"reviewSteps": [],
-				"reviewStage": null,
-				"productionVerification": null
+				"reviewStage": null
 			}
 		],
 		"runs": []

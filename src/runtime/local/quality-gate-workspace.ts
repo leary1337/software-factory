@@ -143,11 +143,12 @@ function gateProfile(
 		if (proxyEnv?.[name]) env[name] = proxyEnv[name];
 	}
 	const { gitconfigFile: _identity, sshAuthSock: _ssh, ...base } = original;
+	if (original.projectInputsPath) env.WARREN_PROJECT_INPUTS = original.projectInputsPath;
 	return {
 		...base,
 		workspace: join(root, "workspace"),
 		home: join(root, "home"),
-		readOnlyMounts: [],
+		readOnlyMounts: original.projectInputsPath ? [original.projectInputsPath] : [],
 		envPassthrough: [],
 		setEnv: env,
 		workspaceGit: {
@@ -158,7 +159,7 @@ function gateProfile(
 				...original.workspaceGit.deniedRoots,
 				original.home,
 				original.workspace,
-				...original.readOnlyMounts,
+				...original.readOnlyMounts.filter((path) => path !== original.projectInputsPath),
 			],
 			// Mount root cannot be renamed, including under macOS's shared /tmp grant.
 			// Only metadata is readonly; checkout, caches and HOME remain disposable.

@@ -40,7 +40,6 @@ import { registerUpCommand } from "./commands/up.ts";
 import { withCliDb } from "./context.ts";
 import {
 	parseIssueList,
-	parseMaxCostUsd,
 	parsePlanRunOutput,
 	parsePlanRunState,
 	resolveCliExitCode,
@@ -299,11 +298,6 @@ export function buildProgram(baseContext: CliContext): Command {
 			.option("--ref <git-ref>", "git ref to clone child workspaces from")
 			.option("--provider <name>", "per-run override of agent frontmatter.provider")
 			.option("--model <name>", "per-run override of agent frontmatter.model")
-			.option(
-				"--max-cost-usd <usd>",
-				"per-child USD spend cap applied to every child dispatch",
-				parseMaxCostUsd,
-			)
 			.option("--no-follow", "dispatch and exit without tailing events")
 			.option("--output <mode>", "output mode: ndjson (default) or pretty", "ndjson"),
 	).action(
@@ -317,7 +311,6 @@ export function buildProgram(baseContext: CliContext): Command {
 				ref?: string;
 				provider?: string;
 				model?: string;
-				maxCostUsd?: number;
 				follow: boolean;
 				output?: string;
 			} & RemoteOpts,
@@ -337,7 +330,6 @@ export function buildProgram(baseContext: CliContext): Command {
 					...(opts.ref !== undefined ? { ref: opts.ref } : {}),
 					...(opts.provider !== undefined ? { provider: opts.provider } : {}),
 					...(opts.model !== undefined ? { model: opts.model } : {}),
-					...(opts.maxCostUsd !== undefined ? { maxCostUsd: opts.maxCostUsd } : {}),
 				},
 			);
 			process.exitCode = result.exitCode;
@@ -361,7 +353,7 @@ export function buildProgram(baseContext: CliContext): Command {
 	addClientFlags(
 		planGroup
 			.command("status")
-			.description("render a plan-run's child-state table with per-child cost + duration")
+			.description("render a plan-run's child-state table with per-child duration")
 			.argument("<plan-run-id>", "plan-run id")
 			.option("--output <mode>", "output mode: ndjson (default) or pretty", "ndjson"),
 	).action(async (planRunId: string, opts: { output?: string } & RemoteOpts) => {

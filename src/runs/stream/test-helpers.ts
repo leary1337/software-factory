@@ -90,13 +90,6 @@ export function piAgentEnd(sandboxRunId: string, seq: number): StreamEventView {
 	});
 }
 
-/**
- * Pi v0.74 `turn_end` envelope carrying `message.usage.{input,output,
- * cacheRead,cacheWrite,cost.total}` — see burrow's
- * `src/runtime/parsers/__golden__/pi-v0.74.0-anthropic-*.jsonl`. The
- * bridge accumulates these as events flow through and persists the
- * run-level totals at `agent_end`, no PiStatsClient required.
- */
 export function piTurnEnd(
 	sandboxRunId: string,
 	seq: number,
@@ -105,7 +98,6 @@ export function piTurnEnd(
 		output: number;
 		cacheRead?: number;
 		cacheWrite?: number;
-		costTotal: number;
 	},
 ): StreamEventView {
 	return evt(sandboxRunId, seq, {
@@ -120,13 +112,6 @@ export function piTurnEnd(
 					output: usage.output,
 					cacheRead: usage.cacheRead ?? 0,
 					cacheWrite: usage.cacheWrite ?? 0,
-					cost: {
-						input: 0,
-						output: 0,
-						cacheRead: 0,
-						cacheWrite: 0,
-						total: usage.costTotal,
-					},
 				},
 			},
 		},
@@ -145,21 +130,12 @@ export function piTurnStart(sandboxRunId: string, seq: number): StreamEventView 
 	});
 }
 
-/**
- * Pi `message_update` streaming delta (#1242) as it lands after burrow's pi
- * parser (kind="telemetry" — the per-delta noise class the bridge drops
- * without persisting; the TurnMonitor inspects it first). Carries the delta
- * text in `assistantMessageEvent.delta` and the cumulative message usage in
- * `partial.usage.cost.total`, mirroring burrow's
- * `src/runtime/parsers/__golden__/pi-v0.74.0-anthropic-*.jsonl`.
- */
 export function piMessageDelta(
 	sandboxRunId: string,
 	seq: number,
 	opts: {
 		deltaType?: "thinking_delta" | "text_delta";
 		delta: string;
-		costTotal?: number;
 	},
 ): StreamEventView {
 	return evt(sandboxRunId, seq, {
@@ -180,18 +156,12 @@ export function piMessageDelta(
 					output: 5,
 					cacheRead: 0,
 					cacheWrite: 0,
-					cost: { total: opts.costTotal ?? 0 },
 				},
 			},
 		},
 	});
 }
 
-/**
- * Claude-code single-shot `result` envelope (warren-87f9). Burrow's
- * jsonl-claude parser maps it to state_change/system; the bridge
- * sniffs the payload shape to extract cost.
- */
 export function claudeResult(
 	sandboxRunId: string,
 	seq: number,
@@ -200,7 +170,6 @@ export function claudeResult(
 		outputTokens: number;
 		cacheReadInputTokens?: number;
 		cacheCreationInputTokens?: number;
-		totalCostUsd: number;
 		isError?: boolean;
 	},
 ): StreamEventView {
@@ -211,7 +180,6 @@ export function claudeResult(
 			type: "result",
 			subtype: "success",
 			is_error: usage.isError ?? false,
-			total_cost_usd: usage.totalCostUsd,
 			usage: {
 				input_tokens: usage.inputTokens,
 				output_tokens: usage.outputTokens,

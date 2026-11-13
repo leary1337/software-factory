@@ -47,7 +47,6 @@ async function run(options: Options): Promise<void> {
 			project: project.id,
 			agent: "implementer",
 			issues,
-			maxCostUsd: 5,
 		});
 		planId = created.planRun.id;
 	}

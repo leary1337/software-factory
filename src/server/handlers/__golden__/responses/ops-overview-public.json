@@ -13,9 +13,6 @@
 			"total": 9
 		},
 		"window": "24h",
-		"spend": {
-			"windowRuns": 4
-		},
 		"delivery": {
 			"branchesPushed": 4,
 			"prsOpened": 3,

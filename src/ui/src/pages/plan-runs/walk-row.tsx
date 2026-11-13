@@ -4,11 +4,10 @@ import { planRunsApi } from "@/api/client.ts";
 import type { PlanRunRow } from "@/api/types.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { formatTimestamp, relativeTime } from "@/lib/utils.ts";
-import { costText, implementationLimitText, planCost } from "../tasks/cost-summary.ts";
 import { PlanStateLabel } from "./plan-state-label.tsx";
 import { childSummary, planRunElapsed } from "./walk-state.ts";
 
-/** One responsive row, shared by phone and desktop so names and amounts cannot drift. */
+/** One responsive row, shared by phone and desktop so names and progress cannot drift. */
 export function WalkRow({
 	planRun,
 	projectLabel,
@@ -24,7 +23,6 @@ export function WalkRow({
 		// Lifecycle events refresh rows; this timer only covers missed notifications.
 		refetchInterval: 45_000,
 	});
-	const cost = detail.data ? planCost(detail.data.children) : null;
 	const currentPlan = detail.data?.planRun ?? planRun;
 	const label =
 		currentPlan.planName ?? (currentPlan.source === "issues" ? "Selected issues" : "Plan attempt");
@@ -48,36 +46,23 @@ export function WalkRow({
 			<div className="lg:col-span-2">
 				<PlanStateLabel state={currentPlan.state} tasks={detail.data?.children} />
 			</div>
-			<div className="min-w-0 space-y-2 lg:col-span-3">
+			<div className="min-w-0 space-y-2 lg:col-span-6">
 				<p className="text-(--color-text-2) text-xs">Progress</p>
 				<p className="wrap-anywhere leading-6">
 					{detail.data
 						? childSummary(currentPlan.state, detail.data.children)
 						: detail.isError
 							? "Progress unknown"
-							: "Loading progress and cost…"}
+							: "Loading progress…"}
 				</p>
 				{detail.isError ? (
 					<div className="space-y-2 text-(--color-warning) text-xs">
-						<p>Progress and cost unavailable or out of date.</p>
+						<p>Progress unavailable or out of date.</p>
 						<Button variant="outline" size="sm" onClick={() => void detail.refetch()}>
 							Retry plan data
 						</Button>
 					</div>
 				) : null}
-			</div>
-			<div className="min-w-0 space-y-2 lg:col-span-3">
-				<p className="text-(--color-text-2) text-xs">Cost · this attempt</p>
-				<p className="font-medium">{cost ? costText(cost) : "Unknown"}</p>
-				{cost?.estimateRuns ? (
-					<p className="text-(--color-text-2) text-xs">Includes API-equivalent estimates</p>
-				) : null}
-				{cost?.partial ? (
-					<p className="text-(--color-warning) text-xs">Partial measurements</p>
-				) : null}
-				<p className="text-(--color-text-2) text-xs">
-					Implementation run limit: {implementationLimitText(currentPlan.maxCostUsd)}
-				</p>
 			</div>
 		</article>
 	);

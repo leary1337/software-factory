@@ -49,7 +49,6 @@ describe("verdict golden fixtures", () => {
 					model: "claude-haiku-4-5",
 					rubricVersion: "sha256:taxonomy",
 					judgedAt: "2026-08-15T16:04:11.000Z",
-					costUsd: 0.001,
 				},
 			};
 			expect(() => parseVerdict(verdict)).not.toThrow(VerdictValidationError);

@@ -257,13 +257,6 @@ function assignToolFlag(
 	if (flag !== undefined) policy[key] = flag;
 }
 
-/**
- * Default burrow runtime id warren dispatches onto when an agent pins
- * none (warren-16f8). Pi is the multi-provider runtime — cost streams
- * in-band, the unified provider matrix works, and it's what most
- * dogfood runs use — so it's the preferred default; claude-code is
- * opt-in via `frontmatter.runtime`.
- */
 export const DEFAULT_RUNTIME_ID = "pi";
 
 /**
@@ -377,22 +370,6 @@ export function withProviderOverrides(
 	if (provider !== undefined && provider !== "") nextFrontmatter.provider = provider;
 	if (model !== undefined && model !== "") nextFrontmatter.model = model;
 	return { ...agent, frontmatter: nextFrontmatter };
-}
-
-/**
- * Return a new AgentDefinition with a per-trigger spend cap (warren-a63d)
- * folded onto `frontmatter.maxCostUsd`, taking precedence over the
- * agent's own value (trigger > agent). `undefined` leaves the agent's
- * own `maxCostUsd` in force; the original agent is not mutated. Dispatch
- * calls this before freezing `runs.rendered_agent_json` so the bridge
- * sees a single, already-resolved cap.
- */
-export function withMaxCostUsdOverride(
-	agent: AgentDefinition,
-	capUsd: number | undefined,
-): AgentDefinition {
-	if (capUsd === undefined) return agent;
-	return { ...agent, frontmatter: { ...agent.frontmatter, maxCostUsd: capUsd } };
 }
 
 /**

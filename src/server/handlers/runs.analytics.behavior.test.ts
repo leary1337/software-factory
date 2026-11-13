@@ -145,7 +145,6 @@ describe("GET /analytics/behavior", () => {
 				provider: "anthropic",
 				model: "sonnet",
 				state: "succeeded",
-				costUsd: 1,
 				startedAt: `2026-05-2${i}T10:00:00.000Z`,
 				endedAt: `2026-05-2${i}T10:05:00.000Z`,
 			});
@@ -179,11 +178,6 @@ describe("GET /analytics/behavior", () => {
 		expect(delta?.value).toBeCloseTo(0.75, 5);
 		expect(delta?.denominator).toBe(8);
 		expect(delta?.confidence).toBe("low");
-		const cost = body.insights.find((i) => i.kind === "cost-per-merged-pr");
-		expect(cost).toBeDefined();
-		// $8 of priced cost over 5 merged PRs.
-		expect(cost?.value).toBeCloseTo(1.6, 5);
-		expect(cost?.denominator).toBe(5);
 		expect(body.outcomes.steering.mergedPrRateDelta).toBeCloseTo(0.75, 5);
 	});
 

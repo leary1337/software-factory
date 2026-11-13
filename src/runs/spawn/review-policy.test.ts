@@ -9,6 +9,22 @@ import { makeAgentJson, makeSandboxClient, setupRepos } from "./test-helpers.ts"
 import type { SpawnRunInput } from "./types.ts";
 
 describe("readReviewGate", () => {
+	test("names the missing approved config and the recovery action", async () => {
+		const fixture = await createGitFixture({
+			prefix: "review-missing-config-",
+			initCommit: "initial",
+		});
+		try {
+			await expect(
+				readReviewGate(
+					{ prompt: "Review", baseCommit: "a".repeat(40) } as SpawnRunInput,
+					{ gitUrl: fixture.path, localPath: fixture.path, defaultBranch: "main" } as ProjectRow,
+				),
+			).rejects.toThrow("Configure qualityGate there, then retry review");
+		} finally {
+			fixture.cleanup();
+		}
+	});
 	test("rejects unreadable policy before publishing a queued review run", async () => {
 		const fixture = await createGitFixture({
 			prefix: "review-policy-failure-",

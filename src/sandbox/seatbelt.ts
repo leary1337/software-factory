@@ -76,6 +76,9 @@ export function buildSeatbeltProfile(
 	lines.push("(allow sysctl-read)");
 	lines.push("(allow mach-lookup)");
 	lines.push("(allow ipc-posix-shm)");
+	// Python multiprocessing uses named semaphores for locks and worker queues.
+	// Worker processes must reopen their parent's semaphores.
+	lines.push("(allow ipc-posix-sem (semaphore-owner same-sandbox))");
 	lines.push("(allow iokit-open)");
 	// stat / getcwd traversal must succeed across the host fs even when data
 	// reads are denied — otherwise tools like /bin/sh fail to even resolve cwd.
@@ -160,6 +163,15 @@ export function buildSeatbeltProfile(
 	// Emitted after every broad grant: SBPL applies the LAST matching rule, so
 	// the git denies below hold even when the clone sits under /private/tmp.
 	lines.push(...renderWorkspaceGitRules(profile));
+	if (profile.projectInputsPath)
+		lines.push(`(deny file-write* (subpath ${sbString(profile.projectInputsPath)}))`);
+	const sources = profile.verificationSources;
+	if (sources) {
+		lines.push(`(deny file-write-unlink (literal ${sbString(profile.workspace)}))`);
+		lines.push(`(deny file-write-unlink (literal ${sbString(sources.directory)}))`);
+		for (const file of sources.files)
+			lines.push(`(deny file-write* (literal ${sbString(join(sources.directory, file))}))`);
+	}
 
 	lines.push(...renderUnixSocketRules(profile));
 	lines.push(...renderNetworkRules(profile));

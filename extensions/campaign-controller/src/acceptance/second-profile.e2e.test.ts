@@ -115,13 +115,6 @@ function prResource(f: ProfileFixture, body: string, mergedAt: string | null) {
 	};
 }
 
-/**
- * Tickets 7-9 of the loop: flip the checks green (the failing-check
- * attention auto-resolves against the passing evidence), merge the PR
- * (the terminal outcome records exactly once), then assert the terminal
- * accounting: one opened, one merged, the follow-up settled, and the
- * campaign spend = initial run + follow-up, i.e. cost per merged PR.
- */
 async function settleMergeAndAccount(
 	h: ReturnType<typeof boot>,
 	f: ProfileFixture,
@@ -168,7 +161,6 @@ async function settleMergeAndAccount(
 	expect(item?.outcome).toBe("merged");
 	expect(item?.status).toBe("merged");
 
-	// Terminal accounting: cost per merged PR covers initial run + follow-up.
 	const report = buildCampaignReport(h.store, h.campaignId);
 	expect(report.prsOpened).toBe(1);
 	expect(report.prsMerged).toBe(1);
@@ -180,8 +172,6 @@ async function settleMergeAndAccount(
 	expect(followUpActions).toHaveLength(1);
 	expect(followUpActions[0]?.state).toBe("succeeded");
 	void followUp;
-	expect(report.totalSpendUsdCents).toBe(200);
-	expect(report.costPerMergedPrUsdCents).toBe(200);
 }
 
 interface FollowUpLike {
@@ -203,7 +193,6 @@ async function dispatchAndRenderBody(
 	expect(h.warren.getRunRow(runId)?.prompt).toContain(f.guidanceFragment);
 	h.warren.setRunState(runId, {
 		state: "succeeded",
-		costUsd: 1.25,
 		targetBranch: f.branch,
 		branch: f.branch,
 	});
@@ -274,7 +263,6 @@ async function runFollowUp(
 	titles: readonly string[],
 ): Promise<FollowUpLike> {
 	const { manifestRaw } = committedProfile(f);
-	const budget = (manifestRaw as { budget: { perRunUsd: number } }).budget;
 	const warren = (manifestRaw as { warren: { project: string; agent: string } }).warren;
 	const calls: { prompt: string; existingBranch: string }[] = [];
 	const coordinator = new FollowUpCoordinator({
@@ -302,8 +290,6 @@ async function runFollowUp(
 			agent: warren.agent,
 			headBranch: f.branch,
 			agentGuidance: undefined,
-			maxCostUsd: budget.perRunUsd,
-			budgetHeadroomUsdCents: h.store.budget.availableUsdCents(h.campaignId),
 		},
 		{ followUpPush: true },
 	);
@@ -314,7 +300,6 @@ async function runFollowUp(
 	expect(calls[0]?.prompt).toContain(f.findingTitle);
 	h.warren.setRunState(followUp.runId as string, {
 		state: "succeeded",
-		costUsd: 0.75,
 		targetBranch: f.branch,
 		branch: f.branch,
 	});
@@ -338,13 +323,6 @@ async function runFollowUp(
 		feedbackIds: [...followUp.feedbackIds],
 		fingerprint,
 	});
-	// The follow-up's spend lands on the campaign ledger.
-	const reservation = h.store.budget.reserve({
-		campaignId: h.campaignId,
-		actionId: followUp.actionId,
-		amountUsdCents: 75,
-	});
-	h.store.budget.settleReservation(reservation.id, 75);
 	expect(h.warren.createdRunCount()).toBe(2);
 	expect(titles).toContain(f.findingTitle);
 	return followUp;

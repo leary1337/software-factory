@@ -98,7 +98,6 @@ export interface ResolvedManifestProps {
 	readonly agent: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly costCap: string;
 	/** Project's `.warren/config.yaml` `runBranchPrefix`, when declared. */
 	readonly runBranchPrefix: string | undefined;
 	readonly facts: InstanceFactsResponse | undefined;
@@ -113,7 +112,6 @@ export function ResolvedManifest(props: ResolvedManifestProps) {
 		agent: props.agent,
 		provider: props.provider,
 		model: props.model,
-		costCap: props.costCap,
 		runBranchPrefix: props.runBranchPrefix,
 		runtime: props.facts?.runtime,
 	});
@@ -125,7 +123,6 @@ export function ResolvedManifest(props: ResolvedManifestProps) {
 		agent: props.agent,
 		provider: props.provider,
 		model: props.model,
-		costCap: props.costCap,
 		runBranchPrefix: props.runBranchPrefix,
 		runtime: props.facts?.runtime,
 	});
