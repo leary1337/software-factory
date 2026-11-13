@@ -5,17 +5,23 @@ import { parseVerdict } from "./review-result.ts";
 export function reviewHistoryPrompt(steps: readonly ReviewStepRecord[], rework: boolean) {
 	const captured = [...steps].reverse().find((step) => step.evidence || step.artifacts);
 	const prior = captured?.evidence?.findings ?? captured?.artifacts ?? [];
-	const earlier = [...steps]
-		.reverse()
-		.find((step) => step.step !== "rework" && step.resultText !== null);
-	const legacy =
-		!rework && !earlier?.evidenceRequired ? legacyReviewPrompt(earlier?.resultText) : "";
+	const legacy = rework ? "" : unmaterializedReports(steps).map(legacyReviewPrompt).join("");
 	return { prior, prompt: legacy + reviewEvidencePrompt(prior, rework) };
+}
+
+function unmaterializedReports(steps: readonly ReviewStepRecord[]): string[] {
+	const reports: string[] = [];
+	for (const step of [...steps].reverse()) {
+		if (step.evidence) break;
+		if (step.step === "rework" || !step.resultText || step.artifacts) continue;
+		if (!step.evidenceRequired || step.state === "failed") reports.unshift(step.resultText);
+	}
+	return reports;
 }
 
 export function legacyReviewPrompt(report: string | null | undefined): string {
 	if (!report || parseVerdict(report) !== "CHANGES") return "";
-	return `\n\n## Unresolved prior review\nThe earlier review predates portable reproductions. Carry every finding below into this review. Create a portable regression for each, including already fixed cases (which should pass), and verify the current commit. Do not silently drop a finding because a cold review missed it. An unreproducible blocker must be explained explicitly and remains CHANGES. These legacy regressions are NEW artifacts: put every one in the findings array even when it now passes. There is no prior_regressions field.\n\n${report}`;
+	return `\n\n## Unresolved prior review\nThe earlier review has no completed portable evidence. Carry every finding below into this review. Create a portable regression for each, including already fixed cases (which should pass), and verify the current commit. Do not silently drop a finding because a cold review missed it. An unreproducible blocker must be explained explicitly and remains CHANGES. These legacy regressions are NEW artifacts: put every one in the findings array even when it now passes, except ids already listed in Preserved reproductions. There is no prior_regressions field.\n\n${report}`;
 }
 
 /** The actual sources travel in durable events and prompts, never ephemeral /tmp links. */

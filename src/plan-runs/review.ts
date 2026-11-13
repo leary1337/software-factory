@@ -155,7 +155,9 @@ async function loadStep(
 	const rawArtifacts = [...stepEvents]
 		.reverse()
 		.find((event) => event.stream === "system" && event.kind === "review_check.artifacts");
-	const report = findings ?? (finishedCleanly ? await readResultText(repos, stepRun.id) : null);
+	// A checker/protocol crash does not erase defects the reviewer already reported.
+	// The run state still prevents this text from being accepted as a passing review.
+	const report = findings ?? (await readResultText(repos, stepRun.id));
 	return {
 		failureReason: stepRun.state === "cancelled" ? null : stepRun.failureReason,
 		recoveryReason: payload.recoveryReason,

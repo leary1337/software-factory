@@ -16,6 +16,41 @@ const failed: ReviewStepRecord = {
 };
 
 describe("bounded automatic review recovery", () => {
+	test("carries an unmaterialized CHANGES report through failed retries", async () => {
+		const report = `VERDICT: CHANGES\nREVIEWED_COMMIT: ${SHA}\nQUALITY_GATE: NOT_RUN\nNew defect: malformed rows abort the audit.`;
+		const repos = {
+			events: {
+				listByRun: async (id: string) =>
+					id === "parent"
+						? [
+								{
+									kind: "plan_run.review_step",
+									payloadJson: {
+										step: "review",
+										stepRunId: "r",
+										reviewedCommit: SHA,
+										evidenceRequired: true,
+									},
+								},
+							]
+						: [{ payloadJson: { type: "result", result: report } }],
+				listTail: async () => [{ payloadJson: { type: "result", result: report } }],
+			},
+			runs: {
+				require: async () => ({
+					id: "r",
+					state: "failed",
+					failureReason: "crashed",
+					endedAt: "2026-01-01T00:00:01Z",
+				}),
+			},
+		} as unknown as ReviewRepos;
+		const loaded = await loadSteps(repos, "parent");
+		expect(loaded[0]?.state).toBe("failed");
+		expect(loaded[0]?.resultText).toBe(report);
+		const laterFailure = { ...failed, resultText: "VERDICT: PASS" };
+		expect(reviewHistoryPrompt([...loaded, laterFailure], false).prompt).toContain(report);
+	});
 	test("recovers transient infrastructure faults without asking the operator", () => {
 		for (const reason of ["provider_error", "sandbox_run_lost", "preempted"] as const)
 			for (const step of ["review", "rework"] as const)
