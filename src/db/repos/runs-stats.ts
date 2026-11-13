@@ -1,7 +1,7 @@
 /**
  * Operational-stats run aggregates (warren-b2dd / pl-f700 step 6),
  * extracted from `RunsRepo` to keep `runs.ts` under the file-size
- * budget. `RunsRepo` delegates its `countByState` / `aggregateCost`
+ * budget. `RunsRepo` delegates its `countByState` / `aggregateTokens`
  * methods here so the call surface is unchanged. Both feed the periodic
  * `ops.stats` log line and run as single aggregate queries — they never
  * load run bodies.
@@ -16,9 +16,7 @@ import type { DrizzleAdapter } from "./drizzle-adapter.ts";
 /** Lifecycle states that still occupy a queue/admission slot. */
 const NON_TERMINAL_STATES = ["queued", "running"] as const satisfies readonly RunState[];
 
-/** Cost + token totals across all runs. */
-export interface RunCostAggregate {
-	readonly costUsd: number;
+export interface RunTokenAggregate {
 	readonly tokensInput: number;
 	readonly tokensOutput: number;
 }
@@ -42,11 +40,6 @@ export async function countRunsByState(adapter: DrizzleAdapter): Promise<Record<
 	return out;
 }
 
-/**
- * Sum the persisted cost + token columns across every run. Nulls (non-pi
- * runs, or pi runs whose stats RPC failed) coalesce to 0. One aggregate
- * query; backs the cost panel of the operational-stats log line.
- */
 /**
  * Count non-terminal runs (`queued` + `running`) for the dispatch-context
  * queue snapshot (warren-e1f1). Instance-wide when `projectId` is omitted;
@@ -88,24 +81,21 @@ export async function countNonTerminalAutomatic(adapter: DrizzleAdapter): Promis
 	return Number(row?.count ?? 0);
 }
 
-export async function aggregateRunCost(adapter: DrizzleAdapter): Promise<RunCostAggregate> {
+export async function aggregateRunTokens(adapter: DrizzleAdapter): Promise<RunTokenAggregate> {
 	const db = adapter.drizzle as SqliteDrizzleDb;
 	const runs = adapter.schema.runs;
 	const [row] = await adapter.pickAll<{
-		costUsd: number | string | null;
 		tokensInput: number | string | null;
 		tokensOutput: number | string | null;
 	}>(
 		db
 			.select({
-				costUsd: sql<number>`coalesce(sum(${runs.costUsd}), 0)`.as("cost_usd"),
 				tokensInput: sql<number>`coalesce(sum(${runs.tokensInput}), 0)`.as("tokens_input"),
 				tokensOutput: sql<number>`coalesce(sum(${runs.tokensOutput}), 0)`.as("tokens_output"),
 			})
 			.from(runs),
 	);
 	return {
-		costUsd: Number(row?.costUsd ?? 0),
 		tokensInput: Number(row?.tokensInput ?? 0),
 		tokensOutput: Number(row?.tokensOutput ?? 0),
 	};

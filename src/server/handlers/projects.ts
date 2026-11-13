@@ -332,7 +332,7 @@ export function runProjectTriggerHandler(deps: ServerDeps): RouteHandler {
 
 		// Refresh the clone BEFORE reading the trigger entry. The cached
 		// config snapshot predates spawnRun's internal refresh, so without
-		// this the entry (role / prompt / maxCostUsd) could come from an
+
 		// older commit than the project defaults resolved at spawn time —
 		// and the entry's cap rides the override tier, so a stale cap would
 		// beat freshly-loaded limits. refreshProject invalidates the
@@ -380,9 +380,6 @@ export function runProjectTriggerHandler(deps: ServerDeps): RouteHandler {
 			// warren-9ce3: explicit provenance — distinct from the legacy
 			// "manual-trigger" column value (which normalizes to "manual").
 			dispatchOrigin: "manual_trigger",
-			// warren-a63d: a manual fire honors the entry's spend cap exactly like
-			// a cron fire (src/triggers/dispatch.ts) — same override slot.
-			...(trigger.maxCostUsd !== undefined ? { maxCostUsdOverride: trigger.maxCostUsd } : {}),
 			// warren-9ce3: surface the trigger's seed pointer on the run row so
 			// runs.seed_id is populated (mirrors the scheduled-seed fix).
 			...(trigger.seed !== undefined ? { seedId: trigger.seed } : {}),

@@ -174,7 +174,6 @@ describe("review recovery after dispatch failure", () => {
 			await repos.runs.markRunning(step.id);
 			await repos.runs.finalize(step.id, agentName === "rework" ? "succeeded" : "failed");
 			await repos.runs.updateUsage(step.id, {
-				costUsd: 0.01,
 				tokensInput: 1,
 				tokensOutput: 1,
 				tokensCacheRead: 0,

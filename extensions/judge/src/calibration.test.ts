@@ -7,7 +7,6 @@ import {
 } from "./calibration.ts";
 import type { JudgeFn } from "./collector.ts";
 import type { JudgeOutcome, JudgmentStats } from "./judge-loop.ts";
-import { SpendLedger } from "./spend-ledger.ts";
 import { VerdictStore } from "./verdict-store.ts";
 import type { ConfidenceBand, JudgeVerdict, VerdictClass } from "./wire.ts";
 
@@ -18,11 +17,10 @@ const STRONG_PROVIDER = "anthropic";
 const STRONG_MODEL = "strong-model";
 const STRONG_ID = strongJudgeModelId(STRONG_PROVIDER, STRONG_MODEL);
 
-function stats(costUsd: number): JudgmentStats {
+function stats(): JudgmentStats {
 	return {
 		attempts: 1,
 		tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 },
-		costUsd,
 		pagesRead: 1,
 		pageCapHit: false,
 	};
@@ -48,23 +46,21 @@ function makeVerdict(
 			model,
 			rubricVersion: RUBRIC,
 			judgedAt: NOW.toISOString(),
-			costUsd: 0.01,
 		},
 	};
 }
 
-function verdictOutcome(runId: string, costUsd = 0.05): JudgeOutcome {
+function verdictOutcome(runId: string): JudgeOutcome {
 	return {
 		kind: "verdict",
 		verdict: makeVerdict(runId, STRONG_MODEL, [["spin_loop", "high"]], STRONG_PROVIDER),
-		stats: stats(costUsd),
+		stats: stats(),
 	};
 }
 
 function makeDeps(overrides?: Partial<Parameters<typeof calibrateOnce>[0]>) {
 	const verdicts = new VerdictStore(":memory:", { now: () => NOW });
 	const metrics = new CalibrationMetricStore(":memory:");
-	const spend = new SpendLedger(":memory:");
 	const judged: string[] = [];
 	const judge: JudgeFn = (runId) => {
 		judged.push(runId);
@@ -73,20 +69,17 @@ function makeDeps(overrides?: Partial<Parameters<typeof calibrateOnce>[0]>) {
 	const deps: Parameters<typeof calibrateOnce>[0] = {
 		verdicts,
 		metrics,
-		spend,
 		judge,
 		rubricVersion: RUBRIC,
 		cheapModelId: CHEAP,
 		strongProvider: STRONG_PROVIDER,
 		strongModelId: STRONG_MODEL,
 		sampleSize: 5,
-		maxCostUsdPerJudgment: 0.25,
-		dailyBudgetUsd: 5,
 		now: () => NOW,
 		random: () => 0,
 		...overrides,
 	};
-	return { deps, verdicts, metrics, spend, judged };
+	return { deps, verdicts, metrics, judged };
 }
 
 function seedCheapVerdicts(verdicts: VerdictStore, runIds: string[]): void {
@@ -212,7 +205,7 @@ describe("calibrateOnce", () => {
 			runId: "run-2",
 			rubricVersion: RUBRIC,
 			judgeModelId: STRONG_ID,
-			reason: "budget_exceeded",
+			reason: "malformed_verdict",
 		});
 
 		const result = await calibrateOnce(deps);
@@ -221,51 +214,15 @@ describe("calibrateOnce", () => {
 		deps.verdicts.close();
 	});
 
-	test("an exhausted daily budget defers the sampled run — no marker, announced once", async () => {
-		const { deps, verdicts, judged } = makeDeps({ dailyBudgetUsd: 0 });
-		seedCheapVerdicts(verdicts, ["run-1", "run-2"]);
-		const deferrals: string[] = [];
-
-		const result = await calibrateOnce({
-			...deps,
-			onBudgetDeferred: (runId) => deferrals.push(runId),
-		});
-		expect(result.budgetDeferred).toBe(2);
-		expect(result.rejudged).toBe(0);
-		expect(judged).toHaveLength(0);
-		// Announced once per pass, not once per deferred run.
-		expect(deferrals).toHaveLength(1);
-
-		// No marker: a budget_exceeded row under the strong id would occupy
-		// the dedupe key and permanently exclude the run from every future
-		// sample (PR #969 semantics). Both runs stay candidates.
-		for (const runId of ["run-1", "run-2"]) {
-			expect(verdicts.rowsForRun(runId)).toHaveLength(1);
-		}
-		const rerun = await calibrateOnce({ ...deps, dailyBudgetUsd: 5 });
-		expect(rerun.candidates).toBe(2);
-		expect(rerun.rejudged).toBe(2);
-		verdicts.close();
-	});
-
-	test("ledgers calibration spend against the shared daily budget", async () => {
-		const { deps, spend } = makeDeps();
-		seedCheapVerdicts(deps.verdicts, ["run-1"]);
-
-		await calibrateOnce(deps);
-		expect(spend.spendForDay("2026-08-15")).toBeCloseTo(0.05);
-		deps.verdicts.close();
-	});
-
-	test("records unjudged markers for judge-reported failures and ledgers the spend", async () => {
+	test("records unjudged markers for malformed verdicts", async () => {
 		const judge: JudgeFn = () =>
 			Promise.resolve({
 				kind: "unjudged",
-				reason: "judge_error",
-				detail: "provider 500",
-				stats: stats(0.02),
+				reason: "malformed_verdict",
+				detail: "exhausted attempts",
+				stats: stats(),
 			});
-		const { deps, verdicts, spend } = makeDeps({ judge });
+		const { deps, verdicts } = makeDeps({ judge });
 		seedCheapVerdicts(verdicts, ["run-1"]);
 
 		const result = await calibrateOnce(deps);
@@ -273,33 +230,28 @@ describe("calibrateOnce", () => {
 		expect(verdicts.rowsForRun("run-1")[1]).toMatchObject({
 			kind: "unjudged",
 			judgeModelId: STRONG_ID,
-			reason: "judge_error",
-			detail: "provider 500",
+			reason: "malformed_verdict",
+			detail: "exhausted attempts",
 		});
-		expect(spend.spendForDay("2026-08-15")).toBeCloseTo(0.02);
 		verdicts.close();
 	});
 
-	test("a $0 failure is skipped, not marked, and the run is re-drawn next pass", async () => {
+	test("a provider failure is skipped, not marked, and the run is re-drawn next pass", async () => {
 		const judge: JudgeFn = () =>
 			Promise.resolve({
 				kind: "unjudged",
 				reason: "judge_error",
 				detail: "401 invalid x-api-key",
-				stats: stats(0),
+				stats: stats(),
 			});
-		const { deps, verdicts, spend } = makeDeps({ judge });
+		const { deps, verdicts } = makeDeps({ judge });
 		seedCheapVerdicts(verdicts, ["run-1"]);
-		const skips: string[] = [];
 
-		const result = await calibrateOnce({ ...deps, onZeroCostSkipped: (runId) => skips.push(runId) });
-		expect(result.zeroCostSkipped).toBe(1);
+		const result = await calibrateOnce({ ...deps });
 		expect(result.rejudged).toBe(0);
-		expect(skips).toEqual(["run-1"]);
 		// Only the cheap verdict seeded above: no strong-judge row took the
 		// dedupe key, so the run is still a candidate.
 		expect(verdicts.rowsForRun("run-1")).toHaveLength(1);
-		expect(spend.spendForDay("2026-08-15")).toBeCloseTo(0);
 
 		const rerun = await calibrateOnce(deps);
 		expect(rerun.candidates).toBe(1);

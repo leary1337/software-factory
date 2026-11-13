@@ -78,8 +78,6 @@ export interface RunArgs {
 	readonly providerOverride?: string;
 	/** Per-run override of the agent's `frontmatter.model`. */
 	readonly modelOverride?: string;
-	/** Per-run USD spend cap (warren-a63d): wins over the agent's own and the project default. */
-	readonly maxCostUsd?: number;
 	/** Seeds issue to link the run to (warren-ca2f), forwarded to `POST /runs` seedId. */
 	readonly seedId?: string;
 	/** Base-commit pin (warren-aaf7): 40-hex SHA the workspace is cut at. */
@@ -143,7 +141,6 @@ export async function runRun(
 			trigger: args.trigger ?? "cli",
 			...(args.providerOverride !== undefined ? { providerOverride: args.providerOverride } : {}),
 			...(args.modelOverride !== undefined ? { modelOverride: args.modelOverride } : {}),
-			...(args.maxCostUsd !== undefined ? { maxCostUsd: args.maxCostUsd } : {}),
 			...(args.seedId !== undefined ? { seedId: args.seedId } : {}),
 			...(args.baseCommit !== undefined ? { baseCommit: args.baseCommit } : {}),
 			...(args.existingBranch !== undefined ? { existingBranch: args.existingBranch } : {}),
@@ -333,7 +330,6 @@ async function emitStreamEnded(
 
 import type { Command } from "commander";
 import { addClientFlags, type RemoteOpts, resolveCommandClient } from "../client.ts";
-import { parseMaxCostUsd } from "../flags.ts";
 
 /** Register the `warren run` command on the built program. */
 export function registerRunCommand(program: Command, context: CliContext): void {
@@ -349,11 +345,6 @@ export function registerRunCommand(program: Command, context: CliContext): void 
 			.option("--trigger <label>", "run trigger label", "cli")
 			.option("--provider <name>", "per-run override of agent frontmatter.provider")
 			.option("--model <name>", "per-run override of agent frontmatter.model")
-			.option(
-				"--max-cost-usd <usd>",
-				"per-run USD spend cap; wins over the agent's own and the project default",
-				parseMaxCostUsd,
-			)
 			.option("--seed <id>", "link the run to a seeds issue (POST /runs seedId)")
 			.option("--base-commit <sha>", "pin the workspace cut to a 40-hex commit SHA")
 			.option(
@@ -373,7 +364,6 @@ export function registerRunCommand(program: Command, context: CliContext): void 
 				trigger?: string;
 				provider?: string;
 				model?: string;
-				maxCostUsd?: number;
 				seed?: string;
 				baseCommit?: string;
 				existingBranch?: string;
@@ -391,7 +381,6 @@ export function registerRunCommand(program: Command, context: CliContext): void 
 					...(opts.trigger !== undefined ? { trigger: opts.trigger } : {}),
 					...(opts.provider !== undefined ? { providerOverride: opts.provider } : {}),
 					...(opts.model !== undefined ? { modelOverride: opts.model } : {}),
-					...(opts.maxCostUsd !== undefined ? { maxCostUsd: opts.maxCostUsd } : {}),
 					...(opts.seed !== undefined ? { seedId: opts.seed } : {}),
 					...(opts.baseCommit !== undefined ? { baseCommit: opts.baseCommit } : {}),
 					...(opts.existingBranch !== undefined ? { existingBranch: opts.existingBranch } : {}),

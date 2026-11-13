@@ -14,11 +14,8 @@ import { resolveDefaultKind } from "../dispatch/dispatch-draft.ts";
 import { useWalkDefaults } from "./use-walk-defaults.ts";
 import {
 	buildCreatePlanRunInput,
-	type CostCapResult,
-	costCapErrorOf,
 	initialWalkDraft,
 	initialWalkTouched,
-	parseCostCap,
 	parseIssueIds,
 	readWalkRouteState,
 	type WalkDraft,
@@ -57,8 +54,6 @@ export interface WalkStateResult {
 	readonly agentDefaultFrom: { role: string; sourceFile: string } | null;
 	readonly providerDefaultKind: "project" | "agent" | null;
 	readonly modelDefaultKind: "project" | "agent" | null;
-	readonly costCapError: string | null;
-	readonly costCapResult: CostCapResult;
 	readonly planOptions: readonly PlanOption[];
 	readonly planSelectorUnavailable: boolean;
 	readonly useManualPlanId: boolean;
@@ -78,7 +73,6 @@ export interface WalkStateResult {
 	readonly setPrompt: (value: string) => void;
 	readonly setProvider: (value: string) => void;
 	readonly setModel: (value: string) => void;
-	readonly setCostCap: (value: string) => void;
 	readonly setSourceMode: (mode: "plan" | "issues") => void;
 	readonly cancel: () => void;
 	readonly submit: () => void;
@@ -90,10 +84,6 @@ function agentsFilter(projectId: string): { projectId: string } | Record<string,
 
 function issueIdsOf(draft: WalkDraft): string[] {
 	return draft.sourceMode === "issues" ? parseIssueIds(draft.issuesText).slice(0, 100) : [];
-}
-
-function costValueOf(result: CostCapResult): number | undefined {
-	return result !== null && "value" in result ? result.value : undefined;
 }
 
 function errorTextOf(mutation: { isError: boolean; error: unknown }): string | null {
@@ -124,10 +114,8 @@ function agentDefaultFromOf(
 export function isSubmittable(args: {
 	readonly draft: WalkDraft;
 	readonly hasSeeds: boolean;
-	readonly costCapError: string | null;
 }): boolean {
 	const { draft } = args;
-	if (args.costCapError !== null) return false;
 	if (draft.project.length === 0 || draft.agent.length === 0) return false;
 	if (draft.promptTemplate.trim().length === 0) return false;
 	if (draft.sourceMode === "issues") return parseIssueIds(draft.issuesText).length > 0;
@@ -235,15 +223,12 @@ export function useWalkState(): WalkStateResult {
 			navigate(`/plan-runs/${encodeURIComponent(data.planRun.id)}`);
 		},
 	});
-
-	const costCapResult = parseCostCap(draft.costCap);
-	const costCapError = costCapErrorOf(draft.costCap);
-	const valid = isSubmittable({ draft, hasSeeds, costCapError });
+	const valid = isSubmittable({ draft, hasSeeds });
 
 	const submit = useCallback((): void => {
 		if (dispatch.isPending || !valid) return;
-		dispatch.mutate(buildCreatePlanRunInput({ draft, maxCostUsd: costValueOf(costCapResult) }));
-	}, [dispatch, valid, costCapResult, draft]);
+		dispatch.mutate(buildCreatePlanRunInput({ draft }));
+	}, [dispatch, valid, draft]);
 
 	return {
 		initialState,
@@ -268,8 +253,6 @@ export function useWalkState(): WalkStateResult {
 			defaults?.defaultModel,
 			selectedAgent?.model,
 		),
-		costCapError,
-		costCapResult,
 		planOptions,
 		planSelectorUnavailable,
 		useManualPlanId,
@@ -289,7 +272,6 @@ export function useWalkState(): WalkStateResult {
 		setPrompt: (value) => setTouchedValue("promptTemplate", value, "prompt"),
 		setProvider: (value) => setTouchedValue("providerOverride", value, "provider"),
 		setModel: (value) => setTouchedValue("modelOverride", value, "model"),
-		setCostCap: (value) => setTouchedValue("costCap", value, "costCap"),
 		setSourceMode: (mode) => setDraftValue("sourceMode", mode),
 		cancel: () => navigate("/plan-runs"),
 		submit,

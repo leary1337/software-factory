@@ -13,8 +13,6 @@ to 500 linked runs and reports incompleteness if more remain.
 | Field | Meaning |
 | --- | --- |
 | `runCount`, `missingRunCount` | Observed runs and unresolved links |
-| `costUsd`, `costUnknownRuns` | Sum of known costs and count without a usable cost |
-| `subscriptionEstimateRuns` | Runs whose dollars are API-equivalent subscription estimates |
 | `totalTokens`, `tokenUnknownRuns` | Sum of complete input/output/cache-read/cache-write measurements and missing-run count |
 | `activeMs`, `durationUnknownRuns` | Sum of execution intervals and count without a usable interval |
 | `elapsedMs` | Wall time since first dispatch, ending at task termination or the current response time |
@@ -25,34 +23,9 @@ to 500 linked runs and reports incompleteness if more remain.
 | `escalationCount` | Distinct recorded requests for owner attention |
 | `postMergeIncidentCount` | Recorded factory deployment incidents |
 
-Zero known costs or tokens are real zero measurements. When no measurements are
-known, totals are null. When some are known, totals are partial and must be shown
-with their unknown counts. A subscription estimate is not a payment, quota
-balance or hard spending limit. Cached input is already separate from uncached
-input in Warren's persisted token buckets and is counted once.
-
-The task cards and plan screens display these whole-task costs for the current
-attempt. A plan total adds its children's metrics; it never adds just the current
-implementation runs. Earlier plan attempts remain separate. Task details show
-the current implementation's cost as an included portion, not a second total.
-Missing metrics display as unknown, and incomplete totals retain a visible
-unknown remainder. A complete empty run lineage costs zero for this attempt;
-missing run links do not. Cost details distinguish subscription estimates from
-charges, and the implementation run limit is displayed separately from observed cost.
-
-Task cards and task details also compare independent attempts of the same tracker
-task in the same project. The selected attempt is included once in the loaded
-subtotal. Task details load project history in batches of 12 plans; additional
-plans can be loaded explicitly. Errors and unloaded history limit that subtotal:
-it is not presented as an all-time total. A plan's own total continues to cover
-only that plan attempt and all its tasks.
-
-All displayed totals add the original task measurements before formatting.
-For example, 8.5644 + 2.8644 is displayed as 11.43, while the two individually
-formatted rows show 8.56 and 2.86. The expandable cost calculation shows six
-decimal places and explains the 0.01 display difference. It is not another
-charge. Unknown measurements remain outside the known sum and retain their
-unknown remainder. Subscription equivalents remain estimates.
+Zero known tokens are real measurements. When no measurements are known,
+totals are null. Partial totals include their unknown counts. Cached input
+is separate from uncached input and is counted once.
 
 Active time sums run execution time, so concurrent runs can exceed elapsed wall
 time. It includes a running run up to the response timestamp; queued runs have

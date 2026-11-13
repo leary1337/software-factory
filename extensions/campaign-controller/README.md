@@ -41,10 +41,9 @@ issues depend on:
 - [`src/manifest.ts`](src/manifest.ts) — the runtime-validated V0 campaign
   manifest schema (warren-5055): upstream/fork coordinates, default branch,
   ordered explicit issues, warren dispatch identity, prompt or prompt digest,
-  layered USD caps, concurrency, expiry, and the approval envelope whose
+  concurrency, expiry, and the approval envelope whose
   digest must recompute over the normalized manifest. Unknown keys,
-  malformed coordinates/refs, duplicate issues, unlayered or over-limit
-  caps, expiry, and digest mismatches fail closed with actionable errors.
+  malformed coordinates/refs, duplicate issues, expiry, and digest mismatches fail closed with actionable errors.
 - [`src/repository-policy.ts`](src/repository-policy.ts) — the
   runtime-validated repository-policy snapshot schema (warren-5055):
   provenance (source URL, fetched-at, sha256), staleness bound,
@@ -74,7 +73,7 @@ issues depend on:
   action journal written `planned` before any I/O, deterministic action keys,
   one active attempt per work item, Warren run correlation, prospective
   cross-fork PR identity, GitHub events deduplicated by stable node id,
-  attention items, leases, and the budget reservation ledger. No column in
+  attention items and leases. No column in
   the schema can hold a secret, token, or credential — a schema-inspection
   test proves it against the live database.
 - [`src/github/`](src/github/) — the extension-local, structurally
@@ -106,7 +105,7 @@ its deterministic fake —
   explicit digest-bound approval, and the per-item admission gate —
   expiry, policy freshness and digest binding, ordered membership,
   upstream/fork allowlist, all-false mutation flags, warren identity and
-  caps, campaign and daily budget reservation, concurrency, one active
+  concurrency, one active
   attempt, and protected-path fail-closed attention. Every refusal names
   its invariant; no network call can occur before admission succeeds.
 - [`src/warren-client.ts`](src/warren-client.ts) — `WarrenClient` over
@@ -129,18 +128,16 @@ reconciliation —
 
 - [`src/dispatch/dispatcher.ts`](src/dispatch/dispatcher.ts) —
   `WarrenDispatcher` converts one admitted work item into a Warren run
-  without duplicate paid work. In ONE transaction it reserves the full
-  per-run cap and journals a deterministic `warren_dispatch` action with
+  without duplicate work. In ONE transaction it journals a deterministic `warren_dispatch` action with
   the exact request digest BEFORE any I/O; the action key is the stable
   `Idempotency-Key` sent to warren. A confirmed POST persists the run
   correlation and the only warren call from then on is the safe, retryable
   `GET /runs/:id` until terminal. An ambiguous POST with no known run
   settles `uncertain`, moves the work item to `dispatch_uncertain`, creates
-  an attention item, keeps the reservation conservative, and is NEVER
+  an attention item, and is NEVER
   re-POSTed — by this process or after a restart. Restart reconciliation
   (`reconcileAfterRestart`) expires leases, resumes known-run reads to
-  terminal, settles the ACTUAL cost when known (unknown cost keeps the full
-  reservation active), and fails closed every unfinished action with no
+  terminal, and fails closed every unfinished action with no
   correlated run. Terminal success records the pushed branch/ref;
   failure records the structured outcome (`run_failed` + state + failure
   reason) without advancing. No PR intent is rendered and no GitHub
@@ -189,7 +186,7 @@ operator CLI —
   [`runCli`](src/cli/run.ts)): `manifest validate` / `manifest import`,
   `amendment validate` / `amendment apply` (warren-35c4: digest-bound,
   owner-approved manifest amendments applied in place — append issues,
-  adjust budget, update prompt — with no superseded campaign row and no
+  adjust concurrency, update prompt — with no superseded campaign row and no
   superseded attention item), `approve`, `tick`, `status`, `journal`, and
   `attention list` / `ack`.
   NDJSON is the default output (`--format human` for readable text), and
@@ -215,7 +212,7 @@ src/
   mutations.ts         frozen mutation-flag vocabulary (all false in V0)
   repository-policy.ts V0 repository-policy snapshot schema + validation
   admission.ts         campaign import, digest approval, per-item admission
-  store/     SQLite state store: schema, migrations, action journal, budget, leases
+  store/     SQLite state store: schema, migrations, action journal, leases
   dispatch/  durable Warren dispatch + restart reconciliation state machine
   reconcile/ read-only upstream PR reconciliation and attention derivation
   pr-intent/ dry-run cross-fork PR-intent rendering + journaling
@@ -280,3 +277,7 @@ The image builds from this directory alone and runs the operator CLI
 (`src/cli/main.ts`). The controller owns its storage on `/app/data`
 (`CAMPAIGN_DB_PATH`); the container contract is dry-run only — there is no
 live mode to enable.
+
+Monetary limits and accounting have been retired. Existing campaign manifests
+must remove the `budget` field and receive approval for their new digest before
+further dispatch. Database migration removes the obsolete reservation ledger.

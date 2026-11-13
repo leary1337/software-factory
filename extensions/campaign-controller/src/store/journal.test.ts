@@ -22,7 +22,6 @@ beforeEach(() => {
 	const campaign = store.campaigns.createCampaign({
 		manifestDigest: "digest-journal",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	});
 	campaignId = campaign.id;
 	workItemId = store.campaigns.addWorkItem({
@@ -162,52 +161,6 @@ describe("action journal", () => {
 		store.actions.settleAction(other.id, { state: "succeeded" });
 		const unfinished = store.actions.listUnfinishedActions();
 		expect(unfinished.map((action) => action.id)).toEqual([a.id]);
-	});
-});
-
-describe("budget ledger", () => {
-	test("reserves against the cap and fails closed when it does not fit", () => {
-		const reservation = store.budget.reserve({
-			campaignId,
-			amountUsdCents: 60_00,
-		});
-		expect(reservation.state).toBe("active");
-		expect(store.budget.availableUsdCents(campaignId)).toBe(40_00);
-
-		expect(() => store.budget.reserve({ campaignId, amountUsdCents: 41_00 })).toThrow(
-			/insufficient campaign budget/,
-		);
-		// A fitting second reservation still succeeds.
-		store.budget.reserve({ campaignId, amountUsdCents: 40_00 });
-		expect(store.budget.availableUsdCents(campaignId)).toBe(0);
-	});
-
-	test("settlement replaces the reservation with actual spend", () => {
-		const reservation = store.budget.reserve({ campaignId, amountUsdCents: 50_00 });
-		const settled = store.budget.settleReservation(reservation.id, 30_00);
-		expect(settled.state).toBe("settled");
-		expect(settled.settledUsdCents).toBe(30_00);
-		expect(store.budget.availableUsdCents(campaignId)).toBe(70_00);
-		expect(() => store.budget.settleReservation(reservation.id, 10_00)).toThrow(
-			/only active reservations settle/,
-		);
-	});
-
-	test("releasing a reservation the action never spent frees the ledger", () => {
-		const reservation = store.budget.reserve({ campaignId, amountUsdCents: 50_00 });
-		const released = store.budget.releaseReservation(reservation.id);
-		expect(released.state).toBe("released");
-		expect(store.budget.availableUsdCents(campaignId)).toBe(100_00);
-	});
-
-	test("a campaign without a cap refuses reservations", () => {
-		const uncapped = store.campaigns.createCampaign({
-			manifestDigest: "digest-uncapped",
-			manifestJson: "{}",
-		});
-		expect(() => store.budget.reserve({ campaignId: uncapped.id, amountUsdCents: 1 })).toThrow(
-			/no budget cap/,
-		);
 	});
 });
 

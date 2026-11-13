@@ -41,7 +41,6 @@ On a machine with no model credential, the wizard asks for one:
 - **Claude subscription.** The wizard offers `claude setup-token` when the `claude` CLI is on PATH, or accepts a pasted `CLAUDE_CODE_OAUTH_TOKEN`. Subscription auth serves the claude-code harness only. Other harnesses still need their own API keys.
 - **Anthropic API key.** Paste an `ANTHROPIC_API_KEY`. This path serves every harness.
 
-Runs under subscription auth show an estimate badge in the UI instead of a billed cost. Warren still enforces `maxCostUsd` against that estimate as a runaway brake.
 
 ### GitHub credential
 

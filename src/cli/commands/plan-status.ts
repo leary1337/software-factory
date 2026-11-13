@@ -3,7 +3,7 @@
  * commands that round out the `plan` family (warren-5e3f, pl-55df step 4).
  *
  * Both are one-shot GETs (no event tailing): `status` renders a single
- * plan-run's child-state table with per-child cost + duration pulled from the
+ * plan-run's child-state table with per-child duration pulled from the
  * fanned-out `runs[]` rows, while `list` prints the plan-run index, optionally
  * filtered by `--project` / `--state`. Like the rest of the `plan` group they
  * talk to a remote warren via `resolveCommandClient`, probe first so a
@@ -30,7 +30,7 @@ import {
 	writeJsonLine,
 } from "../output.ts";
 import type { PlanRunOutput } from "../plan-run-renderer.ts";
-import { runCost, runDuration } from "../run-renderer.ts";
+import { runDuration } from "../run-renderer.ts";
 import { columnWidths, formatRow, renderTable } from "../table.ts";
 import { guardRemotePlanRun, probeOrReport } from "./probe.ts";
 
@@ -111,7 +111,6 @@ export async function runPlanList(
 	}
 }
 
-/** Pretty renderer for `plan status`: header + per-child cost/duration table. */
 function renderStatusPretty(sink: WriteSink, detail: PlanRunDetailResponse): void {
 	const { planRun, children, runs } = detail;
 	const line = (text: string): void => sink.write(`${text}\n`);
@@ -137,19 +136,12 @@ function renderStatusPretty(sink: WriteSink, detail: PlanRunDetailResponse): voi
 }
 
 /** Column headers for the child-state table. */
-const HEADER: readonly string[] = ["#", "seed", "state", "cost", "duration", "run"];
+const HEADER: readonly string[] = ["#", "seed", "state", "duration", "run"];
 
 /** Build one table row (string cells) for a child + its optional run row. */
 function childRow(child: PlanRunChildRow, runById: Map<string, RunRow>): readonly string[] {
 	const run = child.runId !== null ? (runById.get(child.runId) ?? null) : null;
-	return [
-		`#${child.seq}`,
-		child.seedId,
-		child.state,
-		runCost(run?.costUsd ?? null),
-		runDuration(run),
-		child.runId ?? "—",
-	];
+	return [`#${child.seq}`, child.seedId, child.state, runDuration(run), child.runId ?? "—"];
 }
 
 /** Pretty renderer for `plan list`: one aligned line per plan-run. */

@@ -55,7 +55,6 @@ export interface BuildPrContentInput {
 	readonly seed?: PrSeed;
 	readonly startedAt?: string;
 	readonly endedAt?: string;
-	readonly costUsd?: number;
 	readonly tokensInput?: number;
 	readonly tokensOutput?: number;
 	readonly tokensCacheRead?: number;
@@ -147,7 +146,6 @@ function buildContext(input: BuildPrContentInput): PrFragmentContext {
 		seed?: PrSeed;
 		startedAt?: string;
 		endedAt?: string;
-		costUsd?: number;
 		tokensInput?: number;
 		tokensOutput?: number;
 		tokensCacheRead?: number;
@@ -165,7 +163,6 @@ function buildContext(input: BuildPrContentInput): PrFragmentContext {
 	if (input.seed !== undefined) ctx.seed = input.seed;
 	if (input.startedAt !== undefined) ctx.startedAt = input.startedAt;
 	if (input.endedAt !== undefined) ctx.endedAt = input.endedAt;
-	if (input.costUsd !== undefined) ctx.costUsd = input.costUsd;
 	if (input.tokensInput !== undefined) ctx.tokensInput = input.tokensInput;
 	if (input.tokensOutput !== undefined) ctx.tokensOutput = input.tokensOutput;
 	if (input.tokensCacheRead !== undefined) ctx.tokensCacheRead = input.tokensCacheRead;

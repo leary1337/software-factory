@@ -197,4 +197,9 @@ CREATE TABLE follow_up_progress (
 );
 `,
 	},
+	{
+		id: 6,
+		name: "drop_monetary_accounting",
+		sql: `DROP TABLE budget_reservations; ALTER TABLE campaigns DROP COLUMN budget_cap_usd_cents; ALTER TABLE actions DROP COLUMN reserved_usd_cents;`,
+	},
 ];

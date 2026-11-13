@@ -69,10 +69,6 @@ export function eventParserFor(adapter: AgentRuntimeAdapter, frontmatter?: Agent
 	return adapter.createEventParser?.(frontmatter) ?? adapter.parseEvents ?? (() => []);
 }
 
-export function runtimeCostBasis(runtimeId: string) {
-	return allAdapters().find((adapter) => adapter.runtimeId === runtimeId)?.costBasis;
-}
-
 /** Collect one declared list across every adapter, de-duplicated, in id order. */
 function union(pick: (adapter: AgentRuntimeAdapter) => readonly string[]): readonly string[] {
 	return [...new Set(allAdapters().flatMap(pick))];

@@ -72,7 +72,6 @@ export function campaignToJson(campaign: CampaignRow): Record<string, unknown> {
 		status: campaign.status,
 		manifestDigest: campaign.manifestDigest,
 		policyDigest: campaign.policyDigest,
-		budgetCapUsdCents: campaign.budgetCapUsdCents,
 		approvedAtMs: campaign.approvedAtMs,
 		createdAtMs: campaign.createdAtMs,
 	};
@@ -101,7 +100,6 @@ export function actionToJson(action: ActionRow): Record<string, unknown> {
 		attempt: action.attempt,
 		requestDigest: action.requestDigest,
 		policyDigest: action.policyDigest,
-		reservedUsdCents: action.reservedUsdCents,
 		startedAtMs: action.startedAtMs,
 		settledAtMs: action.settledAtMs,
 		resultRunId: action.resultRunId,

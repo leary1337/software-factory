@@ -5,23 +5,6 @@ import type { InventoryCardTone } from "@/components/ui/inventory-card.tsx";
 // resolve (see labels.test.ts for the same constraint).
 import { humanizeWireValue } from "../../lib/labels.ts";
 
-/**
- * Pure cell/subline logic for the Runs mobile row card (warren-f8a2):
- * the mock-conformance decisions — state tone + short word, the
- * one-contextual-extra subline, and the near-cap cost thresholds — live
- * here so they stay testable without pulling React into the test graph.
- *
- * The card anatomy itself is docs/ui-revamp/screens/mobile/runs.jsx
- * (runs.jsx:104-127): line 1 = 70px state cell + id + elapsed/cost,
- * line 2 = agent · project · one contextual extra. The old third meta
- * row (relativeTime · trigger · commits) is gone.
- */
-
-/** Near-cap threshold for the subline's "cap N%" extra (mock: cap 94%). */
-export const CAP_SUBLINE_RATIO = 0.8;
-/** Warning-tint threshold for the cost note (mock runs.jsx:147). */
-export const CAP_WARNING_RATIO = 0.9;
-
 export interface RunStateCell {
 	readonly tone: InventoryCardTone;
 	readonly label: string;
@@ -89,27 +72,5 @@ function contextualExtraOf(row: RunRow): string | null {
 		}
 		return null;
 	}
-	if (row.state === "running" || row.state === "queued") {
-		const pct = capPctOf(row);
-		if (pct !== null) return `cap ${pct}%`;
-	}
 	return null;
-}
-
-/** Cost-vs-cap percentage, rounded, when a cap is known and spend is near it. */
-export function capPctOf(row: RunRow): number | null {
-	if (row.maxCostUsd === null || row.maxCostUsd === undefined || row.maxCostUsd <= 0) return null;
-	if (row.costUsd === null) return null;
-	const ratio = row.costUsd / row.maxCostUsd;
-	if (ratio < CAP_SUBLINE_RATIO) return null;
-	return Math.round(ratio * 100);
-}
-
-/** Warning tint once spend crosses the near-cap threshold. */
-export function costNoteToneOf(row: RunRow): "default" | "warning" {
-	if (row.maxCostUsd === null || row.maxCostUsd === undefined || row.maxCostUsd <= 0) {
-		return "default";
-	}
-	if (row.costUsd === null) return "default";
-	return row.costUsd / row.maxCostUsd >= CAP_WARNING_RATIO ? "warning" : "default";
 }

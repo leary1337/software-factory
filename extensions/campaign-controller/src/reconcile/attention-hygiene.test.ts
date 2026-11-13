@@ -308,7 +308,6 @@ describe("attention hygiene", () => {
 				model: "claude-sonnet-4-5",
 			},
 			prompt: "Fix the assigned OpenClaw issue end to end.",
-			budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 			maxConcurrentRuns: 2,
 			expiresAt: "2026-12-31T00:00:00.000Z",
 		};

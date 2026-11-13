@@ -1,32 +1,7 @@
-/**
- * Postgres physical schema for warren's durable state (R-13, pl-f17e step 2).
- *
- * Mirror of `./sqlite.ts` — same table names, same column names, same FK
- * targets + onDelete behavior, same index names + columns, same enum tuples.
- * The schemas drift only at the type level:
- *
- *   - `text mode:"json"` (SQLite, stored as TEXT) → `jsonb` (Postgres, stored
- *     as binary; richer query operators, no string round-trip).
- *   - `real` (SQLite, 8-byte IEEE float) → `doublePrecision` (Postgres, 8-byte;
- *     `real` in pg is 4-byte single precision and would lose accuracy on
- *     `costUsd`).
- *   - `integer().primaryKey({autoIncrement:true})` (SQLite ROWID alias) →
- *     `serial().primaryKey()` (Postgres SERIAL = int + sequence).
- *   - Text-enum columns stay TEXT in both (mx-2ab984: TS-only narrowing, no
- *     SQL CHECK).
- *
- * `./drift.test.ts` enforces parity at the column-list / nullability / FK /
- * index level. This schema is wired into the dialect-aware `openDatabase`
- * (`../client.ts`), which selects it when handed a `postgres://` /
- * `postgresql://` `WARREN_DB_URL`; the drift test still exercises it for
- * parity coverage.
- */
-
 import { sql } from "drizzle-orm";
 import {
 	bigint,
 	boolean,
-	doublePrecision,
 	index,
 	integer,
 	jsonb,
@@ -47,7 +22,6 @@ import {
 	PLAN_RUN_STATES,
 	PREVIEW_STATES,
 	PULL_REQUEST_LIFECYCLES,
-	RUN_COST_BASES,
 	RUN_FAILURE_REASONS,
 	RUN_MODES,
 	RUN_STATES,
@@ -130,9 +104,6 @@ export const runs = pgTable(
 		// Salvage-before-destroy (warren-cd3b); see the sqlite schema comment.
 		salvageRef: text("salvage_ref"),
 		salvagePath: text("salvage_path"),
-		costUsd: doublePrecision("cost_usd"),
-		// Cost basis (warren-f3c3) — see the sqlite twin for the full rationale.
-		costBasis: text("cost_basis", { enum: RUN_COST_BASES }).notNull().default("api"),
 		tokensInput: integer("tokens_input"),
 		tokensOutput: integer("tokens_output"),
 		tokensCacheRead: integer("tokens_cache_read"),
@@ -245,9 +216,6 @@ export const planRuns = pgTable(
 		ref: text("ref"),
 		providerOverride: text("provider_override"),
 		modelOverride: text("model_override"),
-		// Mirror of sqlite plan_runs.max_cost_usd (warren-a63d): per-child
-		// spend cap the coordinator forwards on each dispatch.
-		maxCostUsd: doublePrecision("max_cost_usd"),
 		dispatcherHandle: text("dispatcher_handle").notNull().default("operator"),
 		trigger: text("trigger").notNull().default("manual"),
 		// Mirror of sqlite plan_runs.parent_run_id (warren-d9a2). See
@@ -376,8 +344,6 @@ export const dispatchContext = pgTable(
 		model: text("model"),
 		providerSource: text("provider_source"),
 		modelSource: text("model_source"),
-		capSource: text("cap_source"),
-		maxCostUsd: doublePrecision("max_cost_usd"),
 		runtimeId: text("runtime_id"),
 		runtimeBackend: text("runtime_backend"),
 		promptBytes: integer("prompt_bytes"),

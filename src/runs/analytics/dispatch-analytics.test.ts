@@ -16,7 +16,6 @@ function row(partial: Partial<DispatchAnalyticsRow> & { runId: string }): Dispat
 		projectId: "proj-1",
 		state: "succeeded",
 		failureReason: null,
-		costUsd: 0.5,
 		prState: null,
 		...partial,
 	};

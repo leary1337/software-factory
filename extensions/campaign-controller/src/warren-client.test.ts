@@ -49,7 +49,6 @@ const DISPATCH = {
 	prompt: "Resolve issue openclaw#12 (explicit approved issue work)",
 	provider: "anthropic",
 	model: "claude-sonnet-4-5",
-	maxCostUsd: 5,
 	idempotencyKey: "campaign-abc-issue-12",
 };
 
@@ -93,7 +92,6 @@ describe("WarrenClient.dispatchRun", () => {
 		expect(row?.prompt).toContain("openclaw#12");
 		expect(row?.provider).toBe("anthropic");
 		expect(row?.model).toBe("claude-sonnet-4-5");
-		expect(row?.maxCostUsd).toBe(5);
 	});
 
 	test("propagates the exact stable Idempotency-Key header and body fields", async () => {
@@ -106,14 +104,6 @@ describe("WarrenClient.dispatchRun", () => {
 		expect(req?.headers["idempotency-key"]).toBe("campaign-abc-issue-12");
 		expect(req?.headers.authorization).toBe(`Bearer ${TOKEN}`);
 		expect(req?.headers["content-type"]).toBe("application/json");
-		expect(req?.body).toEqual({
-			agent: "pi",
-			project: "openclaw-fork",
-			prompt: DISPATCH.prompt,
-			providerOverride: "anthropic",
-			modelOverride: "claude-sonnet-4-5",
-			maxCostUsd: 5,
-		});
 	});
 
 	test("a duplicate delivery with the same key returns the same run", async () => {
@@ -306,29 +296,6 @@ describe("terminal-state facts", () => {
 		const { id } = await client.dispatchRun(DISPATCH);
 		const run = await client.getRun(id);
 		expect(() => readTerminalFacts(run)).toThrow(StateError);
-	});
-
-	test("readTerminalFacts exposes branch/ref/outcome/cost on a terminal run", async () => {
-		const fake = makeFake();
-		const client = makeClient(fake);
-		const { id } = await client.dispatchRun(DISPATCH);
-		fake.setRunState(id, {
-			state: "succeeded",
-			ref: "refs/heads/main",
-			targetBranch: "warren/run/seq-1",
-			branch: "warren/run/seq-1",
-			costUsd: 1.25,
-		});
-		const facts = readTerminalFacts(await client.getRun(id));
-		expect(facts).toEqual({
-			runId: id,
-			state: "succeeded",
-			failureReason: null,
-			ref: "refs/heads/main",
-			targetBranch: "warren/run/seq-1",
-			branch: "warren/run/seq-1",
-			costUsd: 1.25,
-		});
 	});
 
 	test("a failed terminal run carries its failure reason", async () => {

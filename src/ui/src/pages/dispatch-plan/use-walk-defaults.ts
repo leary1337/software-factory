@@ -41,7 +41,6 @@ export function useWalkDefaults(
 	const defaultPrompt = defaults?.defaultPrompt;
 	const defaultProvider = defaults?.defaultProvider;
 	const defaultModel = defaults?.defaultModel;
-	const defaultCostUsd = defaults?.maxCostUsd;
 
 	const defaultRoleRegistered =
 		defaultRole !== undefined && agents.some((a) => a.name === defaultRole);
@@ -91,16 +90,4 @@ export function useWalkDefaults(
 				: { ...prev, draft: { ...prev.draft, modelOverride: modelAutoFill } },
 		);
 	}, [modelAutoFill, setPatch]);
-
-	// Cost cap: pre-fill the weakest source (project default) only while
-	// untouched — a dispatch-time override wins server-side anyway.
-	const costCapText = defaultCostUsd !== undefined ? String(defaultCostUsd) : "";
-	useEffect(() => {
-		if (costCapText.length === 0) return;
-		setPatch((prev) =>
-			prev.touched.costCap || prev.draft.costCap === costCapText
-				? prev
-				: { ...prev, draft: { ...prev.draft, costCap: costCapText } },
-		);
-	}, [costCapText, setPatch]);
 }

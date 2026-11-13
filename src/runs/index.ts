@@ -56,11 +56,8 @@ export {
 	type SteeringSignals,
 } from "./analytics/insights.ts";
 export {
-	buildCostPerMergedPr,
 	buildRunOutcomes,
 	buildSteeringOutcomeComparison,
-	type CostPerMergedPr,
-	type CostPerMergedPrBucket,
 	confidenceForSample,
 	type OutcomeTally,
 	type RunOutcomes,
@@ -103,14 +100,6 @@ export {
 } from "./branch.ts";
 export { type ParsedBurrowConfig, parseBurrowConfig } from "./burrow-config.ts";
 export { type CancelReap, type CancelRunInput, type CancelRunResult, cancelRun } from "./cancel.ts";
-export {
-	buildCostAnalytics,
-	type CostAnalytics,
-	type CostAnalyticsRow,
-	type CostBucket,
-	type Dimension as CostDimension,
-	NONE_KEY as COST_ANALYTICS_NONE_KEY,
-} from "./cost-analytics.ts";
 export { RunSpawnError } from "./errors.ts";
 export {
 	DEFAULT_SUBSCRIPTION_BUFFER,

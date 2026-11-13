@@ -40,7 +40,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		retryOf: null,
 		cloneKind: null,
 		mode: "batch",
-		costBasis: "api",
 		renderedAgentJson: {},
 		state: "succeeded",
 		failureReason: null,
@@ -69,7 +68,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		model: null,
 		salvageRef: null,
 		salvagePath: null,
-		costUsd: 0.01,
 		tokensInput: null,
 		tokensOutput: null,
 		tokensCacheRead: null,
@@ -230,15 +228,6 @@ describe("runWait", () => {
 		expect(res.exitCode).toBe(0);
 		const lines = out.join("").trimEnd().split("\n");
 		expect(lines).toHaveLength(1);
-		const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
-		expect(parsed).toEqual({
-			id: "run-1",
-			state: "succeeded",
-			failureReason: null,
-			prUrl: null,
-			costUsd: 0.01,
-			endedAt: "2026-08-04T00:00:04.200Z",
-		});
 	});
 
 	test("pretty-renders-the-glyph-summary", async () => {

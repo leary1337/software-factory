@@ -60,8 +60,6 @@ export async function spawnReviewStep(
 			planRun: input.planRun,
 			child: input.child,
 			prompt,
-			reviewRemainingCostUsd:
-				budget.maxCostUsd - steps.reduce((sum, step) => sum + (step.costUsd ?? 0), 0),
 			...(decision.step !== "rework" ? { reviewFindings: history.prior } : {}),
 			agentName: decision.step === "rework" ? "rework" : "reviewer",
 			existingBranch: run.branch,

@@ -1,6 +1,5 @@
 import type { InstanceFactsResponse } from "@/api/instance-types.ts";
 import type { ProjectRow } from "@/api/types.ts";
-import { parseCostCap } from "./dispatch-draft.ts";
 
 /**
  * Pure derivations behind the Dispatch page's resolved-manifest rail
@@ -39,7 +38,6 @@ export interface ManifestInput {
 	readonly agent: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly costCap: string;
 	readonly runBranchPrefix: string | undefined;
 	readonly runtime: InstanceFactsResponse["runtime"] | undefined;
 }
@@ -67,8 +65,6 @@ export function buildManifestLines(input: ManifestInput): readonly ManifestLine[
 		{ indent: true, key: "provider: ", value: input.runtime ?? "—" },
 		{ indent: true, key: "adapter: ", value: input.agent.length > 0 ? input.agent : "—" },
 		{ indent: true, key: "model: ", value: modelValue(input.provider, input.model) },
-		{ key: "limits:" },
-		{ indent: true, key: "costUsd: ", value: costValue(input.costCap) },
 		{ key: "delivery:" },
 		{ indent: true, key: "pushBranch: ", value: "true" },
 	];
@@ -88,7 +84,6 @@ export function buildManifestSummaryLines(input: ManifestInput): readonly Manife
 			value: input.seedId.trim().length > 0 ? input.seedId.trim() : "—",
 		},
 		{ key: "branch: ", value: `${input.runBranchPrefix ?? "warren"}/<new run>` },
-		{ key: "costUsd: ", value: costValue(input.costCap) },
 		{ key: "openPullRequest: ", value: "configured" },
 	];
 }
@@ -98,11 +93,6 @@ function modelValue(provider: string, model: string): string {
 	if (model.length > 0) return model;
 	if (provider.length > 0) return provider;
 	return "—";
-}
-
-function costValue(costCap: string): string {
-	const parsed = parseCostCap(costCap);
-	return parsed !== null && "value" in parsed ? parsed.value.toFixed(2) : "—";
 }
 
 function isolationRow(runtime: InstanceFactsResponse["runtime"] | undefined): AdmissionRow {

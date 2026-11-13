@@ -19,7 +19,6 @@ import {
 function piTurnEnd(opts: {
 	input: number;
 	output: number;
-	costTotal: number;
 	cacheRead?: number;
 	cacheWrite?: number;
 }): UsageEventInput {
@@ -34,7 +33,6 @@ function piTurnEnd(opts: {
 					output: opts.output,
 					cacheRead: opts.cacheRead ?? 0,
 					cacheWrite: opts.cacheWrite ?? 0,
-					cost: { total: opts.costTotal },
 				},
 			},
 		},
@@ -44,7 +42,6 @@ function piTurnEnd(opts: {
 function claudeResult(opts: {
 	inputTokens: number;
 	outputTokens: number;
-	totalCostUsd: number;
 	cacheReadInputTokens?: number;
 	cacheCreationInputTokens?: number;
 }): UsageEventInput {
@@ -53,7 +50,6 @@ function claudeResult(opts: {
 		stream: "system",
 		payload: {
 			type: "result",
-			total_cost_usd: opts.totalCostUsd,
 			usage: {
 				input_tokens: opts.inputTokens,
 				output_tokens: opts.outputTokens,
@@ -79,24 +75,22 @@ describe("aggregateUsageFromEvents", () => {
 
 	test("sums pi turn_end envelopes", () => {
 		const stats = aggregateUsageFromEvents([
-			piTurnEnd({ input: 100, output: 25, costTotal: 0.001 }),
-			piTurnEnd({ input: 200, output: 50, costTotal: 0.002 }),
-			piTurnEnd({ input: 300, output: 75, costTotal: 0.003 }),
+			piTurnEnd({ input: 100, output: 25 }),
+			piTurnEnd({ input: 200, output: 50 }),
+			piTurnEnd({ input: 300, output: 75 }),
 		]);
 		expect(stats).not.toBeNull();
-		expect(stats?.costUsd).toBeCloseTo(0.006);
 		expect(stats?.tokensInput).toBe(600);
 		expect(stats?.tokensOutput).toBe(150);
 	});
 
 	test("assigns (not sums) claude-code result envelope", () => {
 		// Claude-code emits cumulative totals once; if we accidentally
-		// summed, two events would double the cost.
+
 		const stats = aggregateUsageFromEvents([
-			claudeResult({ inputTokens: 1200, outputTokens: 400, totalCostUsd: 0.0421 }),
+			claudeResult({ inputTokens: 1200, outputTokens: 400 }),
 		]);
 		expect(stats).not.toBeNull();
-		expect(stats?.costUsd).toBeCloseTo(0.0421);
 		expect(stats?.tokensInput).toBe(1200);
 		expect(stats?.tokensOutput).toBe(400);
 	});
@@ -107,10 +101,9 @@ describe("aggregateUsageFromEvents", () => {
 		// aggregator must agree with the bridge's choice when both
 		// shapes happen to land.
 		const stats = aggregateUsageFromEvents([
-			piTurnEnd({ input: 100, output: 25, costTotal: 0.001 }),
-			claudeResult({ inputTokens: 9999, outputTokens: 9999, totalCostUsd: 9.99 }),
+			piTurnEnd({ input: 100, output: 25 }),
+			claudeResult({ inputTokens: 9999, outputTokens: 9999 }),
 		]);
-		expect(stats?.costUsd).toBeCloseTo(0.001);
 		expect(stats?.tokensInput).toBe(100);
 	});
 
@@ -132,7 +125,7 @@ describe("aggregateUsageFromEvents", () => {
 				stream: "stdout",
 				payload: {
 					type: "turn_end",
-					message: { usage: { input: 100, output: 25, cost: { total: 0.5 } } },
+					message: { usage: { input: 100, output: 25 } },
 				},
 			},
 		]);
@@ -146,7 +139,7 @@ describe("aggregateUsageFromEvents", () => {
 				stream: "system",
 				payload: {
 					type: "turn_end",
-					message: { usage: { input: 100, output: 25, cost: { total: 0.5 } } },
+					message: { usage: { input: 100, output: 25 } },
 				},
 			},
 		]);
@@ -157,10 +150,9 @@ describe("aggregateUsageFromEvents", () => {
 		const row = {
 			kind: "state_change",
 			stream: "system" as const,
-			payloadJson: { type: "result", total_cost_usd: 0.5, usage: { input_tokens: 10 } },
+			payloadJson: { type: "result", usage: { input_tokens: 10 } },
 		};
 		const stats = aggregateUsageFromEvents([eventRowToUsageInput(row)]);
-		expect(stats?.costUsd).toBeCloseTo(0.5);
 		expect(stats?.tokensInput).toBe(10);
 	});
 });

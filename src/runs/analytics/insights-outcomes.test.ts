@@ -22,8 +22,6 @@ export function emptyMetrics(): RunMetrics {
 			queueWaitMs: { avg: null, median: null, p95: null, count: 0 },
 			contextTokens: { avg: null, median: null, p95: null, count: 0 },
 			tokens: ZERO_TOKENS,
-			costUsd: { avg: null, median: null, p95: null, count: 0 },
-			cost: { total: 0, avg: null, priced: 0 },
 		},
 		delivery: {
 			branchPushToPrOpenMs: { avg: null, median: null, p95: null, count: 0 },
@@ -94,13 +92,6 @@ describe("buildInsights (outcome-joined kinds, warren-be04)", () => {
 				confidence: "low",
 			},
 			autonomy: { merged: 0, autonomous: 0, rate: null },
-			costPerMergedPr: {
-				overall: { costUsd: 0, priced: 0, prStateKnown: 0, prsMerged: 0, costPerMergedPrUsd: null },
-				byAgent: [],
-				byModel: [],
-				byProvider: [],
-				confidence: "low",
-			},
 			...overrides,
 		};
 	}
@@ -108,7 +99,6 @@ describe("buildInsights (outcome-joined kinds, warren-be04)", () => {
 	test("omits both outcome kinds when outcomes are not supplied", () => {
 		const insights = buildInsights({ metrics: emptyMetrics(), mining: emptyMining() });
 		expect(kinds(insights)).not.toContain("steering-outcome-delta");
-		expect(kinds(insights)).not.toContain("cost-per-merged-pr");
 	});
 
 	test("reports the steered/unsteered delta with denominators and confidence", () => {
@@ -174,68 +164,5 @@ describe("buildInsights (outcome-joined kinds, warren-be04)", () => {
 		expect(
 			kinds(buildInsights({ metrics: emptyMetrics(), mining: emptyMining(), outcomes: o })),
 		).not.toContain("steering-outcome-delta");
-	});
-
-	test("reports cost per merged PR with the priciest bucket as subject", () => {
-		const o = outcomes({
-			costPerMergedPr: {
-				overall: {
-					costUsd: 30,
-					priced: 8,
-					prStateKnown: 7,
-					prsMerged: 3,
-					costPerMergedPrUsd: 10,
-				},
-				byAgent: [
-					{
-						key: "opus-agent",
-						costUsd: 22,
-						priced: 3,
-						prStateKnown: 2,
-						prsMerged: 1,
-						costPerMergedPrUsd: 22,
-					},
-				],
-				byModel: [],
-				byProvider: [],
-				confidence: "low",
-			},
-		});
-		const i = find(
-			buildInsights({ metrics: emptyMetrics(), mining: emptyMining(), outcomes: o }),
-			"cost-per-merged-pr",
-		);
-		expect(i.severity).toBe("info");
-		expect(i.value).toBe(10);
-		expect(i.subject).toBe("opus-agent");
-		expect(i.denominator).toBe(3);
-		expect(i.confidence).toBe("low");
-		expect(i.detail).toContain("$30.00");
-		expect(i.detail).toContain("3 merged PR(s) of 7 resolved");
-	});
-
-	test("skips cost-per-merged-pr when nothing merged or nothing priced", () => {
-		const noMerges = outcomes({});
-		expect(
-			kinds(buildInsights({ metrics: emptyMetrics(), mining: emptyMining(), outcomes: noMerges })),
-		).not.toContain("cost-per-merged-pr");
-		const unpriced = outcomes({
-			costPerMergedPr: {
-				overall: {
-					costUsd: 0,
-					priced: 0,
-					prStateKnown: 2,
-					prsMerged: 2,
-					costPerMergedPrUsd: 0,
-				},
-				byAgent: [],
-				byModel: [],
-				byProvider: [],
-				confidence: "low",
-			},
-		});
-		expect(
-			kinds(buildInsights({ metrics: emptyMetrics(), mining: emptyMining(), outcomes: unpriced })),
-		).not.toContain("cost-per-merged-pr");
 	});
 });

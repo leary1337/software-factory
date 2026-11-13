@@ -86,7 +86,7 @@ describe("LocalRunStore", () => {
 	test("toNormalizedEvent stamps the warren origin and keeps the payload verbatim", () => {
 		const store = new LocalRunStore();
 		const record = makeRecord(store);
-		const payload = { nested: { total_cost_usd: 0.01 } };
+		const payload = { nested: {} };
 		const stored = store.appendEvent(record, { kind: "telemetry", stream: "system", payload });
 		const normalized = toNormalizedEvent(stored);
 		expect(normalized.origin).toBe("warren");

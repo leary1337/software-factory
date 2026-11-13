@@ -21,7 +21,6 @@ type CampaignDbRow = {
 	manifest_digest: string;
 	manifest_json: string;
 	policy_digest: string | null;
-	budget_cap_usd_cents: number | null;
 	created_at_ms: number;
 	updated_at_ms: number;
 	approved_at_ms: number | null;
@@ -46,7 +45,6 @@ function toCampaign(row: CampaignDbRow): CampaignRow {
 		manifestDigest: row.manifest_digest,
 		manifestJson: row.manifest_json,
 		policyDigest: row.policy_digest,
-		budgetCapUsdCents: row.budget_cap_usd_cents,
 		createdAtMs: row.created_at_ms,
 		updatedAtMs: row.updated_at_ms,
 		approvedAtMs: row.approved_at_ms,
@@ -78,7 +76,6 @@ export class CampaignStore {
 		manifestDigest: string;
 		manifestJson: string;
 		policyDigest?: string | null;
-		budgetCapUsdCents?: number | null;
 		status?: CampaignStatus;
 	}): CampaignRow {
 		const now = nowMs(this.#ctx);
@@ -88,8 +85,8 @@ export class CampaignStore {
 				.query(
 					`INSERT INTO campaigns
 					 (id, status, manifest_digest, manifest_json, policy_digest,
-					  budget_cap_usd_cents, created_at_ms, updated_at_ms, approved_at_ms)
-					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+					  created_at_ms, updated_at_ms, approved_at_ms)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
 				)
 				.run(
 					id,
@@ -97,7 +94,6 @@ export class CampaignStore {
 					input.manifestDigest,
 					input.manifestJson,
 					input.policyDigest ?? null,
-					input.budgetCapUsdCents ?? null,
 					now,
 					now,
 				);
@@ -168,15 +164,12 @@ export class CampaignStore {
 	 * and history survive; only the bound manifest content and the derived
 	 * budget cap change. No superseded attention row is emitted here.
 	 */
-	updateManifestInPlace(
-		id: string,
-		input: { manifestDigest: string; manifestJson: string; budgetCapUsdCents: number },
-	): void {
+	updateManifestInPlace(id: string, input: { manifestDigest: string; manifestJson: string }): void {
 		this.#ctx.db
 			.query(
-				"UPDATE campaigns SET manifest_digest = ?, manifest_json = ?, budget_cap_usd_cents = ?, updated_at_ms = ? WHERE id = ?",
+				"UPDATE campaigns SET manifest_digest = ?, manifest_json = ?, updated_at_ms = ? WHERE id = ?",
 			)
-			.run(input.manifestDigest, input.manifestJson, input.budgetCapUsdCents, nowMs(this.#ctx), id);
+			.run(input.manifestDigest, input.manifestJson, nowMs(this.#ctx), id);
 	}
 
 	/** Stamp approval at an explicit time (the amendment's approval time). */

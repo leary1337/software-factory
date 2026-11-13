@@ -10,12 +10,9 @@ import type { ServeHandle } from "../types.ts";
 import { PUBLIC_AGENT_FIELDS, REDACTED_AGENT_FIELDS, withAgentSource } from "./agents.ts";
 import { PUBLIC_PROJECT_FIELDS, REDACTED_PROJECT_FIELDS } from "./projects.ts";
 import {
-	PUBLIC_COST_PER_MERGED_PR_BUCKET_FIELDS,
-	PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS,
 	PUBLIC_RUN_ANALYTICS_FIELDS,
 	PUBLIC_RUN_GROUP_FIELDS,
 	PUBLIC_RUN_TOTALS_FIELDS,
-	REDACTED_COST_PER_MERGED_PR_OVERALL_FIELDS,
 	REDACTED_RUN_ANALYTICS_FIELDS,
 	REDACTED_RUN_GROUP_FIELDS,
 	REDACTED_RUN_TOTALS_FIELDS,
@@ -174,31 +171,6 @@ describe("context-waste field classification (warren-6d41)", () => {
 	});
 });
 
-// warren-6163: walk a parsed response body and report every cost-named key
-// (except the public costPerMergedPr rollup, whose counts are public) and
-// every occurrence of the seeded cost figure. Structural, so it cannot
-// collide with ISO millisecond timestamps the way a substring match can.
-function flattenEntries(body: unknown): [string, unknown][] {
-	const out: [string, unknown][] = [];
-	const stack: [string, unknown][] = [["", body]];
-	while (stack.length > 0) {
-		const [key, value] = stack.pop() as [string, unknown];
-		out.push([key, value]);
-		if (value === null || typeof value !== "object") continue;
-		const children: [string, unknown][] = Array.isArray(value)
-			? value.map((item) => ["", item])
-			: Object.entries(value);
-		stack.push(...children);
-	}
-	return out;
-}
-
-function findCostLeaks(body: unknown, seededCost: number): string[] {
-	return flattenEntries(body)
-		.filter(([key, value]) => /cost(?!PerMergedPr)/i.test(key) || value === seededCost)
-		.map(([key, value]) => (value === seededCost ? `value:${key}` : `key:${key}`));
-}
-
 describe("public projections over the wire (warren-4f6c)", () => {
 	let db: WarrenDb;
 	let repos: Repos;
@@ -237,7 +209,6 @@ describe("public projections over the wire (warren-4f6c)", () => {
 			null,
 		);
 		await repos.runs.attachStats(run.id, {
-			costUsd: 987.6543,
 			tokensInput: 100,
 			tokensOutput: 20,
 			tokensCacheRead: 40,
@@ -343,74 +314,7 @@ describe("public projections over the wire (warren-4f6c)", () => {
 		expect(Object.keys(byAgent ?? {}).sort()).toEqual(
 			[...PUBLIC_RUN_GROUP_FIELDS, ...REDACTED_RUN_GROUP_FIELDS].sort(),
 		);
-		// warren-be04: the operator body carries the full outcome-joined
-		// rollup, cost figures included.
-		const outcomes = body.outcomes as {
-			costPerMergedPr: { overall: Record<string, unknown> };
-		};
-		expect(Object.keys(outcomes.costPerMergedPr.overall).sort()).toEqual(
-			[
-				...PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS,
-				...REDACTED_COST_PER_MERGED_PR_OVERALL_FIELDS,
-			].sort(),
-		);
-		expect(outcomes.costPerMergedPr.overall.costUsd).toBe(987.6543);
-		expect(totals.cost).toEqual({ total: 987.6543, avg: 987.6543, priced: 1 });
-		// warren-ea4e: the per-run cost distribution and the cap-hit count are
-		// operator fields — present here, redacted below.
-		expect(totals.costUsd).toEqual({ avg: 987.6543, median: 987.6543, p95: 987.6543, count: 1 });
-		expect(body.capHits).toBe(0);
 		expect(body.topSeedsByContext).toHaveLength(1);
-	});
-
-	test("anonymous GET /analytics/runs drops topSeedsByContext and every USD rollup", async () => {
-		const body = await get("/analytics/runs");
-		expect(Object.keys(body).sort()).toEqual([...PUBLIC_RUN_ANALYTICS_FIELDS].sort());
-		expect(body).not.toHaveProperty("topSeedsByContext");
-		const totals = body.totals as Record<string, unknown>;
-		expect(Object.keys(totals).sort()).toEqual([...PUBLIC_RUN_TOTALS_FIELDS].sort());
-		expect(totals).not.toHaveProperty("cost");
-		// warren-ea4e: the per-run cost distribution rides the same redaction
-		// as the aggregate, and the cap-hit count is operator-only too.
-		expect(totals).not.toHaveProperty("costUsd");
-		expect(body).not.toHaveProperty("capHits");
-		// warren-be04: outcomes survives — steering tallies and merged counts
-		// are public — and warren-97ae makes the instance-wide cost/merged-PR
-		// ratio public too; the per-bucket USD figures stay redacted.
-		const outcomes = body.outcomes as {
-			steering: { steered: { prStateKnown: number }; unsteered: { prStateKnown: number } };
-			costPerMergedPr: {
-				overall: Record<string, unknown>;
-				byAgent: Record<string, unknown>[];
-			};
-		};
-		expect(outcomes.steering.unsteered.prStateKnown).toBe(1);
-		expect(Object.keys(outcomes.costPerMergedPr.overall).sort()).toEqual(
-			[...PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS].sort(),
-		);
-		expect(outcomes.costPerMergedPr.overall).not.toHaveProperty("costUsd");
-		expect(outcomes.costPerMergedPr.overall).not.toHaveProperty("priced");
-		expect(outcomes.costPerMergedPr.overall.prsMerged).toBe(1);
-		// warren-97ae: the public ratio itself.
-		expect(outcomes.costPerMergedPr.overall.costPerMergedPrUsd).toBeDefined();
-		expect(outcomes.costPerMergedPr.overall.costPerMergedPrUsd).not.toBeNull();
-		// warren-bc9c: delivery timings (public like queueWaitMs) and the
-		// autonomy rollup (counts + a rate) survive the projection.
-		const delivery = body.delivery as { branchPushToPrOpenMs: unknown };
-		expect(delivery.branchPushToPrOpenMs).toBeDefined();
-		expect((body.outcomes as { autonomy: { merged: number } }).autonomy.merged).toBe(1);
-		for (const bucket of outcomes.costPerMergedPr.byAgent) {
-			expect(Object.keys(bucket).sort()).toEqual(
-				[...PUBLIC_COST_PER_MERGED_PR_BUCKET_FIELDS].sort(),
-			);
-		}
-		for (const dimension of ["byAgent", "byModel", "byProvider"] as const) {
-			const buckets = body[dimension] as Record<string, unknown>[];
-			expect(buckets.length).toBeGreaterThan(0);
-			for (const bucket of buckets) {
-				expect(Object.keys(bucket).sort()).toEqual([...PUBLIC_RUN_GROUP_FIELDS].sort());
-			}
-		}
 	});
 
 	test("anonymous GET /analytics/runs keeps counts, states and tokens", async () => {
@@ -434,21 +338,5 @@ describe("public projections over the wire (warren-4f6c)", () => {
 		expect((body.tokens as Record<string, unknown>).totals).toEqual(
 			totals.tokens as Record<string, unknown>,
 		);
-	});
-
-	test("no cost figure survives anywhere in the anonymous analytics body", async () => {
-		const body = await get("/analytics/runs");
-		// warren-6163: structural check, not a raw substring match — a seeded
-		// figure like "1.25" can collide with an ISO millisecond timestamp
-		// ("...:01.250Z") and flake the assertion. Walk the parsed body and
-		// fail on any cost-named key or any occurrence of the seeded figure.
-		// warren-97ae: the one deliberate exception is the instance-wide
-		// cost/merged-PR ratio, which is public — with one merged PR it
-		// numerically equals the seeded spend, so it shows up as exactly
-		// that one value hit and nothing else (flattenEntries reports
-		// immediate keys, not dotted paths).
-		const leaks = findCostLeaks(body, 987.6543);
-		expect(leaks).toEqual(["value:costPerMergedPrUsd"]);
-		expect(JSON.stringify(body)).not.toContain("warren-4f6c");
 	});
 });

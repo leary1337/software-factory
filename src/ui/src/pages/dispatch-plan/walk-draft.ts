@@ -1,5 +1,4 @@
 import type { CreatePlanRunInput } from "@/api/types.ts";
-import { parseCostCap } from "../dispatch/dispatch-draft.ts";
 
 /**
  * Walk-definition draft state for the Direction C Dispatch plan page
@@ -48,8 +47,6 @@ export interface WalkDraft {
 	readonly ref: string;
 	readonly providerOverride: string;
 	readonly modelOverride: string;
-	/** Per-child cost cap as free text; parsed to `maxCostUsd` at submit. */
-	readonly costCap: string;
 }
 
 /** Touched flags stop the per-project default auto-fill per field. */
@@ -58,7 +55,6 @@ export interface WalkTouched {
 	readonly prompt: boolean;
 	readonly provider: boolean;
 	readonly model: boolean;
-	readonly costCap: boolean;
 }
 
 export interface WalkDraftPatch {
@@ -78,7 +74,6 @@ export function initialWalkDraft(state: WalkRouteState): WalkDraft {
 		ref: "",
 		providerOverride: "",
 		modelOverride: "",
-		costCap: "",
 	};
 }
 
@@ -88,7 +83,6 @@ export function initialWalkTouched(state: WalkRouteState): WalkTouched {
 		prompt: false,
 		provider: false,
 		model: false,
-		costCap: false,
 	};
 }
 
@@ -107,24 +101,7 @@ export function parseIssueIds(text: string): string[] {
 	return out;
 }
 
-export type CostCapResult = { value: number } | { error: string } | null;
-
-export { parseCostCap };
-
-/** Cost cap error text, or null when unset or valid. */
-export function costCapErrorOf(costCap: string): string | null {
-	const parsed = parseCostCap(costCap);
-	return parsed !== null && "error" in parsed ? parsed.error : null;
-}
-
-/**
- * Build the `POST /plan-runs` body from the draft (plus the parsed cost
- * cap). Pure — the page only fires it.
- */
-export function buildCreatePlanRunInput(args: {
-	readonly draft: WalkDraft;
-	readonly maxCostUsd: number | undefined;
-}): CreatePlanRunInput {
+export function buildCreatePlanRunInput(args: { readonly draft: WalkDraft }): CreatePlanRunInput {
 	const { draft } = args;
 	const trimmedRef = draft.ref.trim();
 	const trimmedProvider = draft.providerOverride.trim();
@@ -136,7 +113,6 @@ export function buildCreatePlanRunInput(args: {
 		...(trimmedRef.length > 0 ? { ref: trimmedRef } : {}),
 		...(trimmedProvider.length > 0 ? { providerOverride: trimmedProvider } : {}),
 		...(trimmedModel.length > 0 ? { modelOverride: trimmedModel } : {}),
-		...(args.maxCostUsd !== undefined ? { maxCostUsd: args.maxCostUsd } : {}),
 	};
 	if (draft.sourceMode === "issues") {
 		return { ...base, issues: parseIssueIds(draft.issuesText) };

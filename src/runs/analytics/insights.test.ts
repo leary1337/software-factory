@@ -29,8 +29,6 @@ function emptyMetrics(): RunMetrics {
 			queueWaitMs: { avg: null, median: null, p95: null, count: 0 },
 			contextTokens: { avg: null, median: null, p95: null, count: 0 },
 			tokens: ZERO_TOKENS,
-			costUsd: { avg: null, median: null, p95: null, count: 0 },
-			cost: { total: 0, avg: null, priced: 0 },
 		},
 		delivery: {
 			branchPushToPrOpenMs: { avg: null, median: null, p95: null, count: 0 },
@@ -92,28 +90,6 @@ function agent(key: string, succeeded: number, failed: number, cancelled = 0): R
 		contextTokensTotal: 0,
 		avgContextTokens: null,
 		tokens: ZERO_TOKENS,
-		costUsd: 0,
-		priced: 0,
-		avgDurationMs: null,
-	};
-}
-
-function model(key: string, costUsd: number, priced: number): RunGroupBucket {
-	return {
-		key,
-		runs: priced,
-		succeeded: priced,
-		failed: 0,
-		cancelled: 0,
-		successRate: priced === 0 ? null : 1,
-		prStateKnown: 0,
-		prsMerged: 0,
-		mergedPrRate: null,
-		contextTokensTotal: 0,
-		avgContextTokens: null,
-		tokens: ZERO_TOKENS,
-		costUsd,
-		priced,
 		avgDurationMs: null,
 	};
 }
@@ -251,33 +227,6 @@ describe("buildInsights", () => {
 		expect(i.severity).toBe("critical");
 		expect(i.value).toBe(3);
 		expect(i.detail).toContain("3 retr");
-	});
-
-	test("flags a model cost outlier at 2x the peer median", () => {
-		const metrics = {
-			...emptyMetrics(),
-			byModel: [model("opus", 1.0, 2), model("sonnet", 0.2, 2), model("haiku", 0.1, 2)],
-		};
-		const i = find(buildInsights({ metrics, mining: emptyMining() }), "model-cost-outlier");
-		expect(i.subject).toBe("opus");
-		expect(i.severity).toBe("warning");
-	});
-
-	test("does not flag a cost outlier when models are comparable", () => {
-		const metrics = {
-			...emptyMetrics(),
-			byModel: [model("a", 0.2, 2), model("b", 0.22, 2)],
-		};
-		expect(kinds(buildInsights({ metrics, mining: emptyMining() }))).not.toContain(
-			"model-cost-outlier",
-		);
-	});
-
-	test("needs at least two priced models for the outlier check", () => {
-		const metrics = { ...emptyMetrics(), byModel: [model("only", 5.0, 1)] };
-		expect(kinds(buildInsights({ metrics, mining: emptyMining() }))).not.toContain(
-			"model-cost-outlier",
-		);
 	});
 
 	test("flags heavy steering as critical past the 50% share", () => {
