@@ -777,5 +777,7 @@ documented in `docs/project-inputs.md`.
 Если reviewer сообщил CHANGES, но manifest не удалось прочитать, текст замечаний
 тоже сохраняется и передаётся следующему reviewer для создания воспроизведений.
 Промежуточный неуспешный PASS не стирает такой отчёт и не разрешает слияние.
+Rework проверяет общую причину в соответствующих путях затронутого модуля: новые
+случаи того же нарушения не должны исправляться по одному на каждый холодный review.
 Регрессии: review-recovery.test.ts, review-progress.test.ts,
 quality-gate-sandbox.test.ts и bwrap.test.ts.
