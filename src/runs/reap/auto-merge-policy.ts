@@ -85,6 +85,8 @@ export const ALWAYS_PROTECTED_CONFIG_PATH = warrenConfigRelativePath("config");
 
 /** Policy inputs — every value the decision needs, none of the I/O. */
 export interface AutoMergePolicyInput {
+	/** Only the reviewed plan delivery boundary may apply owner-delegated paths. */
+	readonly independentlyReviewed?: boolean;
 	/**
 	 * The `pr.autoMerge` block resolved from the PR's BASE ref (design record
 	 * §3.1), never from the run-branch working tree — the agent authors the
@@ -139,9 +141,15 @@ export function decideAutoMerge(input: AutoMergePolicyInput): AutoMergeDecision 
 	if (changed.kind === "unsafe")
 		return { decision: "skip", reason: changed.reason, paths: changed.paths };
 	if (changed.paths.length === 0) return { decision: "skip", reason: "empty_diff" };
-	const matched = changed.paths.filter((path) =>
-		pathMatchesProtectedEntry(path, [...MANDATORY_REVIEW_PATHS, ...config.protectedPaths]),
-	);
+	const matched = changed.paths.filter((path) => {
+		if (pathMatchesProtectedEntry(path, config.protectedPaths)) return true;
+		if (!pathMatchesProtectedEntry(path, MANDATORY_REVIEW_PATHS)) return false;
+		return !(
+			input.independentlyReviewed &&
+			config.verification === "warren" &&
+			pathMatchesProtectedEntry(path, config.reviewedPaths ?? [])
+		);
+	});
 	if (matched.length > 0) {
 		return { decision: "skip", reason: "protected_path", paths: matched };
 	}

@@ -11,6 +11,21 @@ import {
 
 const SHA = "a".repeat(40);
 const BASE = "b".repeat(40);
+test("reviewed delivery honors the owner's base-branch path delegation", async () => {
+	const h = await harness({
+		config: {
+			method: "merge",
+			verification: "warren",
+			requiredChecks: ["test"],
+			protectedPaths: [],
+			reviewedPaths: ["scripts/**"],
+		},
+		changedPaths: { kind: "changed", paths: ["scripts/replay.py"] },
+	});
+	expect(await h.merge()).toMatchObject({ reason: "merge_confirmation_pending" });
+	expect(h.publishes).toHaveLength(1);
+});
+
 async function harness(snapshot: Partial<AutoMergeSnapshot> = {}, head = SHA) {
 	const fake = new FakeForge();
 	fake.setAutoMergeArmCapability(true);

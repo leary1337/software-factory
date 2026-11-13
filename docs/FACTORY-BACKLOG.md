@@ -748,3 +748,62 @@ push, выполненные вне Warren, и не является серве�
 опубликовал `ae1a12ea75366a02609125abfa5495688edc70d9` через Git и получил merged
 на следующем опросе. GitHub подтвердил merge 12.11.2026 в 16:48:09 UTC; main
 sandbox не менялся. Это проверка транспорта, а не новый unattended agent-run.
+
+## Автономная работа с реальными входами (warren-f111)
+
+Причина повторных остановок хоккейного плана: у каждого нового агента отсутствовали
+данные для операционной приёмки, а изменения scripts требовали ручного слияния.
+Воспроизведение: шаг 03 остановился с `missing_failing_reproduction`, поскольку
+реальный snapshot был недоступен из sandbox.
+
+Добавлены host-owned inputs по project id, read-only для агента и независимых
+проверок. Ключи восстановления, SSH и Telegram не передаются агентам.
+Отдельная проверка macOS подтверждает чтение и отказ записи даже под общим tmp.
+
+Добавлен opt-in `reviewedPaths` из базовой ветки только для reviewed-plan delivery.
+PASS, независимый gate, required CI checks и точный SHA остаются обязательными.
+Explicit protectedPaths, скрипты проверок и конфигурация политики не переопределяются.
+
+Два регрессионных теста сначала падали: делегированный scripts PR оставался
+заблокированным, а gate терял разрешённый каталог данных. После исправления они
+проходят. Тесты также проверяют отсутствие делегирования для standalone runs,
+защиту policy/config, изоляцию project ids и отказ symlink/traversal.
+
+
+### warren-f112 — Retry verified delivery without repeating successful review
+
+Status: completed. Hockey step03 had independent PASS, a real two-restore replay
+and green CI, but the configured forge token lacked Checks/status read access.
+The delivery failure stopped the plan; retry previously discarded a valid review
+and repeated the expensive verifier. Recovery now starts a new delivery attempt
+while retaining the pinned review and runtime gate. Live head, base policy and CI
+are verified again. Changed heads and absent gate witnesses still rerun review.
+
+Reproduction: two HTTP recovery regressions failed before the change. Tests cover
+unchanged/changed heads, missing witness, concurrent duplicate requests and no
+premature advancement of the next task. Project timeout and credential scope are
+documented in `docs/project-inputs.md`.
+
+### warren-f113 — Автоматическое восстановление review/rework
+
+Исправлено: portable reproduction мог создавать временную БД рядом с исходником,
+но sandbox запрещал запись во весь каталог. PermissionError ошибочно становился
+«неисправленным дефектом» и останавливал следующий тикет с no_progress.
+Теперь immutable только исходники; каталог закреплён от переименования, scratch
+доступен для записи. Linux защищает оба пути после родительских bind mounts.
+Реальный macOS regression сначала воспроизвёл EPERM, затем прошёл с проверками
+запрета изменения, chmod и подмены исходников/каталога.
+
+Координатор даёт до двух автоматических повторов технического/протокольного
+сбоя ревью и одну дополнительную попытку rework при отсутствии прогресса.
+Причина повторов сохраняется в review_step; перезапуск не сбрасывает счётчики.
+Общий бюджет времени, стоимости, шагов и rework остаётся прежним. Все проверки
+повторяются; PASS не получается из ошибки, изменения proof или исчерпания лимита.
+Артефакты сохраняются даже при падении checker до записи итоговых результатов.
+Если reviewer сообщил CHANGES, но manifest не удалось прочитать, текст замечаний
+тоже сохраняется и передаётся следующему reviewer для создания воспроизведений.
+Промежуточный неуспешный PASS не стирает такой отчёт и не разрешает слияние.
+Rework проверяет общую причину в соответствующих путях затронутого модуля: новые
+случаи того же нарушения не должны исправляться по одному на каждый холодный review.
+Регрессии: review-recovery.test.ts, review-progress.test.ts,
+quality-gate-sandbox.test.ts и bwrap.test.ts.

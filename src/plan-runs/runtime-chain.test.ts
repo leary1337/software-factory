@@ -12,12 +12,16 @@ for (const verdicts of [
 	["CHANGES", "CHANGES", "CHANGES", "PASS"],
 	["STALLED", "PASS"],
 	["CRASH"],
+	["CRASH", "CRASH", "CRASH"],
 ]) {
 	test.skipIf(process.platform !== "darwin")(
 		`runs the real sandbox factory chain: ${verdicts.join(" → ")}`,
 		async () => {
-			const expectedReworks = verdicts.filter((v) => v === "CHANGES" || v === "STALLED").length;
-			const succeeds = verdicts.at(-1) === "PASS" && !verdicts.includes("STALLED");
+			const expectedReworks =
+				verdicts.filter((v) => v === "CHANGES" || v === "STALLED").length +
+				(verdicts.includes("STALLED") ? 1 : 0);
+			const succeeds =
+				!verdicts.includes("STALLED") && verdicts.filter((v) => v === "CRASH").length < 3;
 			const h = await runtimeChain([...verdicts]);
 			try {
 				for (let i = 0; i < 25; i++) {
@@ -66,7 +70,7 @@ for (const action of ["cancel", "restart"] as const) {
 	test.skipIf(process.platform !== "darwin")(
 		`stops the real reviewer on ${action} and never dispatches the next ticket`,
 		async () => {
-			const h = await runtimeChain(["WAIT"]);
+			const h = await runtimeChain(["WAIT", "WAIT"]);
 			try {
 				await h.advance();
 				await h.drain();
@@ -109,7 +113,13 @@ for (const action of ["cancel", "restart"] as const) {
 					await h.advance();
 				}
 				await h.advance();
-				expect(h.roles).toEqual(["implementer", "reviewer"]);
+				expect(h.roles).toEqual(
+					action === "cancel"
+						? ["implementer", "reviewer"]
+						: ["implementer", "reviewer", "reviewer"],
+				);
+				const children = await h.repos.planRuns.listChildren(h.planRun.id);
+				if (action === "restart") expect(children[1]?.state).toBe("pending");
 				expect(h.forge.merges).toBe(0);
 				await record?.driveDone;
 				expect((await h.repos.runs.require(reviewer.id)).state).toBe(

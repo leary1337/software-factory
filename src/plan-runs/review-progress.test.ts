@@ -81,8 +81,16 @@ describe("review progress", () => {
 		];
 		expect(decideReviewStep(steps)).toMatchObject({ kind: "spawn", step: "rework" });
 	});
-	test("stops a repeated unresolved finding even when rework claims success", () => {
-		expect(decideReviewStep([reviewed(["a"]), rework, reviewed(["a"])])).toMatchObject({
+	test("retries one stalled rework, then stops if the original finding still fails", () => {
+		const steps = [reviewed(["a"]), rework, reviewed(["a"])];
+		expect(decideReviewStep(steps)).toMatchObject({
+			kind: "spawn",
+			step: "rework",
+			recoveryReason: "no_progress",
+		});
+		expect(
+			decideReviewStep([...steps, { ...rework, recoveryReason: "no_progress" }, reviewed(["a"])]),
+		).toMatchObject({
 			kind: "finished",
 			outcome: "changes_left",
 			report: expect.stringContaining("no_progress"),
@@ -94,8 +102,8 @@ describe("review progress", () => {
 			resultText: `VERDICT: PASS\nREVIEWED_COMMIT: ${SHA}\nQUALITY_GATE: PASS`,
 		};
 		expect(decideReviewStep([reviewed(["a"]), rework, last])).toMatchObject({
-			kind: "finished",
-			outcome: "changes_left",
+			kind: "spawn",
+			step: "rework",
 		});
 	});
 	test("does not count a renamed finding as progress", () => {

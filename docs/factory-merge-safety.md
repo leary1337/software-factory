@@ -68,11 +68,15 @@ path policy remain necessary.
 
 ## Changes that require an operator
 
-The baseline in `src/runs/reap/auto-merge-risk-paths.ts` always protects conventional
+By default, the baseline in `src/runs/reap/auto-merge-risk-paths.ts` protects conventional
 CI, deployment, infrastructure, Docker/Compose, nginx, migration, authentication,
 payment and billing paths. It also protects agent instructions, scripts, build
 manifests and dependency lockfiles. Setting `protectedPaths: []` keeps this
 baseline. Project entries add protection using the existing prefix/glob rules.
+
+For reviewed plans, an owner can delegate named baseline paths through
+`reviewedPaths` in trusted base configuration.
+The [project inputs guide](project-inputs.md) describes the remaining protections.
 
 Names cannot identify every security-sensitive operation. During onboarding,
 inspect where the project implements identity, permissions and payments, and add

@@ -24,7 +24,9 @@ export function currentReviewEvents(events: Events): Events {
 		.reverse()
 		.findIndex(
 			(event) =>
-				event.kind === "plan_run.review_step" || event.kind === "plan_run.review_retry_requested",
+				event.kind === "plan_run.review_step" ||
+				event.kind === "plan_run.review_retry_requested" ||
+				event.kind === "plan_run.review_delivery_retry_requested",
 		);
 	if (reversedIndex < 0) return events;
 	const index = events.length - reversedIndex - 1;
@@ -73,7 +75,10 @@ async function deliverComment(
 	const step = [...history].reverse().find((event) => event.kind === "plan_run.review_step");
 	const reviewId = (step?.payloadJson as { stepRunId?: unknown } | undefined)?.stepRunId;
 	// Deduplicate retries of this report, not later reviews of the same implementation.
-	const key = `factory-review-${run.id}${typeof reviewId === "string" ? `-${reviewId}` : ""}`;
+	const recovery = events.find(
+		(event) => event.kind === "plan_run.review_delivery_retry_requested",
+	);
+	const key = `factory-review-${run.id}${typeof reviewId === "string" ? `-${reviewId}` : ""}${recovery ? `-delivery-${recovery.id}` : ""}`;
 	await input.emit(run.id, "plan_run.review_comment_attempt", {});
 	await input.commentOnPr(
 		prUrl,
