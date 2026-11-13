@@ -81,3 +81,14 @@ export function parseReviewEvidence(value: unknown): ReviewEvidence | null {
 	if (findings.some((finding) => !results.some((result) => result.id === finding.id))) return null;
 	return parsed.data;
 }
+
+/** Sources are durable even if the checker crashes before producing results. */
+export function parseReviewArtifacts(value: unknown): ReviewFinding[] | undefined {
+	const parsed = EvidenceSchema.omit({ results: true }).safeParse(value);
+	if (!parsed.success) return undefined;
+	try {
+		return validateFindings(parsed.data.findings);
+	} catch {
+		return undefined;
+	}
+}

@@ -3,7 +3,8 @@ import type { ReviewStepRecord } from "./review.ts";
 import { parseVerdict } from "./review-result.ts";
 
 export function reviewHistoryPrompt(steps: readonly ReviewStepRecord[], rework: boolean) {
-	const prior = [...steps].reverse().find((step) => step.evidence)?.evidence?.findings ?? [];
+	const captured = [...steps].reverse().find((step) => step.evidence || step.artifacts);
+	const prior = captured?.evidence?.findings ?? captured?.artifacts ?? [];
 	const earlier = [...steps]
 		.reverse()
 		.find((step) => step.step !== "rework" && step.resultText !== null);

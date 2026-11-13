@@ -757,3 +757,22 @@ Reproduction: two HTTP recovery regressions failed before the change. Tests cove
 unchanged/changed heads, missing witness, concurrent duplicate requests and no
 premature advancement of the next task. Project timeout and credential scope are
 documented in `docs/project-inputs.md`.
+
+### warren-f113 — Автоматическое восстановление review/rework
+
+Исправлено: portable reproduction мог создавать временную БД рядом с исходником,
+но sandbox запрещал запись во весь каталог. PermissionError ошибочно становился
+«неисправленным дефектом» и останавливал следующий тикет с no_progress.
+Теперь immutable только исходники; каталог закреплён от переименования, scratch
+доступен для записи. Linux защищает оба пути после родительских bind mounts.
+Реальный macOS regression сначала воспроизвёл EPERM, затем прошёл с проверками
+запрета изменения, chmod и подмены исходников/каталога.
+
+Координатор даёт до двух автоматических повторов технического/протокольного
+сбоя ревью и одну дополнительную попытку rework при отсутствии прогресса.
+Причина повторов сохраняется в review_step; перезапуск не сбрасывает счётчики.
+Общий бюджет времени, стоимости, шагов и rework остаётся прежним. Все проверки
+повторяются; PASS не получается из ошибки, изменения proof или исчерпания лимита.
+Артефакты сохраняются даже при падении checker до записи итоговых результатов.
+Регрессии: review-recovery.test.ts, review-progress.test.ts,
+quality-gate-sandbox.test.ts и bwrap.test.ts.

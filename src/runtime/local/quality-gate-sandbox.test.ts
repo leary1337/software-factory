@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { ReviewFinding } from "../../core/review-findings.ts";
 import { runSandboxed } from "../../sandbox/sandbox.ts";
 import type { SandboxProfile } from "../../sandbox/types.ts";
 import { createGitFixture } from "../../workspace/git/test-fixture.ts";
@@ -9,7 +10,11 @@ import { runIndependentQualityGate } from "./quality-gate.ts";
 import { prepareQualityGateWorkspace } from "./quality-gate-workspace.ts";
 import { LocalRunStore } from "./run-store.ts";
 
-async function setup(script: string, assets: Readonly<Record<string, string>> = {}) {
+async function setup(
+	script: string,
+	assets: Readonly<Record<string, string>> = {},
+	findings?: ReviewFinding[],
+) {
 	const fixture = await createGitFixture({ prefix: "factory-gate-sandbox-", initCommit: "base" });
 	const git = async (...args: string[]) => {
 		const result = await fixture.git(args);
@@ -29,6 +34,8 @@ async function setup(script: string, assets: Readonly<Record<string, string>> = 
 	await mkdir(workspace);
 	await mkdir(home);
 	await writeFile(join(home, "auth.json"), "reviewer credential");
+	if (findings)
+		await writeFile(join(home, "warren-review.json"), JSON.stringify({ version: 1, findings }));
 	const profile: SandboxProfile = {
 		workspace,
 		home,
@@ -65,7 +72,7 @@ async function setup(script: string, assets: Readonly<Record<string, string>> = 
 			runIndependentQualityGate(
 				store,
 				record,
-				{ command: "sh check.sh", commit },
+				{ command: "sh check.sh", commit, ...(findings ? { reviewFindings: [] } : {}) },
 				profile,
 				{ CODEX_HOME: home },
 				{ spawn: runSandboxed },
@@ -122,6 +129,44 @@ describe("prepareQualityGateWorkspace", () => {
 });
 
 describe.skipIf(process.platform !== "darwin")("independent gate in real macOS sandbox", () => {
+	test("runs immutable reproductions with writable sibling scratch data", async () => {
+		const h = await setup("exit 0\n", {}, [
+			{
+				id: "scratch-data",
+				title: "Reproduction can create temporary data beside its source",
+				command: 'bun "$WARREN_REPRO_DIR/repro.cjs"',
+				files: [
+					{
+						path: "repro.cjs",
+						contents: `
+const fs = require("node:fs");
+const path = require("node:path");
+const assert = require("node:assert/strict");
+const root = process.env.WARREN_REPRO_DIR;
+const scratch = fs.mkdtempSync(path.join(root, "data-"));
+fs.writeFileSync(path.join(scratch, "database"), "fixture");
+assert.throws(() => fs.writeFileSync(__filename, "process.exit(0)"));
+assert.throws(() => fs.renameSync(root, root + "-moved"));
+assert.throws(() => fs.renameSync(path.dirname(root), path.dirname(root) + "-moved"));
+assert.throws(() => fs.chmodSync(__filename, 0o600));
+console.log("IMMUTABLE_SOURCE_WRITABLE_DATA");
+`,
+					},
+				],
+			},
+		]);
+		try {
+			await h.run();
+			const result = h.record.events.find((event) => event.kind === "review_check.completed");
+			expect(result?.payload).toMatchObject({
+				exitCode: 0,
+				stdout: "IMMUTABLE_SOURCE_WRITABLE_DATA\n",
+			});
+		} finally {
+			await h.fixture.cleanup();
+		}
+	});
+
 	test("reads project data but denies writing it even under a shared temporary root", async () => {
 		const h = await setup(
 			'cat "$WARREN_PROJECT_INPUTS/sample"\nif echo poison > "$WARREN_PROJECT_INPUTS/sample"; then exit 8; fi\n',
