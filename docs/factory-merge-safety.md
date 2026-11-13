@@ -110,14 +110,15 @@ misreading filenames containing spaces, tabs or newlines.
 
 - Symlink and submodule changes, including deletion or conversion, require
   manual review (`unsupported_file_mode`).
-- More than 100 changed files or 3,000 added plus deleted lines require manual
-  review (`diff_too_large`). These are conservative implementation defaults,
-  not numbers recovered from the original architecture.
+- The forge auto-merge arming path refuses more than 100 changed files or 3,000
+  added plus deleted lines (`diff_too_large`). Reviewed plan delivery has no
+  file or line count ceiling. It still requires independent review, the quality
+  gate, and the applicable forge checks.
 - Binary changes require manual review because the line-count gate cannot
   measure their size (`binary_diff`).
 - Failed, incomplete or contradictory Git measurements refuse automatic merge
   (`diff_unreadable`).
 
 These checks leave the PR available to the operator. They do not delete changes,
-approve a manual merge or trigger a deployment. The policy runs for both the
-review coordinator and the inherited auto-merge arming path.
+approve a manual merge or trigger a deployment. The other structural checks
+run for both the review coordinator and the forge auto-merge arming path.

@@ -198,21 +198,24 @@ async function loadSnapshot(
 ): Promise<AutoMergeSnapshot | null> {
 	const project = await deps.repos.projects.require(input.projectId);
 	if (!project.localPath) return null;
-	return (deps.readSnapshot ?? readAutoMergeSnapshot)({
-		projectAutoMerge: undefined,
-		run: { id: "review" },
-		project,
-		prUrl: input.prUrl,
-		prNumber: input.pr.number,
-		repoRef: input.ref,
-		prRef: input.pr,
-		branch: input.branch,
-		baseBranch: input.baseBranch,
-		workspacePath: null,
-		forge: deps.forge,
-		exec: deps.exec,
-		emit: async () => {},
-	});
+	return (deps.readSnapshot ?? readAutoMergeSnapshot)(
+		{
+			projectAutoMerge: undefined,
+			run: { id: "review" },
+			project,
+			prUrl: input.prUrl,
+			prNumber: input.pr.number,
+			repoRef: input.ref,
+			prRef: input.pr,
+			branch: input.branch,
+			baseBranch: input.baseBranch,
+			workspacePath: null,
+			forge: deps.forge,
+			exec: deps.exec,
+			emit: async () => {},
+		},
+		"reviewed-plan",
+	);
 }
 
 /** Re-read the diff from remote commits; a stale or unreadable head never skips UI review. */
