@@ -137,10 +137,13 @@ function applyStandaloneContinuations(
 			plan.current.detail.planRun.state === "queued"
 		)
 			continue;
+		const delivery = plan.delivered?.child;
+		const deliveredAt = Date.parse(delivery?.prMergedAt ?? delivery?.endedAt ?? "");
 		const newer = task.runs.filter(
 			(run) =>
 				!owners.has(run.id) &&
-				(run.createdAt ?? 0) > Date.parse(plan.current.detail.planRun.createdAt),
+				(run.createdAt ?? 0) > Date.parse(plan.current.detail.planRun.createdAt) &&
+				!(run.state === "failed" && Date.parse(run.endedAt ?? "") <= deliveredAt),
 		);
 		if (newer.length)
 			tasks.set(task.key, { ...standaloneTask(task.key, newer), plan, runs: task.runs });
@@ -178,7 +181,17 @@ export function buildWorkspaceTasks(
 	}
 	applyStandaloneContinuations(tasks, owners);
 	for (const [key, group] of standalone) tasks.set(key, standaloneTask(key, group));
-	return [...tasks.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+	return [...tasks.values()]
+		.map((task) => withCurrentExecutionTime(task, byId))
+		.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function withCurrentExecutionTime(task: WorkspaceTask, runs: ReadonlyMap<string, RunRow>) {
+	if (task.column !== "In progress" && task.column !== "Review") return task;
+	const execution = runs.get(task.runId ?? "");
+	if (!execution) return task;
+	const startedAt = Date.parse(execution.startedAt ?? "") || execution.createdAt || 0;
+	return { ...task, updatedAt: Math.max(startedAt, task.updatedAt || 0) };
 }
 
 const CURRENT_ORDER: readonly TaskColumn[] = [
