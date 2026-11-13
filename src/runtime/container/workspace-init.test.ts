@@ -290,10 +290,17 @@ describe("runWorkspaceInit", () => {
 		expect(writes[0]?.path).toBe("/ws/.git/info/exclude");
 		const body = writes[0]?.data ?? "";
 		expect(body.startsWith(template)).toBe(true);
-		for (const pattern of [".pi/sessions/", ".warren/agent.json", ".gitconfig.burrow"]) {
+		for (const pattern of [
+			".pi/sessions/",
+			".warren/agent.json",
+			".gitconfig.burrow",
+			".claude/.credentials.json",
+			".codex/auth.json",
+		]) {
 			expect(body).toContain(`\n${pattern}\n`);
 		}
-		expect(body).not.toContain(".claude/");
+		expect(body.split("\n")).not.toContain(".claude/");
+		expect(body.split("\n")).not.toContain(".codex/");
 	});
 
 	test("refuses a seed path that escapes the workspace", async () => {

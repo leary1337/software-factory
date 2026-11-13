@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-	buildCostPerMergedPr,
 	buildRunOutcomes,
 	buildSteeringOutcomeComparison,
 	confidenceForSample,
@@ -17,7 +16,6 @@ function row(overrides: Partial<RunMetricsRow> & { runId: string }): RunMetricsR
 		seedId: null,
 		state: "succeeded",
 		failureReason: null,
-		costUsd: null,
 		tokensInput: null,
 		tokensCacheRead: null,
 		tokensOutput: null,
@@ -121,62 +119,6 @@ describe("buildSteeringOutcomeComparison", () => {
 			steeredRows.map((r) => steer(r.runId)),
 		);
 		expect(c.confidence).toBe("low");
-	});
-});
-
-describe("buildCostPerMergedPr", () => {
-	test("divides total priced cost by merged PRs, overall and per bucket", () => {
-		const rows = [
-			row({ runId: "a", agentName: "pi", costUsd: 4, prState: "merged" }),
-			row({ runId: "b", agentName: "pi", costUsd: 2, prState: "merged" }),
-			row({ runId: "c", agentName: "claude-code", costUsd: 9, prState: "closed_unmerged" }),
-		];
-		const c = buildCostPerMergedPr(buildRunMetrics(rows));
-		expect(c.overall.costUsd).toBe(15);
-		expect(c.overall.priced).toBe(3);
-		expect(c.overall.prStateKnown).toBe(3);
-		expect(c.overall.prsMerged).toBe(2);
-		expect(c.overall.costPerMergedPrUsd).toBe(7.5);
-		const pi = c.byAgent.find((b) => b.key === "pi");
-		expect(pi?.costPerMergedPrUsd).toBe(3);
-		const cc = c.byAgent.find((b) => b.key === "claude-code");
-		expect(cc?.prsMerged).toBe(0);
-		expect(cc?.costPerMergedPrUsd).toBeNull();
-	});
-
-	test("nulls the ratio when nothing merged and treats NULL prState as unknown", () => {
-		const rows = [
-			row({ runId: "a", costUsd: 5, prState: null }),
-			row({ runId: "b", costUsd: 5, prState: "open" }),
-		];
-		const c = buildCostPerMergedPr(buildRunMetrics(rows));
-		expect(c.overall.prsMerged).toBe(0);
-		expect(c.overall.prStateKnown).toBe(1);
-		expect(c.overall.costPerMergedPrUsd).toBeNull();
-	});
-
-	test("sorts buckets by ratio descending with unresolved buckets last", () => {
-		const rows = [
-			row({ runId: "a", model: "opus", costUsd: 10, prState: "merged" }),
-			row({ runId: "b", model: "sonnet", costUsd: 2, prState: "merged" }),
-			row({ runId: "c", model: "haiku", costUsd: 1, prState: "open" }),
-		];
-		const c = buildCostPerMergedPr(buildRunMetrics(rows));
-		expect(c.byModel.map((b) => b.key)).toEqual(["opus", "sonnet", "haiku"]);
-	});
-});
-
-describe("buildRunOutcomes", () => {
-	test("composes steering comparison and cost rollup from the same inputs", () => {
-		const rows = [
-			row({ runId: "a", costUsd: 3, prState: "merged" }),
-			row({ runId: "b", costUsd: 1, prState: "open" }),
-		];
-		const metrics = buildRunMetrics(rows);
-		const o = buildRunOutcomes(rows, [steer("a")], metrics);
-		expect(o.steering.steered.runs).toBe(1);
-		// Total priced cost (3 + 1) over the single merged PR.
-		expect(o.costPerMergedPr.overall.costPerMergedPrUsd).toBe(4);
 	});
 });
 

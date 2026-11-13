@@ -87,6 +87,7 @@ describe("runCiFixerPass (via runTick)", () => {
 		});
 		await repos.runs.markRunning(opener.id, NOW);
 		await repos.runs.setPrUrl(opener.id, "fake://x/y/pulls/9");
+		await repos.runs.finalize(opener.id, "succeeded", NOW);
 		return opener.id;
 	}
 

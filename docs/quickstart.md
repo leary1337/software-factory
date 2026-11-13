@@ -1,6 +1,6 @@
 # First run
 
-This guide takes a fresh macOS or Linux machine from no warren installation to a completed run with a pushed branch. One install command and one boot command do the work. Operators who deploy with Compose or Kubernetes should read the [Docker self-host guide](self-host/docker.md) and the [Kubernetes runbook](RUNBOOK-K8S.md) instead.
+For the supported Software Factory installation on macOS, follow the root [README](../README.md) and [Codex runtime guide](codex-runtime.md). The steps below describe the inherited Warren CLI. The [Docker self-host guide](self-host/docker.md) remains a substrate reference; the factory’s Codex chain has not been accepted on Docker/Linux. Kubernetes was removed from this fork.
 
 ## Requirements
 
@@ -41,7 +41,6 @@ On a machine with no model credential, the wizard asks for one:
 - **Claude subscription.** The wizard offers `claude setup-token` when the `claude` CLI is on PATH, or accepts a pasted `CLAUDE_CODE_OAUTH_TOKEN`. Subscription auth serves the claude-code harness only. Other harnesses still need their own API keys.
 - **Anthropic API key.** Paste an `ANTHROPIC_API_KEY`. This path serves every harness.
 
-Runs under subscription auth show an estimate badge in the UI instead of a billed cost. Warren still enforces `maxCostUsd` against that estimate as a runaway brake.
 
 ### GitHub credential
 

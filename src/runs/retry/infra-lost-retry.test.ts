@@ -9,18 +9,7 @@ import {
 	createInfraLostRetryHook,
 	decideInfraLostRetry,
 	isInfraLostRunFailure,
-	RUN_RETRY_DISPATCHED_KIND,
-	RUN_RETRY_OF_KIND,
 } from "./infra-lost-retry.ts";
-
-/**
- * warren-4af7: a run that terminalizes `failed`/`sandbox_run_lost` earns ONE
- * automatic re-dispatch — a NEW run id linked via `runs.retry_of`, same
- * agent/project/prompt/seed, with the original cap MINUS the first attempt's
- * spend on the override slot. A retry that lands infra-lost stays terminal;
- * non-infra-lost failures never retry; plan-run children stand down (the
- * coordinator's warren-6de9 shape owns them).
- */
 
 const NOW = new Date("2026-08-16T12:00:00.000Z");
 
@@ -58,8 +47,6 @@ interface Harness {
 		prompt?: string;
 		seedId?: string;
 		retryOf?: string;
-		costUsd?: number;
-		maxCostUsd?: number;
 		/** Extra frontmatter frozen onto the run, beside the cap. */
 		frontmatter?: Record<string, unknown>;
 		failureReason?: "sandbox_run_lost" | "crashed" | "provider_error" | "preempted";
@@ -87,7 +74,6 @@ async function setup(): Promise<Harness> {
 				prompt: over.prompt ?? "fix the thing",
 				renderedAgentJson: {
 					frontmatter: {
-						...(over.maxCostUsd !== undefined ? { maxCostUsd: over.maxCostUsd } : {}),
 						...(over.frontmatter ?? {}),
 					},
 					sections: {},
@@ -98,9 +84,6 @@ async function setup(): Promise<Harness> {
 				now: NOW,
 			});
 			await repos.runs.markRunning(run.id, NOW);
-			if (over.costUsd !== undefined) {
-				await repos.runs.attachStats(run.id, { costUsd: over.costUsd });
-			}
 			return repos.runs.finalize(run.id, "failed", NOW, over.failureReason ?? "sandbox_run_lost");
 		},
 	};
@@ -151,41 +134,6 @@ describe("infra-lost run auto-retry (warren-4af7)", () => {
 		await h.db.close();
 	});
 
-	test("infra-lost run → one retry with retryOf set and the remaining budget inherited", async () => {
-		const original = await h.run({
-			prompt: "work warren-xyz",
-			seedId: "warren-xyz",
-			maxCostUsd: 5,
-			costUsd: 2,
-		});
-
-		await hookFor(h)(original.id);
-
-		expect(h.spawnCalls).toHaveLength(1);
-		const call = h.spawnCalls[0];
-		expect(call?.retryOf).toBe(original.id);
-		expect(call?.prompt).toBe("work warren-xyz");
-		expect(call?.seedId).toBe("warren-xyz");
-		expect(call?.projectId).toBe(h.projectId);
-		// warren-9ce3: origin is the retry path, not the inherited trigger.
-		expect(call?.dispatchOrigin).toBe("retry_infra_lost");
-		// Cumulative spend: cap $5 minus the $2 the first attempt burned.
-		expect(call?.maxCostUsdOverride).toBe(3);
-
-		// The retry row carries the back-link; the original does not.
-		const retry = await h.repos.runs.findByRetryOf(original.id);
-		if (retry === null) throw new Error("expected a retry row");
-		expect(h.bridgeStarts).toEqual([retry.id]);
-
-		// Linkage events on BOTH runs so the chain is followable either way.
-		const originalEvents = await h.repos.events.listByRun(original.id);
-		const dispatched = originalEvents.find((e) => e.kind === RUN_RETRY_DISPATCHED_KIND);
-		expect(dispatched?.payloadJson).toMatchObject({ retryRunId: retry.id });
-		const retryEvents = await h.repos.events.listByRun(retry.id);
-		const backlink = retryEvents.find((e) => e.kind === RUN_RETRY_OF_KIND);
-		expect(backlink?.payloadJson).toMatchObject({ retryOf: original.id });
-	});
-
 	test("carries the provider and model the failed run resolved (warren-0d80)", async () => {
 		const original = await h.run({
 			frontmatter: { provider: "openrouter", model: "moonshotai/kimi-k3" },
@@ -195,26 +143,11 @@ describe("infra-lost run auto-retry (warren-4af7)", () => {
 		expect(h.spawnCalls[0]?.modelOverride).toBe("moonshotai/kimi-k3");
 	});
 
-	test("keeps the remaining budget as the cap, not the original's full one (warren-0d80)", async () => {
-		// The frozen frontmatter carries the FULL $5 cap. warren-4af7 says the
-		// retry gets what is left, so the inherited cap must not win here.
-		const original = await h.run({ maxCostUsd: 5, costUsd: 2 });
-		await hookFor(h)(original.id);
-		expect(h.spawnCalls[0]?.maxCostUsdOverride).toBe(3);
-	});
-
 	test("passes no provider or model for a run that declared none (warren-0d80)", async () => {
 		const original = await h.run({});
 		await hookFor(h)(original.id);
 		expect(h.spawnCalls[0]?.providerOverride).toBeUndefined();
 		expect(h.spawnCalls[0]?.modelOverride).toBeUndefined();
-	});
-
-	test("uncapped original → retry dispatches with no cap override", async () => {
-		const original = await h.run({});
-		await hookFor(h)(original.id);
-		expect(h.spawnCalls).toHaveLength(1);
-		expect(h.spawnCalls[0]?.maxCostUsdOverride).toBeUndefined();
 	});
 
 	test("retry landing infra-lost stays terminal — no third run", async () => {
@@ -290,13 +223,23 @@ describe("infra-lost run auto-retry (warren-4af7)", () => {
 		expect(decision.skip).toBe("is_retry");
 	});
 
-	test("exhausted budget → no retry", async () => {
-		const original = await h.run({ maxCostUsd: 5, costUsd: 5 });
-		await hookFor(h)(original.id);
-		expect(h.spawnCalls).toHaveLength(0);
-		const decision = await decideInfraLostRetry(h.repos, original);
-		expect(decision.skip).toBe("budget_exhausted");
-	});
+	for (const step of ["review", "rework"]) {
+		test(`keeps lost ${step} under the plan coordinator without an unlinked retry`, async () => {
+			const parent = await h.run({ seedId: "warren-a" });
+			const original = await h.run({ seedId: "warren-a" });
+			await h.repos.events.append({
+				runId: parent.id,
+				sandboxEventSeq: 1,
+				ts: NOW.toISOString(),
+				kind: "plan_run.review_step",
+				stream: "system",
+				payload: { step, stepRunId: original.id },
+			});
+			await hookFor(h)(original.id);
+			expect(h.spawnCalls).toHaveLength(0);
+			expect((await decideInfraLostRetry(h.repos, original)).skip).toBe("plan_run_child");
+		});
+	}
 
 	test("plan-run child infra-lost → run-level hook stands down; coordinator shape covers it", async () => {
 		const original = await h.run({ seedId: "warren-a" });

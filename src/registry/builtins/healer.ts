@@ -10,8 +10,7 @@
  * applies a minimal fix, runs the project's quality gate locally, and
  * commits. Warren reaps the branch and opens the PR.
  *
- * Runs on the pi runtime (the design review pinned a dedicated pi-runtime
- * agent, NOT claude-code). Guard rails (per-fingerprint max retries,
+ * Runs on Codex with the operator's ChatGPT subscription. Guard rails (per-fingerprint max retries,
  * cooldown, per-project opt-in) live on the warren side; this agent only
  * does the repair work.
  *
@@ -19,8 +18,8 @@
  * same-named library agent — refresh upserts on top.
  */
 
+import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
 import type { AgentDefinition } from "../schema.ts";
-import { MODEL_TIERS } from "./model-tiers.ts";
 import {
 	GATE_FINAL_RUN_RULE,
 	MULCH_FRAGMENT,
@@ -85,17 +84,10 @@ export const HEALER_BUILTIN: AgentDefinition = {
 	frontmatter: {
 		source: "builtin",
 		tags: ["agent"],
-		runtime: "pi",
-		// warren-3305: this harness consumes steering only at spawn
-		// (encodeInboxMessage folds pending inbox rows into the prompt);
-		// no builtin runtime reads steering mid-run, so a steer against
-		// a running run must fail 409 rather than record a dead
-		// steer.sent. Flip to "mid-run" only when the runtime gains a
-		// proven live steering channel.
+		runtime: "codex",
+		// Codex consumes pending steering when the process starts.
 		steering: "spawn-only",
-		// Opus tier (model-tiers.ts): diagnosing a production fault from a
-		// terse alert is open-ended root-cause work, not a known-failure
-		// patch — worth the stronger model.
-		...MODEL_TIERS.opus,
+		provider: "openai",
+		model: CODEX_DEFAULT_MODEL,
 	},
 };

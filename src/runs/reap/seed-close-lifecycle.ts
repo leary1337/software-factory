@@ -94,6 +94,14 @@ async function closeSeedForReap(
 ): Promise<void> {
 	const run = await input.repos.runs.get(runId);
 	if (run === null || run.seedId === null) return;
+	// Plan delivery is complete only after merge. The coordinator owns closure,
+	// including reviewer/rework runs that are linked through review-step events.
+	if ((await input.repos.planRuns.findChildByRunId(runId)) !== null) return;
+	if (
+		(await input.repos.events.payloadKeyHistory("plan_run.review_step", "stepRunId", runId)).count >
+		0
+	)
+		return;
 	const project = projectId === "" ? null : await input.repos.projects.get(projectId);
 	if (project === null || !project.hasSeeds) return;
 

@@ -1,26 +1,9 @@
-/**
- * Periodic operational-stats log line (warren-b2dd / pl-f700 step 6).
- *
- * Every tick this worker emits one structured `ops.stats` info line built
- * entirely from data already in SQLite (plus the in-process bridge
- * registry size): runs grouped by lifecycle state, the number of active
- * stream bridges, cost + token aggregates, and the wall-clock cost of
- * collecting the snapshot. It is pure observability — read-only, never
- * mutates state, and a failed collection is logged + swallowed so the
- * loop survives a transient DB hiccup.
- *
- * Shape mirrors `startWorkspaceGcWorker` (src/runs/reap/gc.ts): env-driven
- * config with conservative defaults, single-flight ticks (a collection in
- * flight when the next interval fires is dropped, not stacked), and a
- * `stop()` that awaits the in-flight tick so teardown doesn't race.
- */
-
 import { ValidationError } from "../core/errors.ts";
 import type { DrizzleAdapter } from "../db/repos/drizzle-adapter.ts";
 import {
-	aggregateRunCost,
+	aggregateRunTokens,
 	countRunsByState,
-	type RunCostAggregate,
+	type RunTokenAggregate,
 } from "../db/repos/runs-stats.ts";
 import type { RunState } from "../db/schema.ts";
 
@@ -74,13 +57,13 @@ function isTruthy(raw: string | undefined): boolean {
 
 /**
  * Read-only stats provider the worker pulls from each tick. Backed in
- * production by the standalone `countRunsByState` / `aggregateRunCost`
+ * production by the standalone `countRunsByState` / `aggregateRunTokens`
  * aggregate queries (src/db/repos/runs-stats.ts) bound to a DrizzleAdapter
  * — kept off `RunsRepo` so `runs.ts` stays under its file-size budget.
  */
 export interface OpsStatsProvider {
 	countByState(): Promise<Record<RunState, number>>;
-	aggregateCost(): Promise<RunCostAggregate>;
+	aggregateTokens(): Promise<RunTokenAggregate>;
 }
 
 export interface OpsStatsBridgesLike {
@@ -94,8 +77,8 @@ export interface OpsStatsLogger {
 
 export interface OpsStatsSnapshot {
 	readonly runsByState: Record<RunState, number>;
+	readonly tokens: RunTokenAggregate;
 	readonly activeBridges: number;
-	readonly cost: RunCostAggregate;
 	/** Wall-clock ms spent collecting this snapshot. */
 	readonly collectMs: number;
 }
@@ -117,21 +100,20 @@ export interface OpsStatsTickInput {
 export async function runOpsStatsTick(input: OpsStatsTickInput): Promise<OpsStatsSnapshot> {
 	const clock = input.clock ?? (() => performance.now());
 	const start = clock();
-	const [runsByState, cost] = await Promise.all([
+	const [runsByState, tokens] = await Promise.all([
 		input.stats.countByState(),
-		input.stats.aggregateCost(),
+		input.stats.aggregateTokens(),
 	]);
 	const activeBridges = input.bridges.size();
 	const collectMs = Math.round(clock() - start);
-	const snapshot: OpsStatsSnapshot = { runsByState, activeBridges, cost, collectMs };
+	const snapshot: OpsStatsSnapshot = { runsByState, tokens, activeBridges, collectMs };
 
 	input.logger?.info(
 		{
 			runsByState,
 			activeBridges,
-			costUsd: cost.costUsd,
-			tokensInput: cost.tokensInput,
-			tokensOutput: cost.tokensOutput,
+			tokensInput: tokens.tokensInput,
+			tokensOutput: tokens.tokensOutput,
 			collectMs,
 		},
 		"ops.stats",
@@ -237,7 +219,7 @@ export function bootOpsStatsWorker(input: {
 	const config = loadOpsStatsConfigFromEnv(input.env);
 	const stats: OpsStatsProvider = {
 		countByState: () => countRunsByState(input.adapter),
-		aggregateCost: () => aggregateRunCost(input.adapter),
+		aggregateTokens: () => aggregateRunTokens(input.adapter),
 	};
 	const worker = startOpsStatsWorker({
 		stats,

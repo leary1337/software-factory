@@ -1,4 +1,11 @@
-# Direction C operator console — design spec export
+# Warren UI references
+
+The current theme, typography and compact Overview are documented in
+[Balun reference](balun-reference.md). `src/ui/src/tokens.css` is the runtime
+source of truth. The Direction C exports below remain historical structural
+references; their palette, type sizes and navigation have been superseded.
+
+## Direction C operator console — original export
 
 This tree is the in-repo export of the Paper canvas
 "Warren · Direction C — Operator Console" (43 artboards), the approved
@@ -69,8 +76,8 @@ Mobile exports: `screens/mobile/operations.jsx`, `runs.jsx`,
 
 ## Typography
 
-Inter (UI text) and JetBrains Mono (identifiers, counts, statuses,
-labels). Base UI size 12px/16px; page titles 20px/24px semibold with
--0.025em tracking; section labels 10px semibold with 0.08em tracking,
-uppercase; mono metadata 10-11px. Load both families with real
-fallback stacks.
+The current UI uses **Roboto Mono** for body text, metadata and controls,
+and **Neue Machina Bold** for headings, matching the Balun reference files.
+Body text uses `text-sm` (14px/20px); metadata never falls below `text-xs`
+(12px/16px). Page titles use 20–24px; section titles use 16–18px. Both families
+include Cyrillic and are served locally. See [font sources](balun-reference.md).

@@ -8,7 +8,7 @@
  * each new plan the agent creates (warren-a32a).
  *
  * Intended to run on a nightly cron trigger against any project warren
- * manages. The plan-run children (executed by claude-code or similar)
+ * manages. The plan-run children (executed by the Codex implementer)
  * do the actual fixing; nightwatch only plans.
  *
  * warren-cb46: the seeds filing workflow rides `gatedPrompts.tracker` —
@@ -19,8 +19,8 @@
  * same-named library agent — refresh upserts on top.
  */
 
+import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
 import type { AgentDefinition } from "../schema.ts";
-import { MODEL_TIERS } from "./model-tiers.ts";
 import { MULCH_FRAGMENT } from "./prompt-fragments.ts";
 
 const SYSTEM_BODY = `You are a code patrol agent. Your job is to scan a repository for quality issues and produce a plan that fixes them. You do NOT write fixes yourself — you produce the plan, and a separate plan-run executes it.
@@ -61,7 +61,7 @@ const TRACKER_FRAGMENT = `## Issue queue (seeds)
 2. Run the project's quality gates (its own test and lint commands) to see current state.
 3. Collect findings. Each finding becomes a plan step. Be specific: name the file, line range, what's wrong, and what the fix looks like. A step must be small enough to land as a single PR.
 4. Order steps so independent fixes come first, dependent ones later. Use \`blocks\` to express real dependencies between steps.
-5. If — and only if — the plan contains at least one consumer-observable change (behavior, API, security, or performance; NOT comment/doc-drift corrections, test-only changes, or internal renames), add a final step: "Release: run /release per .claude/commands/release.md", blocked by all preceding steps. If every step is internal hygiene, do NOT add a release step — the work batches into the next meaningful release (docs/CONSTITUTION.md Article III).
+5. If — and only if — the plan contains at least one consumer-observable change (behavior, API, security, or performance; NOT comment/doc-drift corrections, test-only changes, or internal renames), add a final step: "Release: follow the repository release skill or documented release procedure", blocked by all preceding steps. If every step is internal hygiene, do NOT add a release step — the work batches into the next meaningful release (docs/CONSTITUTION.md Article III).
 6. Create a parent seed: \`sd create --title "nightwatch patrol: <date>" --type task --priority 3 --labels patrol,nightwatch\`
 7. Use \`sd plan prompt <seed-id>\` with the \`refactor\` template (quality fixes are internal restructuring, not features).
 8. Fill in the plan. For each step:
@@ -90,19 +90,12 @@ export const NIGHTWATCH_BUILTIN: AgentDefinition = {
 	frontmatter: {
 		source: "builtin",
 		tags: ["agent"],
-		runtime: "pi",
-		// warren-3305: this harness consumes steering only at spawn
-		// (encodeInboxMessage folds pending inbox rows into the prompt);
-		// no builtin runtime reads steering mid-run, so a steer against
-		// a running run must fail 409 rather than record a dead
-		// steer.sent. Flip to "mid-run" only when the runtime gains a
-		// proven live steering channel.
+		runtime: "codex",
+		// Codex consumes pending steering when the process starts.
 		steering: "spawn-only",
 		auto_plan_run: true,
-		auto_plan_run_agent: "pi",
-		// Opus tier (model-tiers.ts): subtle defect/security scanning
-		// benefits from the strongest reasoning; the cheaper plan-run
-		// children it spawns (auto_plan_run_agent "pi") execute on Sonnet.
-		...MODEL_TIERS.opus,
+		auto_plan_run_agent: "implementer",
+		provider: "openai",
+		model: CODEX_DEFAULT_MODEL,
 	},
 };

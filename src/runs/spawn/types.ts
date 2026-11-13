@@ -1,3 +1,4 @@
+import type { ReviewFinding } from "../../core/review-findings.ts";
 /**
  * Shared types for the spawn flow. Kept in their own module so the
  * source files (`dispatch.ts`, `seed-extensions.ts`,
@@ -59,6 +60,7 @@ export const DISPATCH_ORIGINS = [
 export type DispatchOrigin = (typeof DISPATCH_ORIGINS)[number];
 
 export interface SpawnRunInput {
+	readonly reviewFindings?: readonly ReviewFinding[];
 	readonly repos: Repos;
 	/**
 	 * Runtime-provider seam (warren-c42c: burrow-client eviction, bucket 2).
@@ -71,6 +73,7 @@ export interface SpawnRunInput {
 	 */
 	readonly runtimeProvider: RuntimeProvider;
 	readonly agentName: string;
+	readonly reviewBaseBranch?: string;
 	readonly projectId: string;
 	readonly prompt: string;
 	readonly trigger?: string;
@@ -102,17 +105,6 @@ export interface SpawnRunInput {
 	readonly providerOverride?: string;
 	/** Optional per-run override of the agent's `frontmatter.model`. */
 	readonly modelOverride?: string;
-	/**
-	 * Per-trigger / per-dispatch spend cap (warren-a63d). Set by a
-	 * `.warren/triggers.yaml` cron entry or a `POST /runs` `maxCostUsd`
-	 * body field. When set, the spawn composer folds it onto
-	 * `frontmatter.maxCostUsd` (overriding the agent's own value) before
-	 * freezing `runs.rendered_agent_json`, so the bridge enforces a single
-	 * override > agent precedence cap. Omitted for runs with no explicit
-	 * cap — the agent's own `maxCostUsd` (or, failing that, the project's
-	 * `.warren/config.yaml` `maxCostUsd` default) still applies.
-	 */
-	readonly maxCostUsdOverride?: number;
 	/**
 	 * Mulch experiment arm (`src/runtime/adapters/mulch-arm.ts`), folded onto
 	 * `frontmatter.mulch`. Omitted = default behavior, unchanged.
@@ -283,9 +275,10 @@ export interface SpawnRunInput {
 	 * finalized `failed`/`never_started` on a pre-dispatch failure). The
 	 * scheduler's bounded-retry GC uses this to drop the transient
 	 * never_started rows a persistently-unreachable runtime would flood the
-	 * runs list with. Best-effort: the callback must not throw.
+	 * runs list with. Awaited: a rejection prevents runtime creation and
+	 * finalizes the row as never_started. Review steps persist their link here.
 	 */
-	readonly onRunRowCreated?: (runId: string) => void;
+	readonly onRunRowCreated?: (runId: string) => void | Promise<void>;
 	/**
 	 * Migration journal preflight seam (warren-1f03, warren-4371). For
 	 * ref-dispatches onto an existing branch, spawnRun checks the drizzle

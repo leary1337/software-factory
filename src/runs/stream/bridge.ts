@@ -1,39 +1,25 @@
-/**
- * `bridgeRunStream` — the main event-bridge pump (docs/design/agent-composition.md step 5;
- * event durability per docs/design/runtime-and-supervisor.md). Split out of the legacy
- * `src/runs/stream.ts` (warren-041e / pl-9088 step 5): terminal-detection lives in
- * `./terminal-detect.ts`, the run-state fallback in `./run-state-poller.ts`, cost-stats
- * persistence in `./stats.ts`, and active-stream recovery in `./recover.ts`.
- *
- * The bridge is the only writer to `events` (`bridgeRunStream` → `EventsRepo.append`); the
- * broker is published right after each row commits so live tailers never wait on a poll.
- * `./index.ts` carries the full resume / claim / terminal-detection / recovery semantics.
- */
-
 import type { EventStream, RunTerminalState } from "../../db/schema.ts";
 import { EVENT_STREAMS } from "../../db/schema.ts";
 import type { RunHandle } from "../../runtime/contract.ts";
 import { RuntimeRunNotFoundError } from "../../runtime/errors.ts";
-import { resolveCostCapUsd } from "../cost-cap.ts";
 import { lifecycleBus } from "../lifecycle-bus.ts";
 import { accumulatePiUsage, extractClaudeUsage } from "../usage-aggregate.ts";
 import { appendOrDrop, newAppendGuard } from "./append-guard.ts";
-import {
-	type CancelBurrowRunFn,
-	type EnforceBudgetCapInput,
-	enforceBudgetCap,
-	persistObservedUsage,
-} from "./budget.ts";
 import { isPerDeltaNoiseEvent } from "./delta-noise.ts";
 import { providerStreamSource } from "./provider-source.ts";
 import { seedResumeUsage } from "./resume-usage.ts";
 import { defaultRunStateProbe, runStatePoller } from "./run-state-poller.ts";
-import { persistInStreamUsage, persistPiStatsDelta, snapshotStats } from "./stats.ts";
+import {
+	persistInStreamUsage,
+	persistObservedUsage,
+	persistPiStatsDelta,
+	snapshotStats,
+} from "./stats.ts";
 import { detectRuntimeTerminal, isPiAgentEnd } from "./terminal-detect.ts";
 import { recordToolCallRollup, resolveBridgeToolRuntime } from "./tool-call-rollup.ts";
 import { bridgeTurnMonitor, TurnMonitor, turnMonitorOptionsFromEnv } from "./turn-monitor.ts";
+import type { CancelBurrowRunFn } from "./types.ts";
 import {
-	type BridgeLogger,
 	type BridgeRunStreamInput,
 	type BridgeRunStreamResult,
 	type BurrowTerminalSnapshot,
@@ -62,7 +48,7 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 		else input.signal.addEventListener("abort", onAbort, { once: true });
 	}
 
-	const resumeSeq = (await repos.events.maxSeqForRun(runId)) ?? 0;
+	const resumeSeq = (await repos.events.maxRuntimeSeqForRun(runId)) ?? 0;
 
 	// Runtime-provider seam (warren-1f56, warren-1fce). The bridge's backend
 	// touchpoints — the event stream, the run-state poller, and the budget-cap
@@ -87,12 +73,6 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 	const source: (signal: AbortSignal) => AsyncIterable<StreamEventView> =
 		input.source ??
 		providerStreamSource(provider, handle, { sinceSeq: resumeSeq }, input.streamTeardownMs);
-
-	// warren-a63d: resolve the run's effective spend cap once. Explicit
-	// input wins (tests); otherwise read the cap frozen onto
-	// `runs.rendered_agent_json` (per-trigger override already folded over
-	// the per-agent value at dispatch). A null cap disables enforcement.
-	const costCapUsd = input.costCapUsd ?? (await resolveBridgeCostCap(repos, runId, input.logger));
 	// warren-7746: resolve the run's runtime once so each persisted tool event
 	// extracts through the correct runtime's shapes into the `tool_calls` rollup.
 	const toolRuntime = await resolveBridgeToolRuntime(repos, runId, input.logger);
@@ -130,11 +110,10 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 			: null;
 
 	// warren-1f85 / warren-74a7 (#1242): in-turn monitor. The bridge drops every
-	// per-delta envelope before persisting; the TurnMonitor inspects them first
-	// — stall, whitespace degeneration, in-turn spend (see ./turn-monitor.ts).
+	// per-delta envelope before persisting; the TurnMonitor checks for stalls
+	// and whitespace degeneration first.
 	const turnWatch = bridgeTurnMonitor({
-		monitor:
-			input.turnMonitor ?? new TurnMonitor(turnMonitorOptionsFromEnv(process.env, costCapUsd)),
+		monitor: input.turnMonitor ?? new TurnMonitor(turnMonitorOptionsFromEnv(process.env)),
 		runId,
 		sandboxRunId,
 		runtime: toolRuntime,
@@ -155,37 +134,25 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 	let claimed = false;
 	let terminalDetected: { outcome: RunTerminalState } | undefined;
 	let sandboxRunMissing = false;
-	// pi cost tracking (warren-a7dc, warren-17a4). Two paths, both best-effort
-	// (failures leave the columns null): (1) in-stream extraction (default) —
+
+	// Token tracking (failures leave the columns null): (1) in-stream extraction —
 	// accumulate `turn_end` usage as events flow, persisted on terminal;
 	// (2) out-of-band PiStatsClient (override) — fetched at baseline + terminal,
 	// delta persisted, for wire formats that don't carry usage.
 	let statsBaseline: Promise<SessionStats | null> | undefined;
 	let statsPersisted = false;
-	// claude-code cost tracking (warren-87f9). Single-shot: one `result`
-	// envelope at run end carries `total_cost_usd` + `usage.*_tokens`.
+
+	// Claude-code emits one result envelope with `usage.*_tokens` at run end.
 	// Shape-sniffed in `extractClaudeUsage`; persisted on terminal only when
 	// no pi usage was observed (pi path wins for parity). warren-1247: a
 	// resumed bridge seeds both from the persisted events up to the cursor.
-	const { piUsage, claudeUsage } = await seedResumeUsage(repos, runId, resumeSeq, input.logger);
-	const appendGuard = newAppendGuard();
-	const capInput: EnforceBudgetCapInput = {
-		runId,
-		sandboxRunId,
-		costCapUsd,
-		piUsage,
-		claudeUsage,
+	const { piUsage, claudeUsage } = await seedResumeUsage(
 		repos,
-		broker,
-		cancelBurrowRun,
-		...(input.logger !== undefined ? { logger: input.logger } : {}),
-	};
-	// warren-1247: a seeded total already over the cap (crash after the event
-	// persisted but before the cap fired) trips once, before any new event.
-	if (resumeSeq > 0 && (await enforceBudgetCap(capInput))) {
-		statsPersisted = true;
-		terminalDetected = { outcome: "cancelled" };
-	}
+		runId,
+		(await repos.events.maxSeqForRun(runId)) ?? 0,
+		input.logger,
+	);
+	const appendGuard = newAppendGuard();
 
 	try {
 		for await (const event of terminalDetected === undefined ? source(ctrl.signal) : []) {
@@ -225,7 +192,15 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 					terminalDetected = { outcome: resumedOutcome };
 					// warren-1247: re-persist the seeded totals (an idempotent overwrite)
 					// in case the prior pass died before its terminal checkpoint.
-					if (input.piStats === undefined) await persistObservedUsage(capInput);
+					if (input.piStats === undefined)
+						await persistObservedUsage({
+							runId,
+							sandboxRunId,
+							piUsage,
+							claudeUsage,
+							repos,
+							logger: input.logger,
+						});
 					input.logger?.info?.(
 						{ runId, sandboxRunId, outcome: resumedOutcome, seq: event.seq },
 						"bridge observed runtime-terminal on an already-persisted event; reap will finalize",
@@ -253,6 +228,7 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 				{
 					runId,
 					sandboxEventSeq: event.seq,
+					runtimeEventSeq: event.seq,
 					ts: toIsoString(event.ts),
 					kind: event.kind,
 					stream: normalizeStream(event.stream),
@@ -289,15 +265,6 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 
 			accumulatePiUsage(piUsage, event);
 			extractClaudeUsage(claudeUsage, event);
-
-			// warren-a63d: enforce the spend cap as cumulative cost crosses it. On
-			// exceed the helper persists usage + emits `budget.exceeded` + cancels
-			// the burrow run; we break `cancelled` so reap finalizes the warren row.
-			if (await enforceBudgetCap(capInput)) {
-				statsPersisted = true;
-				terminalDetected = { outcome: "cancelled" };
-				break;
-			}
 
 			if (!statsPersisted && isPiAgentEnd(event)) {
 				statsPersisted = true;
@@ -345,7 +312,14 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 					} else {
 						// Prefer pi if observed (mixed-shape stream); claude-code
 						// usage is the fallback when no pi `turn_end` ever fired.
-						await persistObservedUsage(capInput);
+						await persistObservedUsage({
+							runId,
+							sandboxRunId,
+							piUsage,
+							claudeUsage,
+							repos,
+							logger: input.logger,
+						});
 					}
 				}
 				break;
@@ -364,8 +338,7 @@ export async function bridgeRunStream(input: BridgeRunStreamInput): Promise<Brid
 				"run stream bridge: backend reports run not found (ghost run)",
 			);
 		} else if (turnWatch.tripped.value) {
-			// #1242: the turn monitor tripped (stall / degeneration / in-turn
-			// spend) and aborted the source — the trip IS the terminal, not an
+			// #1242: a stall or degeneration trip is the terminal, not an
 			// error, so don't flag `errored` (that would trip the reconnect loop).
 			input.logger?.info?.(
 				{ runId, sandboxRunId, err: err instanceof Error ? err.message : String(err) },
@@ -462,26 +435,4 @@ function normalizeStream(value: unknown): EventStream | null {
 
 function toIsoString(ts: Date | string): string {
 	return ts instanceof Date ? ts.toISOString() : ts;
-}
-
-/**
- * Resolve the run's spend cap (warren-a63d) from its frozen
- * `runs.rendered_agent_json`. Best-effort: a missing row or read error
- * resolves to `null` (no cap) so a DB hiccup never blocks streaming.
- */
-async function resolveBridgeCostCap(
-	repos: BridgeRunStreamInput["repos"],
-	runId: string,
-	logger: BridgeLogger | undefined,
-): Promise<number | null> {
-	try {
-		const run = await repos.runs.require(runId);
-		return resolveCostCapUsd(run.renderedAgentJson);
-	} catch (err) {
-		logger?.warn?.(
-			{ runId, err: err instanceof Error ? err.message : String(err) },
-			"failed to resolve spend cap; proceeding without enforcement",
-		);
-		return null;
-	}
 }

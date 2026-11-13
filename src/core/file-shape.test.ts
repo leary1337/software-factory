@@ -3,8 +3,8 @@ import { FILE_SHAPES, fileShapeFor } from "./file-shape.ts";
 import { KNOWN_RUNTIME_IDS } from "./wire.ts";
 
 describe("fileShape registry", () => {
-	test("covers claude-code and pi", () => {
-		expect(Object.keys(FILE_SHAPES).sort()).toEqual(["claude-code", "pi"]);
+	test("covers every shipped runtime", () => {
+		expect(Object.keys(FILE_SHAPES).sort()).toEqual(["claude-code", "codex", "pi"]);
 		expect(fileShapeFor("claude-code")?.runtime).toBe("claude-code");
 		expect(fileShapeFor("pi")?.runtime).toBe("pi");
 		for (const id of KNOWN_RUNTIME_IDS) {

@@ -47,7 +47,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		retryOf: null,
 		cloneKind: null,
 		mode: "batch",
-		costBasis: "api",
 		renderedAgentJson: {},
 		state: "succeeded",
 		failureReason: null,
@@ -76,7 +75,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		model: null,
 		salvageRef: null,
 		salvagePath: null,
-		costUsd: 0.01,
 		tokensInput: 10,
 		tokensOutput: 20,
 		tokensCacheRead: 0,
@@ -273,13 +271,6 @@ describe("runRun", () => {
 				modelOverride: "opus",
 			},
 		]);
-	});
-
-	test("forwards --max-cost-usd as the per-run spend cap (warren-a63d)", async () => {
-		const { context } = captureContext();
-		const createCalls: CreateRunInput[] = [];
-		await runRun(context, { client: mockClient({ createCalls }) }, { ...ARGS, maxCostUsd: 3.5 });
-		expect(createCalls[0]?.maxCostUsd).toBe(3.5);
 	});
 
 	test("forwards --seed as seedId on POST /runs (warren-ca2f)", async () => {

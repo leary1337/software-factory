@@ -32,8 +32,6 @@
 
 import type {
 	ArmAutoMergeOptions,
-	CheckRun,
-	CheckSummary,
 	Forge,
 	ForgeCapabilities,
 	ForgeError,
@@ -48,13 +46,17 @@ import type {
 	RepoRef,
 } from "../contract.ts";
 import { armGitHubAutoMerge } from "./auto-merge.ts";
+import { readCheckSummary } from "./check-summary.ts";
 import { GitHubDeploys } from "./deploys.ts";
 import { toForgeError } from "./errors.ts";
 import { GITHUB_API_BASE } from "./headers.ts";
 import { requestGitHub } from "./http.ts";
+import { readGitHubMergeChecks } from "./merge-checks.ts";
+import { readGitHubMergeProtection } from "./merge-protection.ts";
 import { type PrWriteMethod, writePullRequest } from "./pr-text.ts";
 import { readAutoMergeState, readJson, readText } from "./readers.ts";
 import { GITHUB_FORGE_KIND, parseGitHubRepoRef } from "./repo-ref.ts";
+import { writeReviewComment } from "./review-comment.ts";
 import {
 	type GitHubCredentialSecret,
 	type GitHubForgeTokenSource,
@@ -85,15 +87,6 @@ export interface GitHubForgeOptions {
 	readonly checkRuns?: boolean;
 }
 
-/** Failure-ish conclusions the CI rollup counts as `failing`. */
-const FAILURE_CONCLUSIONS: ReadonlySet<string> = new Set([
-	"failure",
-	"timed_out",
-	"action_required",
-	"cancelled",
-	"startup_failure",
-]);
-
 function ok<T>(value: T): ForgeResult<T> {
 	return { ok: true, value };
 }
@@ -103,6 +96,8 @@ function err<T>(error: ForgeError): ForgeResult<T> {
 }
 
 interface GitHubPrJson {
+	draft?: unknown;
+	merge_commit_sha?: unknown;
 	readonly number?: unknown;
 	readonly html_url?: unknown;
 	readonly state?: unknown;
@@ -260,6 +255,8 @@ export class GitHubForge implements Forge {
 		return ok({
 			lifecycle,
 			mergedAt,
+			...(typeof body.draft === "boolean" ? { draft: body.draft } : {}),
+			...(typeof body.merge_commit_sha === "string" ? { mergedCommit: body.merge_commit_sha } : {}),
 			headCommit: typeof head?.sha === "string" ? head.sha : "",
 			baseBranch: typeof base?.ref === "string" ? base.ref : "",
 			// pl-92a3: the REST `auto_merge` object maps onto the seam state.
@@ -273,7 +270,16 @@ export class GitHubForge implements Forge {
 		return armGitHubAutoMerge({ tokens: this.tokens, fetch: this.fetch, slug, pr, ...options });
 	}
 
-	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string) {
+	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string, key?: string) {
+		if (key)
+			return writeReviewComment({
+				mint: () => this.mint(ref),
+				url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/issues/${pr.number}/comments`,
+				body,
+				key,
+				userAgent: USER_AGENT,
+				fetch: this.fetch,
+			});
 		return this.writePr(ref, `issues/${pr.number}/comments`, "POST", { body });
 	}
 
@@ -281,45 +287,72 @@ export class GitHubForge implements Forge {
 		return this.writePr(ref, `pulls/${pr.number}`, "PATCH", { body });
 	}
 
-	mergePullRequest(ref: RepoRef, pr: PullRequestRef) {
-		return this.writePr(ref, `pulls/${pr.number}/merge`, "PUT", { merge_method: "squash" });
+	mergePullRequest(
+		ref: RepoRef,
+		pr: PullRequestRef,
+		options: Parameters<Forge["mergePullRequest"]>[2],
+	) {
+		return this.writePr(
+			ref,
+			`pulls/${pr.number}/merge`,
+			"PUT",
+			{
+				merge_method: options.method,
+				sha: options.expectedHead,
+			},
+			true,
+		);
 	}
 
-	private writePr(ref: RepoRef, path: string, method: PrWriteMethod, body: object) {
+	readMergeProtection(ref: RepoRef, branch: string) {
+		return readGitHubMergeProtection({
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/branches/${encodeURIComponent(branch)}`,
+			fetch: this.fetch,
+		});
+	}
+
+	readMergeChecks(ref: RepoRef, commit: string) {
+		return readGitHubMergeChecks({
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/commits/${encodeURIComponent(commit)}`,
+			commit,
+			fetch: this.fetch,
+		});
+	}
+
+	updatePullRequestBranch(ref: RepoRef, pr: PullRequestRef, expectedHead: string) {
+		return this.writePr(ref, `pulls/${pr.number}/update-branch`, "PUT", {
+			expected_head_sha: expectedHead,
+		});
+	}
+
+	private writePr(
+		ref: RepoRef,
+		path: string,
+		method: PrWriteMethod,
+		body: object,
+		expectMerged = false,
+	) {
 		return writePullRequest({
 			mint: () => this.mint(ref),
 			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/${path}`,
 			method,
 			userAgent: USER_AGENT,
 			context: `${method} /${path}`,
+			expectMerged,
 			body,
 			fetch: this.fetch,
 		});
 	}
 
-	async listChecks(ref: RepoRef, commit: string): Promise<ForgeResult<CheckSummary>> {
-		if (!this.capabilities.checkRuns) {
-			return err({
-				kind: "unsupported",
-				detail:
-					"capabilities.checkRuns is false (fine-grained PAT cannot reach the Checks API — §5/§6.7)",
-			});
-		}
-		const minted = await this.mint(ref);
-		if (!minted.ok) return err(minted.error);
-		const result = await requestGitHub({
-			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/commits/${encodeURIComponent(commit)}/check-runs?per_page=100`,
-			method: "GET",
-			token: minted.value.secret,
-			userAgent: USER_AGENT,
-			context: "GET /check-runs",
+	listChecks(ref: RepoRef, commit: string) {
+		return readCheckSummary({
+			enabled: this.capabilities.checkRuns,
+			mint: () => this.mint(ref),
+			url: `${GITHUB_API_BASE}/repos/${this.slug(ref)}/commits/${encodeURIComponent(commit)}`,
 			fetch: this.fetch,
 		});
-		if (!result.ok) return err(toForgeError(result.error));
-		const body = (await readJson(result.response)) as { check_runs?: unknown } | null;
-		const raw = Array.isArray(body?.check_runs) ? body.check_runs : [];
-		const runs = raw.map(parseCheckRun).filter((r): r is CheckRun => r !== null);
-		return ok({ conclusion: rollUp(runs), runs });
 	}
 
 	/** Best-effort by contract: any failure degrades to ok with `null`. */
@@ -456,44 +489,4 @@ export class GitHubForge implements Forge {
 		}
 		return ok(hits);
 	}
-}
-
-function parseCheckRun(raw: unknown): CheckRun | null {
-	if (typeof raw !== "object" || raw === null) return null;
-	const obj = raw as Record<string, unknown>;
-	if (typeof obj.id !== "number") return null;
-	const detailsUrl = typeof obj.details_url === "string" ? obj.details_url : null;
-	return {
-		name: typeof obj.name === "string" ? obj.name : "",
-		status: obj.status === "queued" || obj.status === "completed" ? obj.status : "in_progress",
-		conclusion: typeof obj.conclusion === "string" ? obj.conclusion : null,
-		jobId: String(extractJobId(detailsUrl, obj.id)),
-		detailsUrl,
-	};
-}
-
-/**
- * GitHub Actions check-runs link to `.../actions/runs/<run>/job/<job_id>`;
- * the trailing job id is what the logs endpoint needs. Falls back to the
- * check-run id for third-party CI (same rule as `src/ci-fixer/check-runs.ts`).
- */
-function extractJobId(detailsUrl: string | null, fallbackId: number): number {
-	if (detailsUrl !== null) {
-		const match = /\/job\/(\d+)/.exec(detailsUrl);
-		if (match?.[1] !== undefined) {
-			const parsed = Number.parseInt(match[1], 10);
-			if (Number.isFinite(parsed)) return parsed;
-		}
-	}
-	return fallbackId;
-}
-
-/** Roll a commit's check runs up to the domain's decision input. */
-function rollUp(runs: CheckRun[]): CheckSummary["conclusion"] {
-	if (runs.length === 0) return "unknown";
-	if (runs.some((r) => r.status !== "completed")) return "pending";
-	if (runs.some((r) => r.conclusion !== null && FAILURE_CONCLUSIONS.has(r.conclusion))) {
-		return "failing";
-	}
-	return "passing";
 }

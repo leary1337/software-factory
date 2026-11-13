@@ -21,7 +21,7 @@ import { Field, hintClass, labelClass, MobileCard, Section } from "./walk-sectio
 
 const controlClass = cn(
 	responsiveFormControl,
-	"w-full rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg) px-2.5 text-(--color-text) leading-[17px] placeholder:text-(--color-text-3) focus-visible:outline-none focus-visible:ring-(--color-primary) focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:text-[11px] sm:leading-[14px]",
+	"w-full rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg) px-2.5 text-(--color-text) leading-[17px] placeholder:text-(--color-text-3) focus-visible:outline-none focus-visible:ring-(--color-primary) focus-visible:ring-2 disabled:cursor-not-allowed disabled:bg-(--color-surface-hover) disabled:text-(--color-text-2) disabled:opacity-100 sm:h-8 sm:text-xs sm:leading-4",
 );
 
 function ModeButton({
@@ -37,7 +37,7 @@ function ModeButton({
 		<button
 			type="button"
 			onClick={onClick}
-			className={`h-7 rounded-(--radius-sm) border px-[10px] font-medium text-[10px] leading-[14px] ${
+			className={`h-7 rounded-(--radius-sm) border px-[10px] font-medium text-xs leading-4 ${
 				active
 					? "border-(--color-border-strong) bg-(--color-surface-raised) text-(--color-text)"
 					: "border-(--color-border) bg-(--color-surface) text-(--color-text-3)"
@@ -66,7 +66,6 @@ export interface WalkFormProps {
 	readonly planSelectorUnavailable: boolean;
 	readonly openChildCount: number | null;
 	readonly issueStatuses: readonly { id: string; status: string | null }[];
-	readonly costCapError: string | null;
 	readonly submitError: string | null;
 	readonly pending: boolean;
 	readonly canSubmit: boolean;
@@ -80,7 +79,6 @@ export interface WalkFormProps {
 	readonly onProvider: (value: string) => void;
 	readonly onModel: (value: string) => void;
 	readonly onPrompt: (value: string) => void;
-	readonly onCostCap: (value: string) => void;
 	readonly onCancel: () => void;
 	readonly onSubmit: () => void;
 }
@@ -97,7 +95,6 @@ export function WalkForm(props: WalkFormProps) {
 			<TargetSection {...props} />
 			<RuntimeSection {...props} />
 			<ChildrenSection {...props} />
-			<GuardrailsSection {...props} />
 			<IntentSection {...props} />
 			<Footer {...props} />
 		</form>
@@ -339,7 +336,7 @@ function ChildrenTable({ p }: { p: SectionProps }) {
 	if (d.sourceMode === "issues") {
 		if (p.issueStatuses.length === 0) {
 			return (
-				<div className="px-[14px] py-[9px] font-mono text-(--color-text-3) text-[10px] leading-3">
+				<div className="px-[14px] py-[9px] font-mono text-(--color-text-3) text-xs leading-4">
 					ENTER ORDERED ISSUE IDS ABOVE — ONE PER LINE
 				</div>
 			);
@@ -348,16 +345,16 @@ function ChildrenTable({ p }: { p: SectionProps }) {
 			<>
 				{p.issueStatuses.map((issue, i) => (
 					<div key={issue.id} className={childRowClass}>
-						<span className="w-5 shrink-0 font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+						<span className="w-5 shrink-0 font-mono text-(--color-text-3) text-xs leading-4">
 							{String(i + 1).padStart(2, "0")}
 						</span>
-						<span className="w-24 shrink-0 font-mono text-(--color-primary) text-[12px] leading-4">
+						<span className="w-24 shrink-0 font-mono text-(--color-primary) text-xs leading-4">
 							{issue.id}
 						</span>
-						<span className="min-w-0 flex-1 truncate text-(--color-text-2) text-[13px] leading-4">
+						<span className="min-w-0 flex-1 truncate text-(--color-text-2) text-sm leading-4">
 							Walk order {i + 1} of {p.issueStatuses.length}
 						</span>
-						<span className="shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3 tracking-[0.06em]">
+						<span className="shrink-0 font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.06em]">
 							{issue.status !== null ? issue.status.toUpperCase() : "LISTED"}
 						</span>
 					</div>
@@ -366,7 +363,7 @@ function ChildrenTable({ p }: { p: SectionProps }) {
 		);
 	}
 	return (
-		<div className="px-[14px] py-[9px] font-mono text-(--color-text-3) text-[10px] leading-3">
+		<div className="px-[14px] py-[9px] font-mono text-(--color-text-3) text-xs leading-4">
 			{planChildrenSummary(d, p)}
 		</div>
 	);
@@ -378,32 +375,6 @@ function planChildrenSummary(d: WalkDraft, p: SectionProps): string {
 		return `${p.openChildCount} OPEN CHILDREN · RUN IN PLAN ORDER`;
 	}
 	return "CHILDREN RUN IN PLAN ORDER";
-}
-
-function GuardrailsSection(p: SectionProps) {
-	const d = p.draft;
-	return (
-		<MobileCard title="Guardrails">
-			<Section title="Guardrails" description="Optional limits, applied per child run.">
-				<div className="grid gap-[12px] sm:grid-cols-2">
-					<Field
-						label="Cost cap per child (USD)"
-						hint={p.costCapError ?? "EACH CHILD RUN STOPS AT THIS SPEND"}
-					>
-						<input
-							className={`${controlClass} ${p.costCapError ? "border-(--color-danger)" : ""} font-mono`}
-							value={d.costCap}
-							onChange={(e) => p.onCostCap(e.target.value)}
-							placeholder="unset"
-							inputMode="decimal"
-							autoComplete="off"
-							spellCheck={false}
-						/>
-					</Field>
-				</div>
-			</Section>
-		</MobileCard>
-	);
 }
 
 function IntentSection(p: SectionProps) {
@@ -433,7 +404,7 @@ function IntentSection(p: SectionProps) {
 
 const footerButtonClass = cn(
 	responsiveFooterButton,
-	"flex h-11 items-center justify-center rounded-(--radius-sm) px-[11px] font-medium text-[11px] leading-[14px] disabled:opacity-50 sm:h-[31px] sm:justify-start",
+	"flex h-11 items-center justify-center rounded-(--radius-sm) px-[11px] font-medium text-xs leading-4 disabled:bg-(--color-surface-hover) disabled:text-(--color-text-2) disabled:opacity-100 sm:h-[31px] sm:justify-start",
 );
 
 function Footer(p: SectionProps) {
@@ -463,7 +434,7 @@ function Footer(p: SectionProps) {
 				</button>
 			</div>
 			{p.submitError ? (
-				<p className="px-3.5 py-2 font-mono text-(--color-danger) text-[10px] leading-3 md:border-(--color-border) md:border-t md:px-[15px]">
+				<p className="px-3.5 py-2 font-mono text-(--color-danger) text-xs leading-4 md:border-(--color-border) md:border-t md:px-[15px]">
 					{p.submitError}
 				</p>
 			) : null}

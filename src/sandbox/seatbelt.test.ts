@@ -9,6 +9,9 @@ import {
 } from "./seatbelt.ts";
 import type { SandboxProfile } from "./types.ts";
 
+/** An IP-scoped network grant; unix-socket grants are separate and always on. */
+const IP_RULE = /allow network\S*( network\S*)* \((local|remote) (ip|tcp)/;
+
 function baseProfile(over: Partial<SandboxProfile> = {}): SandboxProfile {
 	return {
 		workspace: "/Users/u/ws",
@@ -24,6 +27,39 @@ function baseProfile(over: Partial<SandboxProfile> = {}): SandboxProfile {
 }
 
 describe("buildSeatbeltProfile", () => {
+	test("grants Chrome binaries without exposing applications or personal profiles", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		expect(out).toContain(
+			'(allow file-read* (subpath "/Applications/Google Chrome.app/Contents"))',
+		);
+		expect(out).not.toContain('(subpath "/Applications")');
+		expect(out).not.toContain("Application Support/Google/Chrome");
+		expect(out).not.toContain("(allow mach-register)");
+		expect(out).toContain("MachPortRendezvousServer");
+	});
+
+	test("permits binding a Chrome singleton without connecting to host sockets", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		const rules = out.split("\n").filter((line) => line.includes("SingletonSocket"));
+		expect(rules).toHaveLength(1);
+		expect(rules[0]).toContain("(allow network-bind (local unix-socket");
+		expect(rules[0]).toContain("/[^/]+/SingletonSocket$");
+		expect(out).not.toMatch(/network-outbound.*SingletonSocket/);
+	});
+
+	test("allows signalling only processes in the same sandbox", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		expect(out).toContain("(allow signal (target same-sandbox))");
+		expect(out).not.toContain("(allow signal)");
+	});
+	test("grants ancestor directory traversal without exposing their children", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		for (const path of ["/Users", "/Users/u", "/Users/u/homes"]) {
+			expect(out).toContain(`(allow file-read* (literal "${path}"))`);
+			expect(out).not.toContain(`(allow file-read* (subpath "${path}"))`);
+		}
+	});
+
 	test("starts with version + deny-default", () => {
 		const out = buildSeatbeltProfile(baseProfile());
 		expect(out).toContain("(version 1)");
@@ -55,12 +91,12 @@ describe("buildSeatbeltProfile", () => {
 		expect(out).toContain("(allow network*)");
 	});
 
-	test("network=none emits no network rule", () => {
+	test("network=none emits no IP rule", () => {
 		const out = buildSeatbeltProfile(baseProfile({ network: "none" }));
-		expect(out).not.toMatch(/allow network/);
+		expect(out).not.toMatch(IP_RULE);
 	});
 
-	test("network=restricted with proxyAddress allows loopback to the proxy port", () => {
+	test("network=restricted with proxyAddress allows loopback bind, accept, and connect", () => {
 		const out = buildSeatbeltProfile(
 			baseProfile({
 				network: "restricted",
@@ -71,11 +107,17 @@ describe("buildSeatbeltProfile", () => {
 		// sandbox-exec's `remote tcp` only accepts `localhost`/`*` as the
 		// host token; numeric IPs raise a parse error. The host-side proxy
 		// enforces the domain allowlist behind that loopback endpoint.
-		expect(out).toContain('(allow network-outbound (remote tcp "localhost:51234"))');
-		expect(out).not.toMatch(/127\.0\.0\.1:51234/);
+		// Turbopack workers and smoke-test servers listen on loopback, so the
+		// rule covers every loopback port, not only the proxy's.
+		expect(out).toContain('(allow network-bind (local ip "localhost:*"))');
+		expect(out).toContain('(allow network-inbound (local ip "localhost:*"))');
+		expect(out).toContain('(allow network-outbound (remote ip "localhost:*"))');
+		expect(out).not.toMatch(/127\.0\.0\.1/);
+		// Nothing off-host: every IP rule names localhost.
+		expect(out).not.toMatch(/ip "\*/);
 		// Domain rules are no longer in the profile (sandbox-exec can't
 		// match by hostname after DNS — see burrow-14b6).
-		expect(out).not.toMatch(/regex/);
+		expect(out).not.toMatch(/network-outbound.*regex/);
 		expect(out).not.toContain("mDNSResponder");
 	});
 
@@ -89,7 +131,23 @@ describe("buildSeatbeltProfile", () => {
 		// Without a proxy endpoint the profile emits no allow rules and
 		// falls back to the global deny — explicit, honest, and safer than
 		// the legacy hostname regex which silently denied everything anyway.
-		expect(out).not.toMatch(/allow network/);
+		expect(out).not.toMatch(IP_RULE);
+	});
+
+	test("unix socket connections are allowed under the workspace and run home only", () => {
+		const out = buildSeatbeltProfile(baseProfile({ network: "restricted" }));
+		for (const root of ["/Users/u/ws", "/Users/u/homes/run-1"]) {
+			expect(out).toContain(`(allow network-bind (local unix-socket (subpath "${root}")))`);
+			expect(out).toContain(`(allow network-outbound (remote unix-socket (subpath "${root}")))`);
+		}
+		// Host daemons keep sockets under the shared temp dirs.
+		expect(out).not.toMatch(/unix-socket \(subpath "\/private/);
+	});
+
+	test("signals reach the sandbox's own processes, not the host's", () => {
+		const out = buildSeatbeltProfile(baseProfile());
+		expect(out).toContain("(allow signal (target same-sandbox))");
+		expect(out).not.toContain("(target self)");
 	});
 
 	test("sshAuthSock literal allow is rendered", () => {
@@ -159,7 +217,7 @@ describe("buildSeatbeltProfile", () => {
 		});
 		const none = buildSeatbeltProfile(baseProfile(), { developerDir: null });
 		expect(clt).toBe(none);
-		expect(none).not.toContain(".app/Contents");
+		expect(none).not.toContain("Xcode.app/Contents");
 	});
 
 	test("xcodeBundleContents skips failed lookups and non-bundle dirs", () => {

@@ -40,6 +40,7 @@ export interface RunWorkspaceDestroyInput {
 	 * skip). The domain owns the best-effort try/catch here; the provider
 	 * propagates errors.
 	 */
+	readonly recordRecovery?: (path: string) => Promise<void>;
 	readonly terminate: (() => Promise<TeardownResult>) | null;
 	readonly emit: (kind: string, payload: unknown) => Promise<unknown>;
 	readonly fail: (step: "workspace_destroy", err: unknown) => Promise<void>;
@@ -94,9 +95,11 @@ export async function runWorkspaceDestroy(input: RunWorkspaceDestroyInput): Prom
 
 	try {
 		const result = await terminate();
+		if (result.recoveryPath) await input.recordRecovery?.(result.recoveryPath);
 		await input.emit("reap.workspace_destroyed", {
 			sandboxId: run.sandboxId,
 			archived: result.archived,
+			...(result.recoveryPath !== undefined ? { recoveryPath: result.recoveryPath } : {}),
 			deletedEvents: result.deletedEvents,
 			deletedMessages: result.deletedMessages,
 			deletedRuns: result.deletedRuns,

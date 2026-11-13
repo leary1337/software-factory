@@ -45,7 +45,6 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 | [Forge contract](./forge-contract.md) | `contract` | `approved` | `shipped` | 2026-08-11 |
 | [IssueTracker contract](./issue-tracker.md) | `contract` | `approved` | `shipped` | 2026-08-20 |
 | [PlanRun coordinator](./plan-run-coordinator.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
-| [Post-run quality gate](./post-run-quality-gate.md) | `contract` | `approved` | `shipped` | 2026-11-10 |
 | [Preview environments](./preview-environments.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
 | [Provider-error retry](./provider-retry.md) | `contract` | `approved` | `shipped` | 2026-08-22 |
 | [Runtime and supervisor](./runtime-and-supervisor.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
@@ -56,6 +55,7 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 | [Warren-armed auto-merge](./forge-auto-merge.md) | `contract` | `approved` | `shipped` | 2026-09-17 |
 | [`.warren/` configuration](./warren-config.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
 | [2026-07-29 planning-session record](./2026-07-29-planning-session-record.md) | `historical-evidence` | `approved` | `not-applicable` | 2026-07-31 |
+| [Post-run quality gate](./post-run-quality-gate.md) | `historical-evidence` | `superseded` | `not-in-core` | 2026-11-13 |
 <!-- design-catalog:end -->
 
 ## Pre-roadmap discovery

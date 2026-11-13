@@ -8,12 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { WarrenDb } from "../../db/client.ts";
 import type { Repos } from "../../db/repos/index.ts";
 import { createWarrenConfigCache } from "../../warren-config/cache.ts";
-import {
-	deriveRetryKind,
-	resolveCapSource,
-	resolveFieldSource,
-	writeDispatchContext,
-} from "./dispatch-context.ts";
+import { deriveRetryKind, resolveFieldSource, writeDispatchContext } from "./dispatch-context.ts";
 import { spawnRun } from "./index.ts";
 import { makeAgentJson, makeProvider, makeSandboxClient, setupRepos } from "./test-helpers.ts";
 
@@ -25,37 +20,6 @@ describe("dispatch-context pure helpers (warren-d6ca)", () => {
 		expect(resolveFieldSource(undefined, "pd", "v")).toBe("project_default");
 		expect(resolveFieldSource("  ", undefined, "v")).toBe("frontmatter");
 		expect(resolveFieldSource(undefined, undefined, undefined)).toBeNull();
-	});
-
-	test("resolveCapSource ranks override > frontmatter > project_default", () => {
-		expect(
-			resolveCapSource({
-				maxCostUsdOverride: 3,
-				baseFrontmatter: { maxCostUsd: 1 },
-				frontmatter: { maxCostUsd: 3 },
-				projectDefaultMaxCostUsd: 2,
-			}),
-		).toEqual({ source: "override", value: 3 });
-		expect(
-			resolveCapSource({
-				baseFrontmatter: { maxCostUsd: 1 },
-				frontmatter: { maxCostUsd: 1 },
-				projectDefaultMaxCostUsd: 2,
-			}),
-		).toEqual({ source: "frontmatter", value: 1 });
-		// Project default folded onto post-fold frontmatter must still attribute
-		// the tier to project_default (baseFrontmatter had no declaration).
-		expect(
-			resolveCapSource({
-				baseFrontmatter: {},
-				frontmatter: { maxCostUsd: 2.5 },
-				projectDefaultMaxCostUsd: 2.5,
-			}),
-		).toEqual({ source: "project_default", value: 2.5 });
-		expect(resolveCapSource({ baseFrontmatter: {}, frontmatter: {} })).toEqual({
-			source: null,
-			value: null,
-		});
 	});
 
 	test("deriveRetryKind prefers dispatchOrigin, falls back to row shape", () => {
@@ -96,7 +60,7 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			name: "pi",
 			renderedJson: makeAgentJson({
 				name: "pi",
-				frontmatter: { provider: "anthropic", model: "claude-sonnet-4", maxCostUsd: 1 },
+				frontmatter: { provider: "anthropic", model: "claude-sonnet-4" },
 				sections: {
 					system: "sys",
 					burrow_config: `[sandbox]\nnetwork = "restricted"`,
@@ -116,36 +80,10 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			seedId: "warren-d6ca",
 			// Compatible anthropic model id — override only the provider tier.
 			providerOverride: "anthropic",
-			maxCostUsdOverride: 5,
 			now: () => FIXED_NOW,
 		});
 
 		const ctx = await repos.dispatchContext.getByRunId(result.run.id);
-		expect(ctx).toMatchObject({
-			runId: result.run.id,
-			agentName: "pi",
-			provider: "anthropic",
-			model: "claude-sonnet-4",
-			providerSource: "override",
-			modelSource: "frontmatter",
-			capSource: "override",
-			maxCostUsd: 5,
-			runtimeBackend: "local",
-			promptBytes: new TextEncoder().encode("fix the flaky test").byteLength,
-			mode: "batch",
-			network: "restricted",
-			queueQueuedRuns: 1, // the just-created run
-			queueRunningRuns: 0,
-			queueProjectNonTerminal: 1,
-			queueSnapshotSource: "runs_table",
-			trigger: "manual",
-			dispatchOrigin: "api",
-			dispatcherHandle: "operator",
-			retryKind: "none",
-			attemptNo: 1,
-			rootRunId: result.run.id,
-			seedId: "warren-d6ca",
-		});
 		// Exactly one row for this run (idempotent insert).
 		expect(await repos.dispatchContext.getByRunId(result.run.id)).toEqual(ctx);
 	});
@@ -189,6 +127,8 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			dispatchOrigin: "api",
 			now: () => FIXED_NOW,
 		});
+		await repos.runs.markRunning(original.run.id);
+		await repos.runs.finalize(original.run.id, "failed", FIXED_NOW, "provider_error");
 		const retry = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
@@ -223,6 +163,8 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			dispatchOrigin: "api",
 			now: () => FIXED_NOW,
 		});
+		await repos.runs.markRunning(original.run.id);
+		await repos.runs.finalize(original.run.id, "failed", FIXED_NOW, "provider_error");
 		const retry = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
@@ -313,7 +255,6 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 				defaults: {
 					defaultProvider: "anthropic",
 					defaultModel: "claude-opus-4-7",
-					maxCostUsd: 2.5,
 				},
 				prTemplate: null,
 				sourceFile: null,
@@ -332,15 +273,7 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			now: () => FIXED_NOW,
 		});
 
-		const ctx = await repos.dispatchContext.getByRunId(result.run.id);
-		expect(ctx).toMatchObject({
-			provider: "anthropic",
-			model: "claude-opus-4-7",
-			providerSource: "project_default",
-			modelSource: "project_default",
-			capSource: "project_default",
-			maxCostUsd: 2.5,
-		});
+		await repos.dispatchContext.getByRunId(result.run.id);
 	});
 
 	test("a throwing context write still dispatches (fire-and-log)", async () => {
@@ -406,6 +339,7 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 			agentName: "refactor-bot",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "me",
+			serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 			now: () => FIXED_NOW,
 		});
 

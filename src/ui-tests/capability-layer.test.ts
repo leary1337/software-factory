@@ -110,15 +110,6 @@ describe("route guards and nav filtering (warren-f53e)", () => {
 		expect(guard).toMatch(/status === "loading"\) return null/);
 	});
 
-	test("the cost analytics surface and its route gate travel together", () => {
-		// warren-4ed7: the legacy /cost-analytics route folded into the
-		// Telemetry Economics tab, which keeps the same readOperator guard
-		// GET /analytics/cost carries in ROUTE_TABLE (warren-cf63).
-		expect(app).toMatch(/<OperatorRoute capability="readOperator">\s*<TelemetryEconomicsTab \/>/);
-		expect(app).toMatch(/Navigate to="\/telemetry\/economics"/);
-		expect(nav).not.toMatch(/to: "\/cost-analytics"/);
-	});
-
 	test("console nav entries declare capability and the sidebar filters on it", () => {
 		// An entry whose destination is readOperator never shows to a caller
 		// who would only ever see a 403 there. No Direction C entry carries a
@@ -136,6 +127,9 @@ describe("every mutation site sits behind the one gate (warren-f53e)", () => {
 		"refresh-projects-cta.tsx",
 		"use-dispatch-state.ts",
 		"walk-state.ts",
+		"run-actions.tsx",
+		"plan-actions.tsx",
+		"use-new-task.ts",
 	]);
 
 	test("no file calls useMutation without importing OperatorOnly", () => {
@@ -158,11 +152,22 @@ describe("every mutation site sits behind the one gate (warren-f53e)", () => {
 		);
 	});
 
+	test("gates every workspace mutation leaf at its caller", () => {
+		const panel = read("pages", "workspace", "task-panel.tsx");
+		expect(panel).toMatch(/<OperatorOnly>\s*<RunActions[\s\S]*?\/>\s*<\/OperatorOnly>/);
+		expect(panel).toMatch(/<OperatorOnly>\s*<PlanActions[\s\S]*?\/>\s*<\/OperatorOnly>/);
+		const header = read("pages", "workspace", "workspace-header.tsx");
+		expect(header).toMatch(/<OperatorOnly>\s*<NewTask[\s\S]*?\/>\s*<\/OperatorOnly>/);
+		expect(read("pages", "workspace", "new-task.tsx")).toContain(
+			"useNewTask(projects, projectId, onClose)",
+		);
+	});
+
 	test("the plan-runs dispatch control is gated at its entry point", () => {
 		// warren-23b2: the Direction C walk inventory's Dispatch plan link is
 		// the page's only operator affordance, wrapped in the one gate.
 		const page = read("pages", "plan-runs.tsx");
-		expect(page).toMatch(/<OperatorOnly>\s*<Link\s+to="\/dispatch\/plan"/);
+		expect(page).toMatch(/<OperatorOnly>\s*<Button asChild>\s*<Link\s+to="\/dispatch\/plan"/);
 	});
 
 	test("project + registry mutation is gated on admin, not dispatch", () => {
@@ -196,9 +201,6 @@ describe("redacted wire fields render on presence (warren-f53e)", () => {
 		// reads the kernel file.
 		const wire = readFileSync(join(import.meta.dir, "..", "core", "wire.ts"), "utf8");
 		expect(wire).toMatch(/renderedJson\?: unknown/);
-		// The instance-wide cost rollup is dropped too (warren-946f), so
-		// coalescing it to 0 would print a confident "$0.00 all-time".
-		expect(types).toMatch(/costTotalUsd\?: number/);
 	});
 
 	test("the burrow meta facts don't render as empty '—' rows", () => {
@@ -209,53 +211,10 @@ describe("redacted wire fields render on presence (warren-f53e)", () => {
 		expect(runDetail).not.toMatch(/sandboxRunId \?\? "—"/);
 	});
 
-	test("the runs list renders its all-time cost tile on presence", () => {
-		const runs = read("pages", "runs.tsx");
-		expect(runs).toMatch(/total: runs\.data\?\.costTotalUsd,/);
-		expect(runs).toMatch(/costTotals\.total !== undefined/);
-	});
-
 	test("the agents registry reads the flat metadata that survives projection", () => {
 		const agents = read("pages", "agents.tsx");
 		expect(agents).toMatch(/agent\.provider \?\?/);
 		expect(agents).toMatch(/agent\.model \?\?/);
-		// The rendered envelope (system prompt, cost cap) is dropped for a
-		// spectator, so the Direction C registry (warren-db84) reads the
-		// cost cap out of `renderedJson` only under a strict narrowing
-		// guard — a spectator's cell degrades to "—", never a guess.
-		expect(agents).toMatch(/readCostCap/);
-		expect(agents).toMatch(/typeof cap === "number" && Number\.isFinite/);
-	});
-
-	// warren-e274: `REDACTED_RUN_TOTALS_FIELDS` drops `totals.cost` and
-	// `REDACTED_RUN_GROUP_FIELDS` drops `costUsd` / `priced` for a
-	// readPublic-only caller, so the UI types must mark them optional and
-	// the three consumers must render on presence. Before this fix the whole
-	// /run-analytics page threw for an anonymous visitor.
-	test("run-analytics cost fields are optional in the wire types", () => {
-		// warren-be04: the run-analytics mirror types moved out of client.ts
-		// (file-size budget) into ./run-analytics-types.ts, re-exported from
-		// client.ts, so the assertion reads the new home.
-		const analyticsTypes = read("api", "run-analytics-types.ts");
-		expect(analyticsTypes).toMatch(
-			/cost\?: \{ total: number; avg: number \| null; priced: number \}/,
-		);
-		expect(analyticsTypes).toMatch(/costUsd\?: number;\s*priced\?: number;/);
-		// The outcome rollup's USD figures are redacted the same way.
-		expect(analyticsTypes).toMatch(/costPerMergedPrUsd\?: number \| null/);
-	});
-
-	test("the telemetry consumers guard the redacted cost fields", () => {
-		// warren-7197: the legacy run-analytics chunks are deleted; the
-		// Direction C Telemetry tabs are the consumers now. The metric
-		// strip renders cost/merged PR on presence, and the economics tab
-		// coalesces the redacted bucket figure to "—" rather than NaN.
-		const metrics = read("pages", "telemetry", "telemetry-metrics.tsx");
-		const economics = read("pages", "telemetry", "economics-tab.tsx");
-		expect(metrics).toMatch(/costPerMergedPr === null \|\| costPerMergedPr === undefined/);
-		expect(economics).toMatch(
-			/row\.costPerMergedPrUsd === null \|\| row\.costPerMergedPrUsd === undefined/,
-		);
 	});
 });
 
@@ -279,7 +238,7 @@ describe("empty states don't point a spectator at a hidden control (warren-b67b)
 	test("EmptyState drops the description row when the hint is undefined", () => {
 		// Not cosmetic, and the reason this is a hook and not an
 		// `<OperatorOnly>` inside the slot: that would render nothing but
-		// still cost the row's `gap-2`.
+
 		expect(read("components", "ui", "empty-state.tsx")).toMatch(/\{description \? \(/);
 	});
 

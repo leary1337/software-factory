@@ -26,8 +26,7 @@ Total routes: **57**.
 
 | Method | Pattern | Handler | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/analytics/cost` | `listCostAnalyticsHandler` |  |
-| `GET` | `/analytics/runs` | `listRunAnalyticsHandler` | warren-97ae: spectators get the reduced projection — counts, rates and timings survive; USD aggregates stay redacted, including the per-agent/per-model/per-provider buckets, because ratio × merged count reconstructs spend (instance-wide cost/merged-PR ratio excepted). |
+| `GET` | `/analytics/runs` | `listRunAnalyticsHandler` |  |
 | `GET` | `/analytics/behavior` | `listBehaviorAnalyticsHandler` |  |
 | `GET` | `/analytics/dispatch` | `listDispatchAnalyticsHandler` |  |
 
@@ -89,6 +88,7 @@ Total routes: **57**.
 | `GET` | `/plan-runs` | `listPlanRunsHandler` |  |
 | `POST` | `/plan-runs` | `createPlanRunHandler` |  |
 | `GET` | `/plan-runs/:id` | `getPlanRunHandler` |  |
+| `POST` | `/plan-runs/:id/children/:seq/retry-review` | `retryPlanRunReviewHandler` |  |
 | `POST` | `/plan-runs/:id/cancel` | `cancelPlanRunHandler` |  |
 | `POST` | `/plan-runs/:id/resume` | `resumePlanRunHandler` |  |
 | `GET` | `/plan-runs/:id/events` | `streamPlanRunEventsHandler` |  |

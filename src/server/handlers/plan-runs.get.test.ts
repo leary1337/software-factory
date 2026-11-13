@@ -186,6 +186,50 @@ describe("GET /plan-runs/:id", () => {
 			patch: { runId: runA.id, state: "dispatched", startedAt: new Date().toISOString() },
 		});
 
+		const review = await repos.runs.create({
+			agentName: "claude-code",
+			projectId: seedyProjectId,
+			prompt: "review",
+			renderedAgentJson: {},
+			trigger: "plan-run",
+		});
+		await repos.runs.markRunning(review.id);
+		await repos.runs.finalize(review.id, "succeeded");
+		const commit = "a".repeat(40);
+		await repos.events.append({
+			runId: runA.id,
+			sandboxEventSeq: 1,
+			ts: new Date().toISOString(),
+			kind: "plan_run.review_step",
+			stream: "system",
+			payload: { step: "review", stepRunId: review.id, reviewedCommit: commit },
+		});
+		await repos.events.append({
+			runId: review.id,
+			sandboxEventSeq: 1,
+			ts: new Date().toISOString(),
+			kind: "state_change",
+			stream: "system",
+			payload: {
+				type: "result",
+				result: `VERDICT: CHANGES\nREVIEWED_COMMIT: ${commit}\nQUALITY_GATE: NOT_RUN\nDependencies missing.`,
+			},
+		});
+		await repos.events.append({
+			runId: runA.id,
+			sandboxEventSeq: 2,
+			ts: new Date().toISOString(),
+			kind: "plan_run.review_merge_result",
+			stream: "system",
+			payload: {
+				kind: "blocked",
+				reason: "protected_path",
+				detail: "Protected files require review.",
+				nextAction: "Review and merge manually.",
+				paths: ["scripts/check.sh"],
+			},
+		});
+
 		const deps = await depsFor({ repos, sdSpawn: makeSdSpawn([], []) });
 		handle = startServer(deps, {
 			transport: { kind: "tcp", hostname: "127.0.0.1", port: 0 },
@@ -197,12 +241,47 @@ describe("GET /plan-runs/:id", () => {
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			planRun: { id: string };
-			children: { seq: number; runId: string | null }[];
+			children: {
+				seq: number;
+				productionVerification: { sha: string; environment: string; verifiedAt: string } | null;
+				metrics: { runCount: number; reviewCount: number };
+				runId: string | null;
+				reviewMerge: { kind: string; reason: string; nextAction: string; paths: string[] } | null;
+				reviewSteps: { executionState: string; summary: { status: string; reason: string } }[];
+			}[];
 			runs: { id: string }[];
 		};
 		expect(body.planRun.id).toBe(created.planRun.id);
 		expect(body.children).toHaveLength(2);
 		expect(body.runs.map((r) => r.id)).toEqual([runA.id]);
+		expect(body.children[0]?.reviewMerge).toMatchObject({
+			kind: "blocked",
+			reason: "protected_path",
+			nextAction: "Review and merge manually.",
+			paths: ["scripts/check.sh"],
+		});
+		expect(body.children[1]?.reviewMerge).toBeNull();
+		expect(body.children[0]?.productionVerification).toBeNull();
+		await repos.events.append({
+			runId: runA.id,
+			sandboxEventSeq: 3,
+			ts: "2026-11-12T00:00:00Z",
+			kind: "plan_run.deployment_verified",
+			stream: "system",
+			payload: { expectedSha: commit, environment: "production" },
+		});
+		const verified = await fetch(`${tcpUrl(handle)}/plan-runs/${created.planRun.id}`);
+		const verifiedBody = (await verified.json()) as typeof body;
+		expect(verifiedBody.children[0]?.productionVerification).toEqual({
+			sha: commit,
+			environment: "production",
+			verifiedAt: "2026-11-12T00:00:00Z",
+		});
+		expect(verifiedBody.children[1]?.productionVerification).toBeNull();
+		expect(body.children[0]?.reviewSteps[0]).toMatchObject({
+			executionState: "succeeded",
+			summary: { status: "checks_not_run", reason: "Dependencies missing." },
+		});
 	});
 
 	test("404 for unknown id", async () => {

@@ -79,7 +79,6 @@ export interface TryOpenPrInput {
 		prompt: string;
 		startedAt: string | null;
 		endedAt: string | null;
-		costUsd: number | null;
 		tokensInput: number | null;
 		tokensOutput: number | null;
 		tokensCacheRead: number | null;
@@ -123,7 +122,6 @@ export async function tryOpenPr(input: TryOpenPrInput): Promise<TryOpenPrResult>
 			: {}),
 		...(input.run.startedAt !== null ? { startedAt: input.run.startedAt } : {}),
 		...(input.run.endedAt !== null ? { endedAt: input.run.endedAt } : {}),
-		...(input.run.costUsd !== null ? { costUsd: input.run.costUsd } : {}),
 		...(input.run.tokensInput !== null ? { tokensInput: input.run.tokensInput } : {}),
 		...(input.run.tokensOutput !== null ? { tokensOutput: input.run.tokensOutput } : {}),
 		...(input.run.tokensCacheRead !== null ? { tokensCacheRead: input.run.tokensCacheRead } : {}),
@@ -320,7 +318,7 @@ export async function runPrOpen(input: RunPrOpenInput): Promise<OpenedPr | null>
 			// project never opted in (the module owns all three invariants).
 			await runAutoMergeArm({
 				projectAutoMerge: input.prAutoMerge,
-				run: { id: input.run.id, trigger: input.run.trigger },
+				run: { id: input.run.id, trigger: input.run.trigger, agentName: input.run.agentName },
 				project: input.project,
 				prUrl: opened.pr.url,
 				prNumber: opened.pr.prRef.number,

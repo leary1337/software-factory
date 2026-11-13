@@ -32,28 +32,28 @@ export function DispatchPlanPage() {
 
 	return (
 		<div className="flex min-h-full flex-col gap-1.5 px-3.5 pt-5 pb-12 md:px-6">
-			<p className="font-mono text-(--color-text-3) text-[10px] leading-3">PLAN RUNS / NEW</p>
+			<p className="font-mono text-(--color-text-3) text-xs leading-4">PLAN RUNS / NEW</p>
 			<div className="flex flex-col gap-[5px] pb-[20px]">
 				<h1 className="font-semibold text-(--color-text) text-xl leading-6 tracking-[-0.025em]">
 					Dispatch plan
 				</h1>
-				<p className="max-w-prose text-(--color-text-2) text-[12px] leading-4">
+				<p className="max-w-prose text-(--color-text-2) text-xs leading-4">
 					Dispatch each child issue of a plan as its own run, in order.
 				</p>
 			</div>
 
 			{s.noProjects ? (
-				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-[11px] leading-4">
+				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-xs leading-4">
 					No projects added. Visit Projects to clone one from GitHub.
 				</p>
 			) : null}
 			{s.noAgents && hasSeeds ? (
-				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-[11px] leading-4">
+				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-xs leading-4">
 					No agents registered. Visit Agents and click Refresh registry.
 				</p>
 			) : null}
 			{s.draft.project.length > 0 && !hasSeeds ? (
-				<div className="flex max-w-[760px] flex-col gap-3 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-[11px] leading-4">
+				<div className="flex max-w-[760px] flex-col gap-3 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-xs leading-4">
 					<p>
 						Plan runs require <code className="font-mono">.seeds/</code>. The selected project has
 						no <code className="font-mono">.seeds/</code> directory at the clone root. Add one and
@@ -68,7 +68,7 @@ export function DispatchPlanPage() {
 								type="button"
 								onClick={() => refreshProject.mutate(s.draft.project)}
 								disabled={refreshProject.isPending}
-								className="flex h-[31px] items-center gap-2 rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] font-medium text-(--color-text-2) text-[11px] leading-[14px] hover:bg-(--color-surface-hover) disabled:opacity-50"
+								className="flex h-[31px] items-center gap-2 rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] font-medium text-(--color-text-2) text-xs leading-4 hover:bg-(--color-surface-hover) disabled:bg-(--color-surface-hover) disabled:text-(--color-text-2) disabled:opacity-100"
 							>
 								<RefreshCw
 									className={`h-3.5 w-3.5 ${refreshProject.isPending ? "animate-spin" : ""}`}
@@ -77,7 +77,7 @@ export function DispatchPlanPage() {
 							</button>
 						</OperatorOnly>
 						{refreshProject.isError ? (
-							<span className="text-[11px]">
+							<span className="text-xs">
 								{refreshProject.error instanceof Error
 									? refreshProject.error.message
 									: String(refreshProject.error)}
@@ -101,7 +101,6 @@ export function DispatchPlanPage() {
 					planSelectorUnavailable={s.planSelectorUnavailable}
 					openChildCount={s.openChildCount}
 					issueStatuses={s.issueStatuses}
-					costCapError={s.costCapError}
 					submitError={s.submitError}
 					pending={s.pending}
 					canSubmit={s.valid}
@@ -115,7 +114,6 @@ export function DispatchPlanPage() {
 					onProvider={s.setProvider}
 					onModel={s.setModel}
 					onPrompt={s.setPrompt}
-					onCostCap={s.setCostCap}
 					onCancel={s.cancel}
 					onSubmit={s.submit}
 				/>
@@ -126,7 +124,6 @@ export function DispatchPlanPage() {
 						agent: s.draft.agent,
 						provider: s.draft.providerOverride.trim(),
 						model: s.draft.modelOverride.trim(),
-						costCap: s.draft.costCap,
 						planId: s.draft.planId,
 						issuesText: s.draft.issuesText,
 						sourceMode: s.draft.sourceMode,

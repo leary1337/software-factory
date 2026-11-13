@@ -21,9 +21,11 @@
 import { rm } from "node:fs/promises";
 import type { WorkspaceDestroyer, WorkspaceDestroyOutcome } from "../../runs/reap/gc.ts";
 import { removeMaterializedWorkspace } from "../../workspace/materialize.ts";
-import { removeRunGitDirs, unpinWorkspaceGit } from "./git-pin.ts";
+import { removeRunGitDirs, sealLocalRun, unpinWorkspaceGit } from "./git-pin.ts";
 import { readLocalRunManifest, removeLocalRunManifest } from "./manifest.ts";
 import { type LocalPathsEnv, resolveLocalStateRoots } from "./paths.ts";
+import { recoverLocalHome } from "./recover-home.ts";
+import { archiveLocalWorkspace } from "./recovery.ts";
 
 /**
  * Build the manifest-backed workspace destroyer. Never throws: a missing
@@ -35,6 +37,13 @@ export function createLocalWorkspaceDestroyer(env: LocalPathsEnv): WorkspaceDest
 	return async (sandboxId: string): Promise<WorkspaceDestroyOutcome> => {
 		const manifest = await readLocalRunManifest(roots, sandboxId);
 		if (manifest === null) return { status: "already-gone" };
+		try {
+			await recoverLocalHome(manifest);
+			await sealLocalRun(roots, sandboxId, manifest, null);
+			await archiveLocalWorkspace(roots, manifest, true);
+		} catch (error) {
+			return { status: "failed", error: error instanceof Error ? error.message : String(error) };
+		}
 		unpinWorkspaceGit(manifest.workspacePath);
 		try {
 			await removeMaterializedWorkspace({
@@ -56,6 +65,6 @@ export function createLocalWorkspaceDestroyer(env: LocalPathsEnv): WorkspaceDest
 		// No archive + no ephemeral-store rows: the durable event copy lives in
 		// warren's own events table (written by the domain bridge), so the
 		// counts a burrow destroy used to report are zero here.
-		return { status: "destroyed", archived: false, deletedEvents: 0, deletedRuns: 0 };
+		return { status: "destroyed", archived: true, deletedEvents: 0, deletedRuns: 0 };
 	};
 }

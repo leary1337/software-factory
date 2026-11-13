@@ -34,8 +34,8 @@
  * same-named library agent — refresh upserts on top.
  */
 
+import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
 import type { AgentDefinition } from "../schema.ts";
-import { MODEL_TIERS } from "./model-tiers.ts";
 import { MULCH_FRAGMENT } from "./prompt-fragments.ts";
 
 const SYSTEM_BODY = `You are a planning partner for a software project. Your role is to read an existing **Plot intent** (goal, non_goals, constraints, success_criteria) and produce a structured work plan that decomposes the work into reviewable steps.
@@ -91,20 +91,10 @@ export const PLANNER_BUILTIN: AgentDefinition = {
 	frontmatter: {
 		source: "builtin",
 		tags: ["agent", "interactive"],
-		// warren-ebca: planner is a system-prompt-only canopy agent; it
-		// dispatches onto the pi burrow runtime rather than registering
-		// its own. Without this, burrow looks up "planner" in
-		// BUILT_IN_RUNTIMES and the run fails before agent boot.
-		runtime: "pi",
-		// warren-3305: this harness consumes steering only at spawn
-		// (encodeInboxMessage folds pending inbox rows into the prompt);
-		// no builtin runtime reads steering mid-run, so a steer against
-		// a running run must fail 409 rather than record a dead
-		// steer.sent. Flip to "mid-run" only when the runtime gains a
-		// proven live steering channel.
+		runtime: "codex",
+		// Codex consumes pending steering when the process starts.
 		steering: "spawn-only",
-		// Opus tier (model-tiers.ts): the plan planner emits caps the
-		// quality of every downstream step.
-		...MODEL_TIERS.opus,
+		provider: "openai",
+		model: CODEX_DEFAULT_MODEL,
 	},
 };

@@ -31,7 +31,6 @@ export function useDispatchDefaults(input: DispatchDefaultsInput, setDraft: SetD
 	const defaultPrompt = defaults?.defaultPrompt;
 	const defaultProvider = defaults?.defaultProvider;
 	const defaultModel = defaults?.defaultModel;
-	const defaultCostUsd = defaults?.maxCostUsd;
 
 	const defaultRoleRegistered =
 		defaultRole !== undefined && agents.some((a) => a.name === defaultRole);
@@ -77,15 +76,9 @@ export function useDispatchDefaults(input: DispatchDefaultsInput, setDraft: SetD
 			return { ...prev, draft: { ...prev.draft, modelOverride: modelAutoFill } };
 		});
 	}, [modelAutoFill, setDraft]);
-
-	// Cost cap: pre-fill the weakest source (project default) only while
-	// untouched — a dispatch-time override wins server-side anyway.
-	const costCapText = defaultCostUsd !== undefined ? String(defaultCostUsd) : "";
 	useEffect(() => {
-		if (costCapText.length === 0) return;
 		setDraft((prev) => {
-			if (prev.touched.costCap || prev.draft.costCap === costCapText) return prev;
-			return { ...prev, draft: { ...prev.draft, costCap: costCapText } };
+			return { ...prev, draft: { ...prev.draft } };
 		});
-	}, [costCapText, setDraft]);
+	}, [setDraft]);
 }

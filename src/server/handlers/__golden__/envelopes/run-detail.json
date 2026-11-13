@@ -34,8 +34,6 @@
 			"baseSha": null,
 			"salvageRef": null,
 			"salvagePath": null,
-			"costUsd": null,
-			"costBasis": "api",
 			"tokensInput": null,
 			"tokensOutput": null,
 			"tokensCacheRead": null,
@@ -56,8 +54,7 @@
 			"commitsAhead": null,
 			"filesChanged": null,
 			"insertions": null,
-			"deletions": null,
-			"maxCostUsd": null
+			"deletions": null
 		}
 	}
 }

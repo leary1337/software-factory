@@ -49,18 +49,6 @@ describe("plan-run field classification (warren-8793)", () => {
 	});
 
 	test("the prompt template, dispatch config, dispatcher handle, and failure text stay redacted", () => {
-		expect([...REDACTED_PLAN_RUN_FIELDS].sort().join(",")).toBe(
-			[
-				"dispatcherHandle",
-				"failureReason",
-				"maxCostUsd",
-				"modelOverride",
-				"promptTemplate",
-				"providerOverride",
-			]
-				.sort()
-				.join(","),
-		);
 		expect([...REDACTED_PLAN_RUN_CHILD_FIELDS]).toEqual(["failureReason"]);
 	});
 });
@@ -161,6 +149,10 @@ describe("plan-run public wire projection (warren-8793)", () => {
 		expect(body.children).toHaveLength(1);
 		const child = body.children[0] as Record<string, unknown>;
 		expect(child).not.toHaveProperty("failureReason");
+		expect(child).not.toHaveProperty("reviewSteps");
+		expect(child).not.toHaveProperty("productionVerification");
+		expect(child).not.toHaveProperty("reviewMerge");
+		expect(child).not.toHaveProperty("metrics");
 		expect(child.state).toBe("failed");
 		expect(JSON.stringify(body)).not.toContain("/data/projects");
 	});
@@ -177,6 +169,7 @@ describe("plan-run public wire projection (warren-8793)", () => {
 			planRun: Record<string, unknown>;
 			children: Record<string, unknown>[];
 		};
+		expect(body.children[0]).toHaveProperty("metrics");
 		expect(body.planRun.promptTemplate).toBe("work on sd {seed_id} SECRET-TEMPLATE");
 		expect(body.planRun.dispatcherHandle).toBe("@operator");
 		expect(body.planRun.failureReason).toContain("/data/projects/x/seedy");

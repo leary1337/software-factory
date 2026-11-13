@@ -1,5 +1,9 @@
-// Wire-side response shapes for warren's HTTP API. The ENUM VOCABULARY (run / plan-run / preview lifecycle states, the
-// failure-cause discriminator, run mode, clone kind, event stream) is NOT
+import type { PlanRunBudgetSummary } from "../../../core/plan-run-budget.ts";
+import type { ProductionVerification } from "../../../core/production-verification.ts";
+import type { TaskMetrics } from "../../../core/task-metrics.ts";
+import type { ReviewMergeResult, ReviewStepSummary } from "./review-types.ts";
+
+// HTTP response shapes; wire enums are NOT
 // declared here. It is defined once in `src/core/wire.ts` — warren's
 // dependency-free kernel — and re-exported below, so the UI and the server
 // can never drift the way they did before warren-b229 (a `RunFailureReason`
@@ -31,6 +35,7 @@ export {
 	PREVIEW_ACTIVE_STATES,
 	type PreviewState,
 	type PullRequestLifecycle,
+	type ReviewStage,
 	RUN_STATES,
 	RUN_TERMINAL_STATES,
 	type RunFailureReason,
@@ -49,7 +54,7 @@ import type {
 	PlanRunState,
 	PreviewState,
 	PullRequestLifecycle,
-	RunCostBasis,
+	ReviewStage,
 	RunFailureReason,
 	RunMode,
 	RunState,
@@ -176,18 +181,14 @@ export interface RunRow {
 	model: string | null;
 	/** Salvage-before-destroy (warren-cd3b): rescue branch + git bundle of a finalize_failed run's work. */
 	salvageRef: string | null;
-	salvagePath: string | null;
-	/** Per-run cost in USD (warren-a7dc), the bridge's `get_session_stats` start/end delta. Null for non-pi runtimes. */
-	costUsd: number | null;
-	costBasis: RunCostBasis; // warren-f3c3: `subscription_estimate` = estimate, not a bill
-	maxCostUsd?: number | null; // warren-f8a2: cap overlay (list + detail GET, warren-b19e); absent for spectators
-	runtimeBackend?: string | null; // warren-a0f4: local|docker|k8s frozen at dispatch; operator-only overlay beside maxCostUsd
-	/** Input/output tokens consumed/produced (warren-a7dc); see `costUsd` for nullability. */
+	salvagePath: string | null; // warren-f8a2: cap overlay (list + detail GET, warren-b19e); absent for spectators
+	runtimeBackend?: string | null;
+
 	tokensInput: number | null;
 	tokensOutput: number | null;
-	/** Cache-read tokens (warren-a7dc); see `costUsd` for nullability. */
+
 	tokensCacheRead: number | null;
-	/** Cache-write tokens (warren-a7dc); see `costUsd` for nullability. */
+
 	tokensCacheWrite: number | null;
 	/**
 	 * Per-run preview environment columns (R-19 / docs/design/preview-environments.md). All null on
@@ -287,13 +288,6 @@ export interface CreateRunInput {
 	 * server-side).
 	 */
 	cloneFromRunId?: string;
-	/**
-	 * Optional per-run USD spend cap (warren-a63d): wins over the agent's
-	 * own `frontmatter.maxCostUsd` and the project's `.warren/config.yaml`
-	 * default. Must be a positive finite number; the server rejects zero,
-	 * negatives, and numeric strings.
-	 */
-	maxCostUsd?: number;
 }
 
 export interface SpawnRunResponse {
@@ -301,24 +295,9 @@ export interface SpawnRunResponse {
 	sandbox: SandboxSummary;
 }
 
-/**
- * `GET /runs` envelope (warren-ee50 / pl-b0c0 step 1). `runs` is the
- * paginated window; `total`/`costTotalUsd`/`costPricedCount` describe
- * the full filtered set so the Runs page can show all-time totals
- * even when only a window of rows is on screen. `limit`/`offset` echo
- * back the resolved pagination so the UI can render "Showing X–Y of
- * T" against the same numbers the server applied.
- *
- * `costTotalUsd` is OPTIONAL: it is the instance-wide all-time spend and
- * the public projection drops it (warren-946f), so a spectator's envelope
- * has no such key. Callers must render on presence — coalescing to 0 would
- * print a confident "total: $0.00" (warren-f53e).
- */
 export interface ListRunsResponse {
 	runs: RunRow[];
 	total: number;
-	costTotalUsd?: number;
-	costPricedCount: number;
 	limit: number;
 	offset: number;
 }
@@ -505,12 +484,6 @@ export interface DefaultsConfig {
 	 */
 	runBranchPrefix?: string;
 	qualityGate?: string;
-	/**
-	 * warren-a63d: project-wide default per-run USD spend cap, the weakest
-	 * source in the cap chain (dispatch override > agent frontmatter > this).
-	 * Surfaced read-only on the ProjectDetail config panel.
-	 */
-	maxCostUsd?: number;
 }
 
 export interface WarrenConfigResponse {
@@ -552,8 +525,6 @@ export interface TriggerSummary {
 	role: string;
 	timezone?: string;
 	prompt?: string;
-	/** warren-a63d: the entry's per-run spend cap, surfaced so operators can verify it. */
-	maxCostUsd?: number;
 	lastFiredAt: string | null;
 	nextFireAt: string | null;
 	lastRunId: string | null;
@@ -641,8 +612,6 @@ export interface PlanRunRow {
 	ref: string | null;
 	providerOverride?: string | null;
 	modelOverride?: string | null;
-	/** warren-a63d per-child USD cap; optional: spectator-redacted field. */
-	maxCostUsd?: number | null;
 	dispatcherHandle?: string;
 	trigger: string;
 	state: PlanRunState;
@@ -653,6 +622,12 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	productionVerification?: ProductionVerification | null;
+	reviewMerge?: ReviewMergeResult | null;
+	metrics?: TaskMetrics;
+	budget?: PlanRunBudgetSummary | null;
+	reviewSteps?: ReviewStepSummary[];
+	reviewFailure?: string | null;
 	planRunId: string;
 	seq: number;
 	seedId: string;
@@ -666,12 +641,11 @@ export interface PlanRunChildRow {
 	/** Optional: redacted on the spectator projection (REDACTED_PLAN_RUN_CHILD_FIELDS). */
 	failureReason?: string | null;
 	title?: string | null;
-	reviewStage?: "reviewing" | "reworking" | "ready_to_merge" | "needs_attention" | null;
+	reviewStage?: ReviewStage | null;
 	/** warren-6de9: automatic child re-dispatch budget consumed so far. */
 	retryCount: number;
 }
 
-/** `POST /plan-runs` request body (warren-f923). Exactly one of `planId` / `issues` (warren-de42). */
 export interface CreatePlanRunInput {
 	project: string;
 	planId?: string;
@@ -682,43 +656,28 @@ export interface CreatePlanRunInput {
 	ref?: string;
 	providerOverride?: string;
 	modelOverride?: string;
-	/** Per-child USD spend cap (warren-a63d); same validation as `POST /runs` maxCostUsd. */
-	maxCostUsd?: number;
 	dispatcherHandle?: string;
 }
 
-/** `POST /plan-runs` 201 response envelope. */
 export interface CreatePlanRunResponse {
 	planRun: PlanRunRow;
 	children: PlanRunChildRow[];
 }
 
-/**
- * `GET /plan-runs/:id` envelope — row + children + fanned-out `runs[]`
- * via repos.runs.listByIds so the detail page renders in one round-trip
- * (warren-f923). `runs` excludes children whose `runId` is still null.
- */
+/** Plan details include implementation runs and operator review history. */
 export interface PlanRunDetailResponse {
 	planRun: PlanRunRow;
 	children: PlanRunChildRow[];
 	runs: RunRow[];
 }
 
-/** `POST /plan-runs/:id/cancel` envelope. */
 export interface CancelPlanRunResponse {
 	planRun: PlanRunRow;
 	cancelledChild: { childSeq: number; runId: string } | null;
 	alreadyTerminal: boolean;
 }
 
-/* ----------------------------------------------------------------------- */
-/* Run-analytics token types (warren-3be4 / pl-d1a2 step 3).               */
-/*                                                                          */
-/* Mirrors the server-side shapes from src/runs/analytics/run-metrics.ts   */
-/* and src/server/handlers/runs/analytics.ts. Kept in sync by hand —       */
-/* src/ui is excluded from the root tsconfig and the boundary is the HTTP  */
-/* wire, not a TS import (mx-1bd551).                                       */
-/* ----------------------------------------------------------------------- */
+/* Run analytics token aggregates. */
 
 /**
  * Aggregate token counts by kind (input, output, cache-read, cache-write)

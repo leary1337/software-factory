@@ -209,13 +209,21 @@ describe("GitHubForge.getPullRequest", () => {
 
 	test("maps merged_at to the merged lifecycle with an epoch-ms mergedAt (§7)", async () => {
 		const { forge } = forgeWith([
-			jsonResponse(200, prJson(5, { merged_at: "2026-08-01T00:00:00Z", state: "closed" })),
+			jsonResponse(
+				200,
+				prJson(5, {
+					merged_at: "2026-08-01T00:00:00Z",
+					state: "closed",
+					merge_commit_sha: "a".repeat(40),
+				}),
+			),
 		]);
 		const result = await forge.getPullRequest(REF, pr);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.value.lifecycle).toBe("merged");
 			expect(result.value.mergedAt).toBe(Date.parse("2026-08-01T00:00:00Z"));
+			expect(result.value.mergedCommit).toBe("a".repeat(40));
 		}
 	});
 

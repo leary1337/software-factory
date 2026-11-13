@@ -25,3 +25,14 @@ export async function materializeSkillPack(
 	await cp(join(packDir, "factory", "skills"), join(claudeDir, "skills"), { recursive: true });
 	await cp(join(packDir, "rules"), join(claudeDir, "rules"), { recursive: true });
 }
+
+/** Codex discovers skills under ~/.agents; pstack references keep a stable root. */
+export async function materializeCodexSkillPack(
+	homePath: string,
+	packDir = DEFAULT_SKILL_PACK_DIR,
+): Promise<void> {
+	const skills = join(homePath, ".agents", "skills");
+	await cp(join(packDir, "mattpocock", "skills"), skills, { recursive: true });
+	await cp(join(packDir, "factory", "skills"), skills, { recursive: true });
+	await cp(join(packDir, "pstack"), join(homePath, ".agents", "pstack"), { recursive: true });
+}

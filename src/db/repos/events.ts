@@ -15,6 +15,8 @@ import type { DrizzleAdapter } from "./drizzle-adapter.ts";
 export interface AppendEventInput {
 	runId: string;
 	sandboxEventSeq: number;
+	/** Provider cursor, independent of Warren-authored events in the transcript. */
+	runtimeEventSeq?: number;
 	ts: string;
 	kind: string;
 	stream?: EventStream | null;
@@ -63,7 +65,14 @@ export class EventsRepo {
 				.insert(this.events)
 				.values({
 					runId: input.runId,
-					sandboxEventSeq: input.sandboxEventSeq,
+					sandboxEventSeq:
+						input.runtimeEventSeq === undefined
+							? input.sandboxEventSeq
+							: sql`(
+						SELECT CASE WHEN coalesce(max(sandbox_event_seq), 0) >= ${input.sandboxEventSeq}
+						THEN coalesce(max(sandbox_event_seq), 0) + 1 ELSE ${input.sandboxEventSeq} END
+						FROM events WHERE run_id = ${input.runId})`,
+					runtimeEventSeq: input.runtimeEventSeq ?? null,
 					ts: input.ts,
 					kind: input.kind,
 					stream: input.stream ?? null,
@@ -156,33 +165,6 @@ export class EventsRepo {
 	}
 
 	/**
-	 * The run's newest event of `kind` on `stream`, or undefined. The plan-run
-	 * review step reads the post-run quality gate's finished event this way
-	 * (docs/design/post-run-quality-gate.md): reap's bookkeeping events land
-	 * after it, so a fixed-size tail can miss it.
-	 */
-	async latestOfKind(
-		runId: string,
-		kind: string,
-		stream: EventStream,
-	): Promise<EventRow | undefined> {
-		return this.adapter.pickOne<EventRow>(
-			this.db
-				.select()
-				.from(this.events)
-				.where(
-					and(
-						eq(this.events.runId, runId),
-						eq(this.events.kind, kind),
-						eq(this.events.stream, stream),
-					),
-				)
-				.orderBy(desc(this.events.sandboxEventSeq))
-				.limit(1),
-		);
-	}
-
-	/**
 	 * Highest sandbox_event_seq we've persisted for a run, or null if none.
 	 * Used at warren startup to compute the resume offset for live runs
 	 * ("MAX(events.sandbox_event_seq) + 1", docs/design/runtime-and-supervisor.md).
@@ -196,6 +178,21 @@ export class EventsRepo {
 		);
 		const raw = row?.max ?? null;
 		return raw === null ? null : Number(raw);
+	}
+
+	/** Resume the provider from its own cursor; system events never advance it. */
+	async maxRuntimeSeqForRun(runId: string): Promise<number | null> {
+		const row = await this.adapter.pickOne<{ max: number | null }>(
+			this.db
+				.select({
+					max: sql<number | null>`max(coalesce(${this.events.runtimeEventSeq},
+				CASE WHEN ${this.events.kind} IN ('text', 'thinking', 'tool_use', 'tool_result', 'state_change', 'telemetry', 'stderr')
+				THEN ${this.events.sandboxEventSeq} END))`,
+				})
+				.from(this.events)
+				.where(eq(this.events.runId, runId)),
+		);
+		return row?.max === null || row?.max === undefined ? null : Number(row.max);
 	}
 
 	/**

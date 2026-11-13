@@ -42,7 +42,6 @@ export interface JudgeVerdictPayload {
 		readonly model: string;
 		readonly rubricVersion: string;
 		readonly judgedAt: string;
-		readonly costUsd: number;
 	};
 }
 

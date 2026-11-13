@@ -14,7 +14,7 @@ afterEach(() => {
 	for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function verdictDir(verdict: unknown, usage: unknown = { costUsd: 0.5, turns: 12 }): string {
+function verdictDir(verdict: unknown, usage: unknown = { turns: 12 }): string {
 	const dir = mkdtempSync(join(tmpdir(), "design-review-report-"));
 	temps.push(dir);
 	if (verdict !== undefined) {
@@ -63,7 +63,6 @@ describe("runReport", () => {
 		});
 		expect(comments.checkRuns).toEqual([]);
 		expect(body(comments).startsWith(DESIGN_REVIEW_MARKER)).toBe(true);
-		expect(body(comments)).toContain("cost $0.50, 12 turns");
 	});
 
 	test("fails the check on a FAIL verdict", async () => {

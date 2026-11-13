@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { probeOnce, tcpConnectOnce } from "./probe.ts";
 
 // Build a fetch stand-in that returns a Response with the given status, or
@@ -85,16 +85,16 @@ describe("tcpConnectOnce (warren-49d9 / pl-592f step 1)", () => {
 	});
 
 	test("returns 'not_connected' when the connect handshake exceeds timeoutMs", async () => {
-		// 192.0.2.1 is RFC 5737 TEST-NET-1 — reserved for documentation and
-		// reliably unrouted on real networks, so SYNs are dropped and the
-		// timer fires. If the local stack rejects it synchronously (e.g.
-		// EHOSTUNREACH on locked-down sandboxes) we still get 'not_connected'
-		// via the error arm — same outcome, same assertion.
-		const start = Date.now();
-		const outcome = await tcpConnectOnce("192.0.2.1", 1, 100);
-		const elapsed = Date.now() - start;
-		expect(outcome).toBe("not_connected");
-		// Must respect the timeoutMs bound (with generous slack for CI).
-		expect(elapsed).toBeLessThan(2_000);
+		// A VPN/proxy may accept even TEST-NET addresses. Hold the handshake
+		// explicitly so this exercises the timer, independent of host routing.
+		const connect = spyOn(Bun, "connect").mockImplementation(() => new Promise(() => {}));
+		try {
+			const start = Date.now();
+			expect(await tcpConnectOnce("192.0.2.1", 1, 100)).toBe("not_connected");
+			expect(Date.now() - start).toBeGreaterThanOrEqual(90);
+			expect(Date.now() - start).toBeLessThan(2_000);
+		} finally {
+			connect.mockRestore();
+		}
 	});
 });

@@ -21,13 +21,13 @@
  * from `src/forge/errors.ts`, mirroring the runtime registry.
  */
 
-import type { ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
+import type { DeploymentState, ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
 
 // Alias-not-relist (§2.1): the lifecycle and error-kind vocabulary live in
 // the canonical home because the UI and the SDK render them. The Exact<>
 // mutual-assignability tests in `contract.test.ts` are the mechanical
 // stand-in that fails to compile the moment either side drifts.
-export type { ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
+export type { DeploymentState, ForgeErrorKind, PullRequestLifecycle } from "../core/wire.ts";
 
 /**
  * Opaque repo handle — the domain compares and passes these, and reads
@@ -100,10 +100,11 @@ export type PullRequestAutoMergeState = "armed" | "unarmed" | "unknown";
 export interface DeployRecord {
 	readonly sha: string;
 	readonly createdAt: string;
-	readonly state: "success" | "failure" | "in_progress" | "unknown";
+	readonly state: DeploymentState;
 }
 
 export interface DeployRun {
+	readonly displayTitle?: string;
 	readonly id: number;
 	readonly status: string;
 	readonly conclusion: string | null;
@@ -123,6 +124,7 @@ export interface ForgeDeploys {
 		ref: RepoRef,
 		environment: string,
 		limit: number,
+		page?: number,
 	): Promise<ForgeResult<readonly DeployRecord[]>>;
 	compare(ref: RepoRef, base: string, head: string): Promise<ForgeResult<PendingChanges>>;
 	listRuns(
@@ -130,10 +132,20 @@ export interface ForgeDeploys {
 		workflow: string,
 		limit: number,
 	): Promise<ForgeResult<readonly DeployRun[]>>;
-	dispatch(ref: RepoRef, workflow: string, branch: string): Promise<ForgeResult<void>>;
+	resolveCommit(ref: RepoRef, branch: string): Promise<ForgeResult<string>>;
+	readWorkflow(ref: RepoRef, workflow: string, branch: string): Promise<ForgeResult<string>>;
+	dispatch(
+		ref: RepoRef,
+		workflow: string,
+		branch: string,
+		inputs?: Readonly<Record<string, string>>,
+	): Promise<ForgeResult<void>>;
 }
 
 export interface PullRequestState {
+	readonly draft?: boolean;
+	/** The resulting merge/squash commit; absent when the forge cannot establish it. */
+	readonly mergedCommit?: string;
 	lifecycle: PullRequestLifecycle;
 	/** epoch ms — required, not optional: the merge-watcher blocks on it (§7) */
 	mergedAt: number | null;
@@ -141,6 +153,13 @@ export interface PullRequestState {
 	baseBranch: string;
 	/** auto-merge as the forge reports it; required so every provider answers */
 	autoMerge: PullRequestAutoMergeState;
+}
+
+/** Enforcement that prevents a reviewed head merging over a newly advanced base. */
+export interface MergeProtection {
+	readonly baseCommit: string;
+	/** Strict required checks apply to every actor, including administrators. */
+	readonly requiresUpToDate: boolean;
 }
 
 /* --------------------------------------------------------------------- */
@@ -297,7 +316,7 @@ export interface ForgeCapabilities {
 }
 
 /**
- * The forge seam. Eleven methods. `parseRepoRef`, `openPullRequest`,
+ * The forge seam. `parseRepoRef`, `openPullRequest`,
  * `findPullRequest`, `getPullRequest`, `setPullRequestBody`, `listChecks`,
  * `fetchJobLogTail`, and `deleteBranch` are FIRM — each replaces a call site
  * that exists today and the audit grounds every signature. `gitCredential`
@@ -307,12 +326,11 @@ export interface ForgeCapabilities {
  * `armAutoMerge` (pl-92a3) is the newest: warren arms the forge's own
  * auto-merge and the forge performs the merge once required checks pass.
  *
- * There is still deliberately no `mergePullRequest`: `armAutoMerge` arms
- * and the FORGE merges, which keeps required-check evaluation,
- * branch-protection, and merge-queue semantics with the forge that already
- * owns them. A direct merge method would re-implement them for no caller.
- * See docs/design/forge-auto-merge.md (the forge auto-merge design record,
- * plan pl-92a3).
+ * Reviewed plans also use mergePullRequest with strict forge protection.
+ * Explicit Warren verification reads complete CI via readMergeChecks and
+ * publishes the reviewed history with a pinned-base Git transaction instead.
+ * Both paths keep the reviewed SHA and shared policy; see the extension in
+ * docs/design/forge-auto-merge.md.
  */
 export interface Forge {
 	readonly capabilities: ForgeCapabilities;
@@ -363,8 +381,8 @@ export interface Forge {
 
 	/**
 	 * Arm the forge's own auto-merge on an open PR — the forge performs the
-	 * merge once its required checks pass; warren never merges directly
-	 * (there is no `mergePullRequest`, by design). Idempotent: an
+	 * merge once its required checks pass. Reviewed-plan publication is a
+	 * separate path. Idempotent: an
 	 * already-armed PR reports `already_armed`. Gated by
 	 * `capabilities.autoMergeArm`: a forge that cannot arm answers the
 	 * `unsupported_forge` refusal and changes nothing. Best-effort by
@@ -380,11 +398,31 @@ export interface Forge {
 	/** Deploy status and start; absent on forges without deployments. */
 	readonly deploys?: ForgeDeploys;
 
-	/** Squash-merge a PR. Providers without support return `unsupported`. */
-	mergePullRequest(ref: RepoRef, pr: PullRequestRef): Promise<ForgeResult<void>>;
+	/** Absent or unverifiable protection blocks review-driven automatic merge. */
+	readMergeProtection?(ref: RepoRef, branch: string): Promise<ForgeResult<MergeProtection>>;
+	/** Complete, fail-closed check runs and latest commit statuses for this exact SHA. */
+	readMergeChecks?(ref: RepoRef, commit: string): Promise<ForgeResult<CheckSummary>>;
+	/** Refresh an outdated PR branch; a changed head must receive a new review and gate. */
+	updatePullRequestBranch?(
+		ref: RepoRef,
+		pr: PullRequestRef,
+		expectedHead: string,
+	): Promise<ForgeResult<void>>;
 
-	/** Post a comment on a PR. Providers without support return `unsupported`. */
-	commentOnPullRequest(ref: RepoRef, pr: PullRequestRef, body: string): Promise<ForgeResult<void>>;
+	/** Merge only the expected head with the chosen method; unsupported providers refuse. */
+	mergePullRequest(
+		ref: RepoRef,
+		pr: PullRequestRef,
+		options: { readonly expectedHead: string; readonly method: AutoMergeMethod },
+	): Promise<ForgeResult<void>>;
+
+	/** Post a comment; a supplied key deduplicates delivery retries. Unsupported providers refuse. */
+	commentOnPullRequest(
+		ref: RepoRef,
+		pr: PullRequestRef,
+		body: string,
+		key?: string,
+	): Promise<ForgeResult<void>>;
 
 	/**
 	 * Rewrite a PR body. The domain composes the body; the forge only

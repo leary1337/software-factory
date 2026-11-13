@@ -51,7 +51,7 @@ import { scenario as scenario17 } from "./scenarios/17-init-scaffold.ts";
 import { scenario as scenario19 } from "./scenarios/19-warren-on-postgres.ts";
 import { scenario as scenario20 } from "./scenarios/20-preview.ts";
 import { scenario as scenario20Path } from "./scenarios/20-preview-path.ts";
-import { scenario as scenario21 } from "./scenarios/21-claude-code-cost-smoke.ts";
+import { scenario as scenario21 } from "./scenarios/21-claude-code-usage-smoke.ts";
 import { scenario as scenario22 } from "./scenarios/22-seeds-extensions-roundtrip.ts";
 import { scenario as scenario24 } from "./scenarios/24-preview-node-runtime.ts";
 import { scenario as scenario26 } from "./scenarios/26-plan-run-roundtrip.ts";

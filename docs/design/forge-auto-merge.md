@@ -9,7 +9,16 @@
 **Companion:** [`forge-contract.md`](./forge-contract.md), the seam this record extends.
 **Plan:** seeds plan `pl-92a3`, eight children under seed `warren-081c`, closed in shipped state.
 
-Warren arms GitHub auto-merge itself, through the Forge seam, right after
+**Reviewed-plan extension (warren-f110, 2026-11-12):** explicitly setting
+`pr.autoMerge.verification: warren` selects local verification and a pinned-base
+Git publication for reviewed implementer plans without paid branch protection.
+The implementation is `src/plan-runs/review-warren-merge.ts` and
+`src/plan-runs/review-publish.ts`; setup and limits are in
+[project setup](../project-setup.md#reviewed-plans-without-paid-branch-protection).
+The native arming contract below remains the default; the extension never arms
+unreviewed runs and retains the shared protected-path policy.
+
+By default, Warren arms GitHub auto-merge itself, through the Forge seam, right after
 reap opens a pull request. GitHub still merges it once the required
 checks pass. A project opts in with one `pr.autoMerge` block in
 `.warren/config.yaml`. After that, a project needs no per-repo workflow,

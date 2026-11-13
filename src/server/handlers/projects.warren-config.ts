@@ -29,13 +29,6 @@ export const PUBLIC_WARREN_CONFIG_FIELDS = [
 	"warnings",
 ] as const satisfies readonly (keyof LoadedWarrenConfig)[];
 
-/**
- * The `.warren/config.yaml` defaults a spectator is served by the
- * narrowed `GET /projects/:id/warren-config` envelope (warren-b754).
- * Allowlist again — every other `DefaultsConfig` block (spend caps,
- * qualityGate command strings, prompts, image/preview/admission
- * internals) is operator material and stays off the public wire.
- */
 export const PUBLIC_WARREN_CONFIG_DEFAULTS_FIELDS = [
 	"defaultRole",
 	"defaultBranch",
@@ -44,22 +37,6 @@ export const PUBLIC_WARREN_CONFIG_DEFAULTS_FIELDS = [
 	"runBranchPrefix",
 ] as const satisfies readonly (keyof DefaultsConfig)[];
 
-/**
- * The complement, spelled out so the classification is a decision on
- * record (same posture as `REDACTED_PROJECT_FIELDS`):
- *
- * - `triggers`, `prTemplate`, `errors` — envelope keys the public body
- *   drops entirely. Triggers and PR templates carry executable prompt
- *   text; error messages can narrate host file reads.
- * - `defaultPrompt`, `repoContext` — dispatch prompt text.
- * - `qualityGate` — an executable command string.
- * - `migrations` — carries a regeneration command string (warren-4371).
- * - `maxCostUsd` — an admission-cap disclosure.
- * - `agentImage`, `preview`, `agent`, `interactiveAgents`, `resources`,
- *   `admission`, `ciFixer`, `healer`, `tracker`, `pr` — nested operator
- *   configuration blocks (image names, ports, pod specs, prompt knobs,
- *   PR auto-merge policy).
- */
 export const REDACTED_WARREN_CONFIG_FIELDS = [
 	"triggers",
 	"prTemplate",
@@ -67,9 +44,10 @@ export const REDACTED_WARREN_CONFIG_FIELDS = [
 	"defaultPrompt",
 	"repoContext",
 	"qualityGate",
+	"acceptance",
+	"planRunBudget",
 	"migrations",
 	"deploy",
-	"maxCostUsd",
 	"agentImage",
 	"preview",
 	"agent",

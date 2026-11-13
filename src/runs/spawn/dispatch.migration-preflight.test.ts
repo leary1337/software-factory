@@ -180,6 +180,9 @@ describe("spawnRun: migration journal preflight (warren-4371)", () => {
 			(await repos.events.listByRun(run.id)).some((e) => e.kind === "migration_journal_collision"),
 		).toBe(false);
 
+		await repos.runs.markRunning(run.id);
+		await repos.runs.finalize(run.id, "succeeded");
+
 		// No ref → refresh bases on the default branch, which cannot collide.
 		const { run: fresh } = await spawnRun({
 			repos,

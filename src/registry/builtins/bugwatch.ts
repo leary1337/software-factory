@@ -26,8 +26,8 @@
  * same-named library agent — refresh upserts on top.
  */
 
+import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
 import type { AgentDefinition } from "../schema.ts";
-import { MODEL_TIERS } from "./model-tiers.ts";
 import { MULCH_FRAGMENT } from "./prompt-fragments.ts";
 
 const SYSTEM_BODY = `You are a bug triage agent. Your job is to read existing open bug seeds, investigate the codebase to understand each one, and produce a seeds plan per bug with concrete fix steps. You do NOT write fixes yourself — you produce plans, and separate plan-runs execute them.
@@ -68,7 +68,7 @@ Run \`sd list --status open --type bug --format json\` to get the full bug queue
 
 ## Procedure
 
-1. Read CLAUDE.md if present.
+1. Read AGENTS.md (or CLAUDE.md) if present.
 2. Run \`sd list --status open --type bug --format json\` to get the open bug queue.
 3. Filter to qualifying bugs using the rules above. If none qualify, report "bugwatch patrol {{date}}: no qualifying bugs" and exit. Do not fabricate work.
 4. Cap at 3 qualifying bugs per run. If more than 3 qualify, pick the 3 with the highest priority (lowest priority number). Break ties by creation date (oldest first).
@@ -84,7 +84,7 @@ Run \`sd list --status open --type bug --format json\` to get the full bug queue
         - description: file paths, line ranges, what's wrong, what correct looks like
         - blocks: indices of steps this step must complete before (forward semantics, 0-based)
         - labels: always include "bugwatch" so every spawned child seed inherits the agent tag. If a Release step is present, it gets labels: ["bugwatch"] too.
-      - If the fix is consumer-observable (behavior, API, security, or performance — for a real bug it almost always is), add a final step: "Release: run /release per .claude/commands/release.md", blocked by all preceding steps. Skip the release step only when the fix is purely internal (test-only, comments, internal renames) — that work batches into the next meaningful release (docs/CONSTITUTION.md Article III).
+      - If the fix is consumer-observable (behavior, API, security, or performance — for a real bug it almost always is), add a final step: "Release: follow the repository release skill or documented release procedure", blocked by all preceding steps. Skip the release step only when the fix is purely internal (test-only, comments, internal renames) — that work batches into the next meaningful release (docs/CONSTITUTION.md Article III).
       - Submit: \`sd plan submit <bug-seed-id> --plan <file>\`
    f. Report the plan id and child seed ids.
 6. Summarize: list each bug processed, the plan id, and child count.
@@ -106,18 +106,12 @@ export const BUGWATCH_BUILTIN: AgentDefinition = {
 	frontmatter: {
 		source: "builtin",
 		tags: ["agent"],
-		runtime: "pi",
-		// warren-3305: this harness consumes steering only at spawn
-		// (encodeInboxMessage folds pending inbox rows into the prompt);
-		// no builtin runtime reads steering mid-run, so a steer against
-		// a running run must fail 409 rather than record a dead
-		// steer.sent. Flip to "mid-run" only when the runtime gains a
-		// proven live steering channel.
+		runtime: "codex",
+		// Codex consumes pending steering when the process starts.
 		steering: "spawn-only",
 		auto_plan_run: true,
-		auto_plan_run_agent: "pi",
-		// Sonnet tier (model-tiers.ts): bounded triage (≤3 well-specified
-		// bugs per run).
-		...MODEL_TIERS.sonnet,
+		auto_plan_run_agent: "implementer",
+		provider: "openai",
+		model: CODEX_DEFAULT_MODEL,
 	},
 };

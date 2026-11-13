@@ -1,23 +1,4 @@
-/**
- * The judge's tool surface (agent-analytics §12.2): exactly two read tools
- * (`get_run_facts`, `page_events`) plus the one terminating write tool
- * (`report_verdict`). The judge holds no mutation capability of any kind —
- * the constraint is the design.
- *
- * These specs are SDK-agnostic structural shapes: the pi-SDK adapter in
- * `pi-session.ts` widens them into `ToolDefinition`s, and tests drive the
- * executes directly. No pi import lives here, so the policy (page caps,
- * verdict capture) is testable without a provider.
- *
- * Paging discipline: `page_events` cursors `NormalizedEvent` rows by
- * sequence number over `GET /runs/:id/events?since=<seq>&limit=<n>` — never
- * a held follow stream (FRICTION §1). A judgment has a HARD page cap
- * (`JUDGE_MAX_PAGES`): past it the tool stops serving transcript and tells
- * the model to judge from what it has, so oversized event tails degrade to
- * a lower-confidence verdict instead of unbounded spend. The loop records
- * `pagesRead`/`pageCapHit` in the verdict's provenance so a capped judgment
- * is distinguishable from a full one.
- */
+
 
 import { Type } from "@sinclair/typebox";
 import type { WarrenClient } from "./client.ts";
@@ -84,14 +65,6 @@ export interface JudgeToolsDeps {
 	readonly eventsPageSize: number;
 	/** Hard cap on events pages per judgment (JUDGE_MAX_PAGES). */
 	readonly maxPages: number;
-	/**
-	 * Per-judgment USD cap (JUDGE_MAX_COST_USD). Once {@link getAccruedCostUsd}
-	 * reaches it, `page_events` stops serving transcript so the attempt lands
-	 * on a verdict instead of compounding spend (warren-9a34).
-	 */
-	readonly maxCostUsd?: number;
-	/** Live accrued cost for this judgment: prior attempts + current session. */
-	readonly getAccruedCostUsd?: () => number;
 }
 
 /**
@@ -104,8 +77,6 @@ export interface JudgeToolsState {
 	pagesRead: number;
 	/** True once `page_events` refused a page because the cap was hit. */
 	pageCapHit: boolean;
-	/** True once `page_events` refused a page because accrued cost hit the cap. */
-	costCapHit: boolean;
 	/** The validated `report_verdict` arguments, once called. */
 	reportedVerdict: ReportVerdictArgs | null;
 }
@@ -132,7 +103,6 @@ export function createJudgeTools(deps: JudgeToolsDeps): JudgeTools {
 	const state: JudgeToolsState = {
 		pagesRead: 0,
 		pageCapHit: false,
-		costCapHit: false,
 		reportedVerdict: null,
 	};
 
@@ -172,27 +142,6 @@ export function createJudgeTools(deps: JudgeToolsDeps): JudgeTools {
 				typeof limitRaw === "number" && Number.isInteger(limitRaw) && limitRaw > 0
 					? Math.min(limitRaw, 500)
 					: deps.eventsPageSize;
-			const costCap = deps.maxCostUsd;
-			const accrued =
-				costCap !== undefined && deps.getAccruedCostUsd !== undefined
-					? deps.getAccruedCostUsd()
-					: null;
-			if (costCap !== undefined && accrued !== null && accrued >= costCap) {
-				state.costCapHit = true;
-				return textResult(
-					JSON.stringify({
-						error: "cost_cap_reached",
-						message:
-							`Accrued cost $${accrued.toFixed(4)} reached the per-judgment ` +
-							`cap $${costCap.toFixed(4)}. No further transcript pages will be ` +
-							"served: judge from the pages you have, lower confidence to " +
-							"match the reduced evidence, and call report_verdict now.",
-						pagesRead: state.pagesRead,
-						costCapHit: true,
-					}),
-					{ error: "cost_cap_reached", pagesRead: state.pagesRead },
-				);
-			}
 			if (state.pagesRead >= deps.maxPages) {
 				state.pageCapHit = true;
 				return textResult(

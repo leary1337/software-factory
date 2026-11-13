@@ -396,7 +396,7 @@ describe("OpenClaw V0 end-to-end dry run", () => {
 		const runId = runIdOf(tick1);
 
 		// Terminal success with the pushed fork branch.
-		h.warren.setRunState(runId, { state: "succeeded", costUsd: 1.25, targetBranch: FORK_BRANCH });
+		h.warren.setRunState(runId, { state: "succeeded", targetBranch: FORK_BRANCH });
 
 		// Tick 2: reconcile the run, render exactly one cross-fork PR intent.
 		const tick2 = await runTick(h.deps, h.campaignId);
@@ -518,7 +518,6 @@ describe("OpenClaw V0 end-to-end dry run", () => {
 			total: 1,
 			byState: { planned: 1 },
 		});
-		expect(tick5.report.budget).toEqual({ capUsdCents: 10000, availableUsdCents: 9875 });
 		expect(tick5.report.openAttention).toBe(attentionReasons.length);
 
 		// Negative probe: every GitHub request of the whole lifecycle was a

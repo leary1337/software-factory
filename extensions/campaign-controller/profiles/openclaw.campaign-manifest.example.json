@@ -23,11 +23,6 @@
 		"model": "claude-sonnet-4-5"
 	},
 	"promptDigest": "e9271f621c15aafb25668a1dfa7d627c7a0c47c1b1c6fda497f01997107af2d2",
-	"budget": {
-		"perRunUsd": 5,
-		"dailyUsd": 20,
-		"totalUsd": 100
-	},
 	"maxConcurrentRuns": 2,
 	"expiresAt": "2026-12-31T00:00:00.000Z",
 	"issueEvidenceTiers": {
@@ -36,6 +31,6 @@
 	"approval": {
 		"approvedBy": "jayminwest",
 		"approvedAt": "2026-08-25T12:00:00.000Z",
-		"manifestDigest": "497b6ae30ba2b5c6d42e32d426092c739a44611c1f405ea26197f95f5d18d80a"
+		"manifestDigest": "ff1b99f88d2ba254ae25ec29c1c91de59def9e83629010f2e6047619054bad83"
 	}
 }

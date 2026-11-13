@@ -30,6 +30,7 @@
 import { formatError, NotFoundError } from "../core/errors.ts";
 import type { ScheduledIssue } from "../core/wire.ts";
 import type { Repos } from "../db/repos/index.ts";
+import { RunCapacityError } from "../runs/spawn/admission.ts";
 import type { CronTrigger, DefaultsConfig } from "../warren-config/index.ts";
 import { parseCron } from "./cron.ts";
 import {
@@ -52,12 +53,6 @@ export interface DispatchSpawnInput {
 	 */
 	readonly seedId?: string;
 	readonly metadata?: unknown;
-	/**
-	 * Per-trigger spend cap (warren-a63d). Forwarded to the spawn flow as
-	 * `maxCostUsdOverride` so the cron entry's `maxCostUsd` overrides the
-	 * agent's own cap. Omitted when the trigger declares none.
-	 */
-	readonly maxCostUsd?: number;
 	/**
 	 * Fired once with the warren run id the moment the row is created, before
 	 * runtime contact (warren-a0a2). Lets the cron dispatcher learn the row id
@@ -221,7 +216,6 @@ export async function dispatchCronTrigger(input: DispatchCronInput): Promise<Dis
 				cron: input.trigger.cron,
 				...(input.trigger.seed !== undefined ? { seed: input.trigger.seed } : {}),
 			},
-			...(input.trigger.maxCostUsd !== undefined ? { maxCostUsd: input.trigger.maxCostUsd } : {}),
 			// Learn the row id even if the spawn throws — the GC below reclaims it.
 			onRowCreated: (id) => {
 				createdRunId = id;
@@ -428,6 +422,8 @@ interface CronSpawnFailureInput {
  */
 async function handleCronSpawnFailure(args: CronSpawnFailureInput): Promise<DispatchCronResult> {
 	const { input, retry, nextFireAt, createdRunId, err } = args;
+	if (err instanceof RunCapacityError)
+		return { kind: "skipped", nextFireAt, reason: "run_capacity_full" };
 	if (isPermanentSpawnFailure(err)) {
 		await consumeCronSlot(input, nextFireAt);
 		return { kind: "error", reason: `spawnRun failed: ${formatError(err)}`, permanent: true };

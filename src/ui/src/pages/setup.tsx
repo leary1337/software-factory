@@ -53,7 +53,7 @@ function SetupStepRow({ step, index }: { step: SetupStep; index: number }) {
 		<>
 			<span
 				className={cn(
-					"flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-sm) border font-mono text-[11px]",
+					"flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-sm) border font-mono text-xs",
 					step.state === "done"
 						? "border-transparent bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
 						: "border-(--color-border) text-(--color-text-3)",
@@ -63,14 +63,12 @@ function SetupStepRow({ step, index }: { step: SetupStep; index: number }) {
 			</span>
 			<div className="flex min-w-0 flex-1 flex-col gap-1">
 				<div className="flex flex-wrap items-center gap-2">
-					<span className="font-medium text-(--color-text) text-[13px] leading-4">
-						{step.title}
-					</span>
+					<span className="font-medium text-(--color-text) text-sm leading-4">{step.title}</span>
 					<Badge variant={step.state === "done" ? "done" : "secondary"}>
 						{STATE_LABEL[step.state]}
 					</Badge>
 				</div>
-				<p className="text-(--color-text-2) text-[12px] leading-[16px]">{step.blurb}</p>
+				<p className="text-(--color-text-2) text-xs leading-4">{step.blurb}</p>
 			</div>
 		</>
 	);
@@ -151,7 +149,7 @@ export function SetupPage() {
 				<h1 className="font-semibold text-(--color-text) text-[18px] leading-6 tracking-[-0.01em]">
 					Welcome to warren
 				</h1>
-				<p className="text-(--color-text-2) text-[13px] leading-[18px]">
+				<p className="text-(--color-text-2) text-sm leading-[18px]">
 					Three quick steps to your first finished run. Your progress is saved — come back any time.
 				</p>
 			</div>
@@ -160,7 +158,7 @@ export function SetupPage() {
 					<SetupStepRow key={step.id} step={step} index={i} />
 				))}
 			</div>
-			<p className="text-(--color-text-3) text-[11px] leading-[14px]">
+			<p className="text-(--color-text-3) text-xs leading-4">
 				{doneCount > 0
 					? `${doneCount} of ${steps.length} steps complete.`
 					: "Nothing set up yet — start with Connect GitHub above."}
@@ -218,6 +216,6 @@ export function SetupLandingRoute() {
 			</div>
 		);
 	}
-	if (decision === "console") return <Navigate to="/operations" replace />;
+	if (decision === "console") return <Navigate to="/overview" replace />;
 	return <SetupPage />;
 }

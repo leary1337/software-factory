@@ -146,7 +146,6 @@ function makeSpec(h: Harness, runId: string, overrides: Partial<RunSpec> = {}): 
 	};
 }
 
-/** Poll status until the record terminalizes (the drive loop is async). */
 async function awaitTerminal(
 	engine: LocalEngine,
 	providerRunId: string,
@@ -346,8 +345,6 @@ describe("LocalEngine.sendMessage + cancel", () => {
 		}
 	});
 
-	// warren-8a6e: cancel must surface phase=cancelled on status() immediately
-	// so cancelRun's inline-reap path fires without the 30s watchdog tick.
 	test("cancel terminalizes the record immediately for status()", async () => {
 		const h = await makeHarness();
 		try {
@@ -363,7 +360,11 @@ describe("LocalEngine.sendMessage + cancel", () => {
 			});
 			const longProc = (): SpawnResult => ({
 				pid: 9999,
-				stdout: new ReadableStream({ start() {} }),
+				stdout: new ReadableStream({
+					start(controller) {
+						void held.then(() => controller.close());
+					},
+				}),
 				stderr: empty,
 				exited: held.then(() => 143),
 				cancel: () => {

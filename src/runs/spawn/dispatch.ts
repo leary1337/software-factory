@@ -7,25 +7,27 @@
  */
 
 import { NotFoundError, ValidationError } from "../../core/errors.ts";
-import { resolveRunCostBasis } from "../../core/providers.ts";
 import { withProjectCloneLock } from "../../projects/clone-lock.ts";
 import { refreshProject } from "../../projects/manage.ts";
 import {
 	readProviderFrontmatter,
 	readRuntimeId,
-	withMaxCostUsdOverride,
 	withProviderOverrides,
 } from "../../registry/schema.ts";
 import type { RunHandle, RunSpec, RuntimeProvider } from "../../runtime/contract.ts";
 import { interactiveRuntimeOverride } from "../../warren-config/schema.ts";
 import { composeRunBranch, resolveRunBranchPrefix } from "../branch.ts";
 import { parseBurrowConfig } from "../burrow-config.ts";
-import { resolveCapOverride } from "../cost-cap.ts";
 import { lifecycleBus } from "../lifecycle-bus.ts";
 import { buildSeedFiles } from "../seed.ts";
 import { validateTargetBranch } from "../target-branch.ts";
+import { withRunAdmission } from "./admission.ts";
 import { readCachedAgent, readProjectDefaults, resolveOverride } from "./agent-cache.ts";
 import { injectWarrenCallbackEnv } from "./callback-env.ts";
+import { composeDispatchPrompt, recordContextMetrics } from "./context-metrics.ts";
+
+export { composeDispatchPrompt } from "./context-metrics.ts";
+
 import { resolveContinuationRef, resolveExistingBranch } from "./continuation.ts";
 import { writeDispatchContext } from "./dispatch-context.ts";
 import { injectGitIdentityEnv } from "./git-identity.ts";
@@ -36,6 +38,7 @@ import {
 } from "./migration-preflight.ts";
 import { gateAgentPrompts, withMulchArm } from "./prompt-capabilities.ts";
 import { assertNoKnownProviderModelMismatch } from "./provider-model.ts";
+import { readReviewGate } from "./review-policy.ts";
 import {
 	bindRunLogger,
 	compensateCreatedRuntime,
@@ -66,7 +69,9 @@ export async function spawnRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// read the SAME shared host clone, so two concurrent dispatches on one
 	// project with different base refs must not interleave. Different projects
 	// dispatch in parallel; see src/projects/clone-lock.ts.
-	return withProjectCloneLock(input.projectId, () => dispatchRun(input));
+	return withRunAdmission(input, (admitted) =>
+		withProjectCloneLock(admitted.projectId, () => dispatchRun(admitted)),
+	);
 }
 
 async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
@@ -100,7 +105,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// refresh ref so the local clone is checked out to the parent branch tip
 	// before burrow forks the new run branch off it. The parent link is also
 	// recorded on the new run row below so the UI can render a chain indicator
-	// and chain cost/token totals are derivable by walking the link.
+
 	const baseRef = input.baseCommit ?? (await resolveContinuationRef(input, project, pushTarget));
 
 	// warren-232d: a baseCommit dispatch NEVER moves the host clone's HEAD.
@@ -142,28 +147,14 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		projectDefaults?.defaultProvider,
 	);
 	const effectiveModel = resolveOverride(input.modelOverride, projectDefaults?.defaultModel);
-	// warren-a63d: fold the per-dispatch spend cap on top. The full chain
-	// (override > agent frontmatter > project default, with malformed agent
-	// values still failing open) lives in resolveCapOverride — cost-cap.ts
-	// owns the semantics, this site only feeds it the three sources.
-	const capOverride = resolveCapOverride({
-		...(input.maxCostUsdOverride !== undefined ? { overrideUsd: input.maxCostUsdOverride } : {}),
-		frontmatter: baseAgent.frontmatter,
-		...(projectDefaults?.maxCostUsd !== undefined
-			? { projectDefaultUsd: projectDefaults.maxCostUsd }
-			: {}),
-	});
 	// warren-cb46: gate tracker/mulch prompt fragments on the project's real
 	// capabilities before anything freezes the agent (prompt-capabilities.ts).
 	const agent = gateAgentPrompts(
 		withMulchArm(
-			withMaxCostUsdOverride(
-				withProviderOverrides(baseAgent, {
-					...(effectiveProvider !== undefined ? { providerOverride: effectiveProvider } : {}),
-					...(effectiveModel !== undefined ? { modelOverride: effectiveModel } : {}),
-				}),
-				capOverride,
-			),
+			withProviderOverrides(baseAgent, {
+				...(effectiveProvider !== undefined ? { providerOverride: effectiveProvider } : {}),
+				...(effectiveModel !== undefined ? { modelOverride: effectiveModel } : {}),
+			}),
 			input.mulchArm,
 		),
 		projectAfterRefresh,
@@ -181,6 +172,9 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// `RunSpawnError` with no half-spawned row to garbage-collect. Anything
 	// burrow rejects later still rolls back via the try/catch below.
 	const seedResult = buildSeedFiles(agent);
+	// Read remote policy before publishing a queued run or reserving its slot.
+	const qualityGate =
+		agent.name === "reviewer" ? await readReviewGate(input, projectAfterRefresh) : undefined;
 
 	// warren-76c5 / warren-3743: multi-worker placement is retired — the
 	// self-host backend is a single local burrow. `runs.worker_id` is no longer
@@ -199,11 +193,6 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		renderedAgentJson: agent,
 		...(declaredProvider !== undefined ? { provider: declaredProvider } : {}),
 		...(declaredModel !== undefined ? { model: declaredModel } : {}),
-		// warren-f3c3: freeze how the run's cost will be priced. A run whose
-		// anthropic credential is CLAUDE_CODE_OAUTH_TOKEN (subscription auth)
-		// gets `subscription_estimate` so costUsd reads as an estimate, not a
-		// bill. Resolved beside the provider env registry (core/providers.ts).
-		costBasis: resolveRunCostBasis(declaredProvider, input.serverEnv ?? process.env),
 		trigger: input.trigger ?? "manual",
 		...(input.seedId !== undefined ? { seedId: input.seedId } : {}),
 		...(input.mode !== undefined ? { mode: input.mode } : {}),
@@ -222,7 +211,12 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	});
 	// warren-a0a2: expose the run id the instant the row exists so the cron
 	// bounded-retry GC can reclaim it if the dispatch below throws (see types).
-	input.onRunRowCreated?.(run.id);
+	try {
+		await input.onRunRowCreated?.(run.id);
+	} catch (err) {
+		await rollback(input, run.id, bindRunLogger(input.logger, run.id, {}), err);
+		throw err;
+	}
 
 	// warren-d6ca: dispatch-context snapshot BEFORE any runtime contact so a
 	// never-started failure still gets a row. Fire-and-log — see writeDispatchContext.
@@ -313,6 +307,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 			projectDefaults?.repoContext,
 		),
 		metadata: composeBurrowMetadata(input.metadata, agent.frontmatter),
+		...(qualityGate ? { qualityGate } : {}),
 		mode: input.mode ?? "batch",
 		network: burrowConfig.network ?? "none",
 		seedFiles: seedResult.files,
@@ -359,6 +354,17 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 					})
 				: null;
 		spec.prompt = appendMigrationCollisionNote(spec.prompt, collisionNote);
+		await recordContextMetrics(
+			input.repos,
+			run.id,
+			{
+				system: agent.sections.system ?? "",
+				repository: projectDefaults?.repoContext ?? "",
+				task: input.prompt,
+				finalPrompt: spec.prompt,
+			},
+			input.now?.() ?? new Date(),
+		);
 		const dispatchStart = Date.now();
 		const handle = await provider.create(spec);
 		created = handle;
@@ -447,33 +453,6 @@ function composeRunEnv(
 
 // warren-4e36 / warren-e7b7: the git-identity env helpers moved to
 // `./git-identity.ts` (size budget, warren-4553).
-
-/**
- * Prefix the user's run prompt with the agent's `system` section so the
- * canopy-defined operating contract (workspace map, rituals, expectations)
- * actually reaches claude. Burrow's claude-code runtime feeds the dispatch
- * prompt to the agent as a single user turn — it never reads
- * `.warren/agent.json` itself, so without this prepend the canopy `system`
- * body is dead text on disk.
- *
- * `runs.prompt` (warren-side) keeps the user-typed input verbatim; only
- * the body sent on POST /sandboxes/:id/runs is composed.
- */
-export function composeDispatchPrompt(
-	systemBody: string | undefined,
-	userPrompt: string,
-	repoContext?: string,
-): string {
-	const trimmed = (systemBody ?? "").trim();
-	// warren-540f: the project's `.warren/config.yaml` `repoContext` block
-	// rides between the system section and the user prompt, clearly
-	// delimited. Absent/whitespace-only → byte-identical to the pre-540f
-	// composition.
-	const context = (repoContext ?? "").trim();
-	const parts = [trimmed, context].filter((part) => part !== "");
-	if (parts.length === 0) return userPrompt;
-	return `${parts.join("\n\n---\n\n")}\n\n---\n\n${userPrompt}`;
-}
 
 /** Fold agent frontmatter onto operator metadata (burrow-b5b4 / warren-618b). */
 function composeBurrowMetadata(

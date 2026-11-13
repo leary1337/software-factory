@@ -59,15 +59,15 @@ function FactField({
 }) {
 	return (
 		<div className={cn("flex min-w-0 flex-1 flex-col gap-[5px]", className)}>
-			<span className="font-medium text-(--color-text-2) text-[10px] leading-3">{label}</span>
+			<span className="font-medium text-(--color-text-2) text-xs leading-4">{label}</span>
 			<span
 				data-visual-mask={mask ? "" : undefined}
 				className={cn(
-					"flex min-w-0 items-center truncate rounded-(--radius-sm) border px-2.5 py-2 font-mono text-[11px] leading-[14px]",
+					"flex min-w-0 items-center truncate rounded-(--radius-sm) border px-2.5 py-2 font-mono text-xs leading-4",
 					variant === "editable"
 						? "border-(--color-border-strong) bg-(--color-bg)"
 						: "border-(--color-border) bg-(--color-surface-raised)",
-					"md:h-8 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0 md:text-[12px] md:leading-4",
+					"md:h-8 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0 md:text-xs md:leading-4",
 					mono ? "" : "md:font-sans",
 					value === "—" ? "text-(--color-text-3)" : "text-(--color-text)",
 				)}
@@ -75,7 +75,7 @@ function FactField({
 				{value}
 			</span>
 			{hint ? (
-				<span className="font-mono text-(--color-text-3) text-[8px] leading-[10px] tracking-[0.05em] md:text-[9px] md:leading-3 md:tracking-normal">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.05em] md:text-xs md:leading-4 md:tracking-normal">
 					{hint}
 				</span>
 			) : null}
@@ -108,12 +108,10 @@ function Section({
 			)}
 		>
 			<div className="flex flex-col gap-[2px] border-(--color-border) border-b bg-(--color-thead) px-3 py-2.5 md:gap-[3px] md:border-b-0 md:bg-transparent md:px-0 md:py-0">
-				<h2 className="font-semibold text-(--color-text) text-[12px] leading-[15px] md:leading-4">
+				<h2 className="font-semibold text-(--color-text) text-xs leading-4 md:leading-4">
 					{title}
 				</h2>
-				<p className="text-(--color-text-3) text-[10px] leading-[13px] md:text-[11px] md:leading-[14px]">
-					{sub}
-				</p>
+				<p className="text-(--color-text-3) text-xs leading-4 md:text-xs md:leading-4">{sub}</p>
 			</div>
 			<div className="flex flex-col gap-2.5 px-3 py-[11px] md:gap-3.5 md:px-0 md:py-0">
 				{children}
@@ -133,7 +131,7 @@ function AuthModePills({ mode }: { mode: InstanceFactsResponse["authMode"] }) {
 				<span
 					key={m}
 					className={cn(
-						"px-3 py-1.5 font-mono text-[10px] leading-3 md:py-2",
+						"px-3 py-1.5 font-mono text-xs leading-4 md:py-2",
 						m === mode
 							? "bg-(--color-surface-raised) text-(--color-text)"
 							: "text-(--color-text-3)",
@@ -159,14 +157,14 @@ function AuthModePills({ mode }: { mode: InstanceFactsResponse["authMode"] }) {
 function FactRow({ label, value, mask }: { label: string; value: string; mask?: boolean }) {
 	return (
 		<div className="flex items-center gap-2 px-3 py-[7px] md:gap-3 md:px-0 md:py-0">
-			<span className="w-[110px] shrink-0 font-mono text-(--color-text-3) text-[9px] leading-3 md:w-auto md:font-sans md:text-[11px] md:leading-[14px]">
+			<span className="w-[110px] shrink-0 font-mono text-(--color-text-3) text-xs leading-4 md:w-auto md:font-sans md:text-xs md:leading-4">
 				{label}
 			</span>
 			<span
 				data-visual-mask={mask ? "" : undefined}
 				className={cn(
-					"flex min-w-0 flex-1 justify-end truncate text-right font-mono text-[10px] leading-3",
-					"md:block md:text-[11px] md:leading-[14px]",
+					"flex min-w-0 flex-1 justify-end truncate text-right font-mono text-xs leading-4",
+					"md:block md:text-xs md:leading-4",
 					value === "—" ? "text-(--color-text-3)" : "text-(--color-text) md:text-(--color-text-2)",
 				)}
 			>
@@ -199,7 +197,7 @@ function InstanceSection({ facts }: { facts: InstanceFactsResponse | undefined }
 					label="Instance name / base URL"
 					value="—"
 					variant="editable"
-					hint="NO INSTANCE-NAME API YET · OPS OVERVIEW (WARREN-D903)"
+					hint="Имя экземпляра не настроено."
 				/>
 			</div>
 		</Section>
@@ -211,11 +209,11 @@ function AuthenticationSection({ facts }: { facts: InstanceFactsResponse | undef
 	return (
 		<Section title="Authentication" sub="How access is authenticated.">
 			<div className="flex flex-col gap-[5px]">
-				<span className="font-medium text-(--color-text-2) text-[10px] leading-3">Auth mode</span>
+				<span className="font-medium text-(--color-text-2) text-xs leading-4">Auth mode</span>
 				{authMode ? (
 					<AuthModePills mode={authMode} />
 				) : (
-					<span className="h-8 font-mono text-(--color-text-3) text-[12px] leading-4">—</span>
+					<span className="h-8 font-mono text-(--color-text-3) text-xs leading-4">—</span>
 				)}
 			</div>
 		</Section>
@@ -225,7 +223,7 @@ function AuthenticationSection({ facts }: { facts: InstanceFactsResponse | undef
 function AdmissionSection({ facts }: { facts: InstanceFactsResponse | undefined }) {
 	const admission = facts?.admission ?? null;
 	return (
-		<Section title="Admission" sub="Concurrency and spend caps." last>
+		<Section title="Admission" sub="Concurrency limits." last>
 			{admission ? (
 				<div className="grid w-full grid-cols-2 gap-2.5 sm:flex sm:flex-row sm:gap-3">
 					<FactField
@@ -250,11 +248,11 @@ function AdmissionSection({ facts }: { facts: InstanceFactsResponse | undefined 
 					/>
 				</div>
 			) : (
-				<p className="text-(--color-text-3) text-[10px] leading-[14px]">
-					{facts ? "Admission caps are K8s-only — not active under this runtime provider." : "—"}
+				<p className="text-(--color-text-3) text-xs leading-4">
+					{facts ? "Лимиты параллельной работы и расходов не активны." : "—"}
 				</p>
 			)}
-			<p className="text-(--color-text-3) text-[10px] leading-[14px]">
+			<p className="text-(--color-text-3) text-xs leading-4">
 				Set in the environment, resolved at boot. The admission gate reports them in admission
 				events.
 			</p>
@@ -280,10 +278,10 @@ function FactsRail({ facts }: { facts: InstanceFactsResponse | undefined }) {
 	return (
 		<aside className="flex w-full shrink-0 flex-col rounded-(--radius-md) border border-(--color-border) bg-(--color-sidebar) md:bg-(--color-surface) lg:w-[380px]">
 			<header className="flex items-center justify-between border-(--color-border) border-b px-3 py-2.5 md:px-4 md:py-3">
-				<h2 className="font-semibold text-(--color-text) text-[12px] leading-[15px] md:text-[13px] md:leading-4">
+				<h2 className="font-semibold text-(--color-text) text-xs leading-4 md:text-sm md:leading-4">
 					Instance facts
 				</h2>
-				<span className="font-mono text-(--color-success) text-[9px] leading-[11px] tracking-[0.06em] md:text-(--color-text-3) md:text-[10px] md:leading-3">
+				<span className="font-mono text-(--color-success) text-xs leading-4 tracking-[0.06em] md:text-(--color-text-3) md:text-xs md:leading-4">
 					LIVE
 				</span>
 			</header>
@@ -334,7 +332,7 @@ export function InstancePage() {
 				<h1 className="font-semibold text-(--color-text) text-[17px] leading-[22px] tracking-[-0.025em] md:text-[22px] md:leading-7">
 					Instance
 				</h1>
-				<p className="max-w-prose text-(--color-text-2) text-[11px] leading-[14px] md:text-[13px] md:leading-[18px]">
+				<p className="max-w-prose text-(--color-text-2) text-xs leading-4 md:text-sm md:leading-[18px]">
 					Server settings, read-only. Configure via environment or a project&apos;s
 					.warren/config.yaml.
 				</p>

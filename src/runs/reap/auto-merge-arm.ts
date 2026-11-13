@@ -53,7 +53,7 @@ export interface RunAutoMergeArmInput {
 	 */
 	readonly projectAutoMerge: AutoMergeConfig | undefined;
 	/** The run's trigger — a CI-fixer run rides an existing armed PR head. */
-	readonly run: { readonly id: string; readonly trigger?: string };
+	readonly run: { readonly id: string; readonly trigger?: string; readonly agentName?: string };
 	readonly project: { readonly gitUrl: string; readonly localPath: string };
 	readonly prUrl: string;
 	readonly prNumber: number;
@@ -80,7 +80,7 @@ export interface RunAutoMergeArmInput {
 export async function runAutoMergeArm(input: RunAutoMergeArmInput): Promise<void> {
 	// The engagement gate (§4): with `pr.autoMerge` absent the step never
 	// runs — no git read, no forge call, no event.
-	if (input.projectAutoMerge === undefined) return;
+	if (input.projectAutoMerge === undefined || input.run.agentName === "implementer") return;
 	try {
 		await armOnce(input);
 	} catch (err) {
@@ -98,6 +98,11 @@ export async function runAutoMergeArm(input: RunAutoMergeArmInput): Promise<void
 /** One arm attempt: resolve the policy inputs, decide, then arm or report. */
 async function armOnce(input: RunAutoMergeArmInput): Promise<void> {
 	const { config, changedPaths } = await readAutoMergeSnapshot(input);
+	// Warren verification is available only in the reviewed plan coordinator.
+	if (config?.verification === "warren") {
+		await safeEmit(input, "reap.auto_merge_skipped", { reason: "review_required" });
+		return;
+	}
 	const decision = decideAutoMerge({
 		config,
 		forgeCanArm: input.forge.capabilities.autoMergeArm,

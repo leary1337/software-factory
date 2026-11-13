@@ -1,10 +1,9 @@
 /**
- * The `RuntimeProvider` contract — the seam that decouples warren's domain from
- * its execution backend. Spec: `docs/design/runtime-provider-contract.md`.
- * Types-only; the domain must never leak a burrow-id, pod name, socket, host
- * path, or `SandboxProfile` across the seam.
+ * Backend-neutral runtime contract. Spec: `docs/design/runtime-provider-contract.md`.
+ * Native ids, socket/host paths, and `SandboxProfile` stay inside the provider.
  */
-
+import type { AcceptanceCriterion, AcceptancePolicy } from "../core/acceptance-evidence.ts";
+import type { ReviewFinding } from "../core/review-findings.ts";
 import type {
 	AcceptedRuntimeId,
 	EventOrigin,
@@ -17,11 +16,7 @@ import type { GitSpawnCredential } from "../workspace/git/credential-env.ts";
 import type { ArtifactDelta } from "./finalize-deltas.ts";
 import type { FinalizeStage } from "./finalize-stages.ts";
 
-/**
- * Opaque handle — the only run reference that crosses the seam. Providers map
- * `runId` → native ids internally; the domain treats `sandboxId`/`providerRunId`
- * as opaque.
- */
+/** Opaque run handle. Providers map `runId` to native ids internally. */
 export interface RunHandle {
 	/** warren domain id — the identity, generated pre-dispatch */
 	runId: string;
@@ -39,8 +34,6 @@ export interface RunHandle {
 export interface RunSpec {
 	runId: string;
 
-	// Workspace materialization INPUTS (never a pre-built result — the provider
-	// materializes: burrow internally, K8s in an init container).
 	originUrl: string;
 	branch: string;
 	/**
@@ -48,7 +41,6 @@ export interface RunSpec {
 	 * (`default_branch ?? "main"`); the K8s init container needs it explicit.
 	 */
 	baseBranch: string;
-	/** optional burrow worktree optimization; K8s ignores it. */
 	hostClonePathHint?: string;
 
 	/** OPTIONAL project identity (warren `projects.id`) — K8s stamps it on the
@@ -66,13 +58,16 @@ export interface RunSpec {
 	 * Docker + K8s consume it; LocalProvider ignores it (host toolchain). */
 	agentImage?: string;
 
-	// Agent.
 	runtimeId: AcceptedRuntimeId;
-	/** system section already prepended by the domain */
 	prompt: string;
-	/** e.g. `{ frontmatter }` — provider carries to runtime */
 	metadata?: Record<string, unknown>;
 	mode: "batch" | "conversation";
+	qualityGate?: {
+		reviewFindings?: readonly ReviewFinding[];
+		command: string;
+		commit: string;
+		acceptance?: AcceptancePolicy & { criteria: readonly AcceptanceCriterion[] };
+	};
 
 	// Isolation INTENT (provider maps to SandboxProfile | pod securityContext+resources).
 	network: "none" | "restricted" | "open";
@@ -225,6 +220,8 @@ export interface RuntimeCapabilities {
 }
 
 export interface TeardownResult {
+	/** Durable bundle containing interrupted or uncommitted workspace changes. */
+	recoveryPath?: string;
 	archived: boolean;
 	deletedEvents: number;
 	deletedMessages: number;
@@ -502,9 +499,7 @@ export interface RuntimeProvider {
 	finalize(handle: RunHandle, intent: FinalizeIntent): Promise<FinalizeResult>;
 
 	/**
-	 * Kill the sandbox/pod, reclaim the workspace, archive+prune the ephemeral
-	 * store. Idempotent, best-effort. The domain calls this ONLY after
-	 * `finalize()`.
+	 * Stop the sandbox and reclaim its workspace only after preserving unfinished work.
 	 */
 	terminate(handle: RunHandle): Promise<TeardownResult>;
 }

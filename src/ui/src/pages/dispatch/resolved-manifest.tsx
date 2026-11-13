@@ -16,10 +16,10 @@ import {
  * `./manifest-view.ts` — this file only renders it.
  */
 
-const keyClass = "font-mono text-[9px] leading-[15px] text-(--color-info)";
-const valueClass = "font-mono text-[9px] leading-[15px] text-(--color-success)";
-const summaryKeyClass = "font-mono text-[10px] leading-[14px] text-(--color-info)";
-const summaryValueClass = "font-mono text-[10px] leading-[14px] text-(--color-success)";
+const keyClass = "font-mono text-xs leading-4 text-(--color-info)";
+const valueClass = "font-mono text-xs leading-4 text-(--color-success)";
+const summaryKeyClass = "font-mono text-xs leading-4 text-(--color-info)";
+const summaryValueClass = "font-mono text-xs leading-4 text-(--color-success)";
 
 const DOT_CLASS: Record<AdmissionStatus, string> = {
 	ok: "bg-(--color-success)",
@@ -64,8 +64,8 @@ function AdmissionRowView({ row }: { row: AdmissionRow }) {
 			<span className="w-[10px] shrink-0">
 				<span className={`block h-1.5 w-1.5 rounded-full ${DOT_CLASS[row.status]}`} />
 			</span>
-			<span className="flex-1 text-(--color-text-2) text-[10px] leading-3">{row.label}</span>
-			<span className="font-mono text-(--color-text-3) text-[9px] leading-3">{row.value}</span>
+			<span className="flex-1 text-(--color-text-2) text-xs leading-4">{row.label}</span>
+			<span className="font-mono text-(--color-text-3) text-xs leading-4">{row.value}</span>
 		</div>
 	);
 }
@@ -81,7 +81,7 @@ function AdmissionBand({ rows }: { rows: readonly AdmissionRow[] }) {
 					allOk ? "bg-(--color-success)" : "bg-(--color-neutral)"
 				}`}
 			/>
-			<span className="font-mono text-(--color-text-2) text-[10px] leading-[13px]">
+			<span className="font-mono text-(--color-text-2) text-xs leading-4">
 				{allOk
 					? "ADMISSION OK · policy checks pass"
 					: `ADMISSION · policy checks pending (${okCount}/${rows.length})`}
@@ -98,7 +98,6 @@ export interface ResolvedManifestProps {
 	readonly agent: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly costCap: string;
 	/** Project's `.warren/config.yaml` `runBranchPrefix`, when declared. */
 	readonly runBranchPrefix: string | undefined;
 	readonly facts: InstanceFactsResponse | undefined;
@@ -113,7 +112,6 @@ export function ResolvedManifest(props: ResolvedManifestProps) {
 		agent: props.agent,
 		provider: props.provider,
 		model: props.model,
-		costCap: props.costCap,
 		runBranchPrefix: props.runBranchPrefix,
 		runtime: props.facts?.runtime,
 	});
@@ -125,7 +123,6 @@ export function ResolvedManifest(props: ResolvedManifestProps) {
 		agent: props.agent,
 		provider: props.provider,
 		model: props.model,
-		costCap: props.costCap,
 		runBranchPrefix: props.runBranchPrefix,
 		runtime: props.facts?.runtime,
 	});
@@ -133,18 +130,16 @@ export function ResolvedManifest(props: ResolvedManifestProps) {
 	return (
 		<aside className="flex w-full shrink-0 flex-col overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-sidebar) md:bg-(--color-surface) lg:w-[350px]">
 			<div className="flex h-[39px] shrink-0 items-center border-(--color-border) border-b px-3">
-				<h2 className="font-semibold text-(--color-text) text-[11px] leading-[14px]">
-					Resolved manifest
-				</h2>
+				<h2 className="font-semibold text-(--color-text) text-xs leading-4">Resolved manifest</h2>
 				<div className="flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 md:hidden">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4 md:hidden">
 					READ-ONLY
 				</span>
 				<span
 					className={
 						props.valid
-							? "hidden font-mono text-(--color-success) text-[9px] leading-3 md:block"
-							: "hidden font-mono text-(--color-text-3) text-[9px] leading-3 md:block"
+							? "hidden font-mono text-(--color-success) text-xs leading-4 md:block"
+							: "hidden font-mono text-(--color-text-3) text-xs leading-4 md:block"
 					}
 				>
 					{props.valid ? "VALID" : "INCOMPLETE"}

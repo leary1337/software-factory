@@ -6,25 +6,17 @@
 				"tracker": "warren-23b5",
 				"max": 1
 			},
-			"src/ui/src/components/console/console-bottom-nav.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
-			"src/ui/src/components/console/console-sidebar.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
 			"src/ui/src/pages/dispatch-plan.tsx": {
 				"tracker": "warren-23b5",
 				"max": 1
 			},
 			"src/ui/src/pages/dispatch-plan/walk-form.tsx": {
 				"tracker": "warren-23b5",
-				"max": 14
+				"max": 13
 			},
 			"src/ui/src/pages/dispatch/dispatch-form.tsx": {
 				"tracker": "warren-23b5",
-				"max": 10
+				"max": 9
 			},
 			"src/ui/src/pages/event-explorer-mobile-filter-strip.tsx": {
 				"tracker": "warren-23b5",
@@ -41,14 +33,6 @@
 			"src/ui/src/pages/operations.tsx": {
 				"tracker": "warren-23b5",
 				"max": 1
-			},
-			"src/ui/src/pages/plan-run-detail.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
-			"src/ui/src/pages/plan-runs.tsx": {
-				"tracker": "warren-23b5",
-				"max": 4
 			},
 			"src/ui/src/pages/run-detail/event-tail.tsx": {
 				"tracker": "warren-23b5",
@@ -92,31 +76,7 @@
 				"tracker": "warren-23b5",
 				"max": 6
 			},
-			"src/ui/src/pages/plan-run-detail.tsx": {
-				"tracker": "warren-23b5",
-				"max": 2
-			},
-			"src/ui/src/pages/plan-run-detail/child-walk.tsx": {
-				"tracker": "warren-23b5",
-				"max": 2
-			},
-			"src/ui/src/pages/plan-run-detail/detail-rail.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
-			"src/ui/src/pages/plan-runs/walk-cards.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
-			"src/ui/src/pages/plan-runs/walk-row.tsx": {
-				"tracker": "warren-23b5",
-				"max": 3
-			},
 			"src/ui/src/pages/runs/runs-table.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
-			"src/ui/src/pages/telemetry/economics-panels.tsx": {
 				"tracker": "warren-23b5",
 				"max": 1
 			},

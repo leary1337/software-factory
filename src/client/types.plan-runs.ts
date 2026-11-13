@@ -1,3 +1,8 @@
+import type { PlanRunBudgetSummary } from "../core/plan-run-budget.ts";
+import type { ProductionVerification } from "../core/production-verification.ts";
+import type { ReviewMergeResult } from "../core/review-merge.ts";
+import type { ReviewStepSummary } from "../core/review-result.ts";
+import type { TaskMetrics } from "../core/task-metrics.ts";
 /**
  * Plan-run wire types (warren-8ffc), split out of `./types.ts`
  * (warren-fcc8) to keep that file under its line budget.
@@ -37,8 +42,6 @@ export interface PlanRunRow {
 	ref: string | null;
 	providerOverride: string | null;
 	modelOverride: string | null;
-	/** warren-a63d: per-child USD spend cap forwarded to every child dispatch. */
-	maxCostUsd: number | null;
 	dispatcherHandle: string;
 	trigger: string;
 	state: PlanRunState;
@@ -49,6 +52,12 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	productionVerification?: ProductionVerification | null;
+	reviewMerge?: ReviewMergeResult | null;
+	metrics?: TaskMetrics;
+	budget?: PlanRunBudgetSummary | null;
+	reviewSteps?: ReviewStepSummary[];
+	reviewFailure?: string | null;
 	planRunId: string;
 	seq: number;
 	seedId: string;
@@ -75,8 +84,6 @@ export interface CreatePlanRunInput {
 	ref?: string;
 	providerOverride?: string;
 	modelOverride?: string;
-	/** Per-child USD spend cap (warren-a63d); same validation as `POST /runs` maxCostUsd. */
-	maxCostUsd?: number;
 	dispatcherHandle?: string;
 }
 

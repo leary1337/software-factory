@@ -191,6 +191,7 @@ const PI_TOOL_SHAPE: ToolShape = {
  */
 export const TOOL_SHAPES: Readonly<Partial<Record<RuntimeId, ToolShape>>> = {
 	"claude-code": CLAUDE_CODE_TOOL_SHAPE,
+	codex: { ...CLAUDE_CODE_TOOL_SHAPE, runtime: "codex" },
 	pi: PI_TOOL_SHAPE,
 };
 

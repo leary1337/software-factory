@@ -144,7 +144,7 @@ describe("plan-run vocabulary", () => {
 // per-project config schema and the agent registry validate against it.
 describe("runtime id vocabulary", () => {
 	test("KNOWN_RUNTIME_IDS lists the burrow runtimes warren dispatches onto", () => {
-		expect([...KNOWN_RUNTIME_IDS]).toEqual(["claude-code", "pi"]);
+		expect([...KNOWN_RUNTIME_IDS]).toEqual(["claude-code", "pi", "codex"]);
 	});
 
 	test("isKnownRuntimeId accepts members and rejects everything else", () => {

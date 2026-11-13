@@ -10,8 +10,6 @@
  */
 
 import type {
-	CostPerMergedPr,
-	CostPerMergedPrBucket,
 	DimensionTokenSeries,
 	RunGroupBucket,
 	RunMetrics,
@@ -48,14 +46,8 @@ export interface RunAnalyticsTokensSection {
 export interface RunAnalyticsBody extends RunMetrics {
 	readonly filter: { projectId: string | null; from: string | null; to: string | null };
 	readonly tokens: RunAnalyticsTokensSection;
-	/** Outcome-joined rollup (warren-be04): steering deltas + cost per merged PR. */
+
 	readonly outcomes: RunOutcomes;
-	/**
-	 * Count of `budget.exceeded` events (warren-ea4e). `RUN_FAILURE_REASONS`
-	 * carries no cost-cap member, so the event scan is the only signal a
-	 * run stopped because it hit its spend cap.
-	 */
-	readonly capHits: number;
 }
 
 /**
@@ -78,11 +70,11 @@ export const PUBLIC_RUN_ANALYTICS_FIELDS = [
 	// gaps, same posture as queueWaitMs (load shape, not a private fact).
 	"delivery",
 	// warren-be04: rates + counts are public (same call as the warren-bd57
-	// landed-work fields); the cost halves inside are redacted one level
+
 	// down — see PUBLIC_COST_PER_MERGED_PR_*_FIELDS below. warren-97ae:
-	// the exception is the instance-wide cost/merged-PR ratio, which is
+
 	// public on the overall shape — the buckets keep it redacted because a
-	// ratio × its merged count reconstructs spend.
+
 	"outcomes",
 ] as const satisfies readonly (keyof RunAnalyticsBody)[];
 
@@ -95,12 +87,8 @@ export const PUBLIC_RUN_ANALYTICS_FIELDS = [
  */
 export const REDACTED_RUN_ANALYTICS_FIELDS = [
 	"topSeedsByContext",
-	// warren-ea4e: how often runs stop on their spend cap reads as an
-	// operator's burn-control posture, not a spectator fact.
-	"capHits",
 ] as const satisfies readonly (keyof RunAnalyticsBody)[];
 
-/** `RunTotals` minus the windowed USD rollup. */
 export const PUBLIC_RUN_TOTALS_FIELDS = [
 	"runs",
 	"succeeded",
@@ -122,19 +110,8 @@ export const PUBLIC_RUN_TOTALS_FIELDS = [
 	"tokens",
 ] as const satisfies readonly (keyof RunTotals)[];
 
-/**
- * - `cost` — the windowed `{total, avg, priced}` USD rollup. Same call as
- *   `costTotalUsd` on `GET /runs` (warren-946f): per-run cost on a run
- *   detail is a deliberate exception, an aggregate headline is not.
- * - `costUsd` — the per-run cost distribution (warren-ea4e): a cost
- *   figure for every run in the window, so it rides the same redaction.
- */
-export const REDACTED_RUN_TOTALS_FIELDS = [
-	"cost",
-	"costUsd",
-] as const satisfies readonly (keyof RunTotals)[];
+export const REDACTED_RUN_TOTALS_FIELDS = [] as const satisfies readonly (keyof RunTotals)[];
 
-/** `RunGroupBucket` minus the per-group USD rollup. */
 export const PUBLIC_RUN_GROUP_FIELDS = [
 	"key",
 	"runs",
@@ -153,78 +130,9 @@ export const PUBLIC_RUN_GROUP_FIELDS = [
 	"avgDurationMs",
 ] as const satisfies readonly (keyof RunGroupBucket)[];
 
-/**
- * - `costUsd` / `priced` — per-agent / per-model / per-provider spend.
- *   Summing them reconstructs the aggregate `totals.cost` the projection
- *   just dropped, so they go together or not at all.
- */
-export const REDACTED_RUN_GROUP_FIELDS = [
-	"costUsd",
-	"priced",
-] as const satisfies readonly (keyof RunGroupBucket)[];
+export const REDACTED_RUN_GROUP_FIELDS = [] as const satisfies readonly (keyof RunGroupBucket)[];
 
-/**
- * `CostPerMergedPrBucket` minus its USD figures (warren-be04). The merged
- * counts and resolved denominators are public on the warren-bd57 call;
- * the cost numerator, the priced-run count, and the resulting ratio are
- * cost figures and go the way of `totals.cost`.
- */
-export const PUBLIC_COST_PER_MERGED_PR_BUCKET_FIELDS = [
-	"key",
-	"prStateKnown",
-	"prsMerged",
-] as const satisfies readonly (keyof CostPerMergedPrBucket)[];
-
-export const REDACTED_COST_PER_MERGED_PR_BUCKET_FIELDS = [
-	"costUsd",
-	"priced",
-	"costPerMergedPrUsd",
-] as const satisfies readonly (keyof CostPerMergedPrBucket)[];
-
-/**
- * The keyless `overall` shape shares the bucket's classification minus `key`.
- * warren-97ae: unlike the per-group buckets, the instance-wide ratio is
- * public (`costPerMergedPrUsd`) — there is no per-group table alongside it
- * to multiply back through, so the ratio alone reconstructs nothing about
- * `totals.cost`. The numerator (`costUsd`) and the priced-run count still
- * stay redacted.
- */
-export const PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS = [
-	"prStateKnown",
-	"prsMerged",
-	"costPerMergedPrUsd",
-] as const satisfies readonly (keyof CostPerMergedPr["overall"])[];
-
-export const REDACTED_COST_PER_MERGED_PR_OVERALL_FIELDS = [
-	"costUsd",
-	"priced",
-] as const satisfies readonly (keyof CostPerMergedPr["overall"])[];
-
-/** The `GET /analytics/runs` body as a `readPublic`-only caller sees it. */
-type PublicCostPerMergedPrBucket = Pick<
-	CostPerMergedPrBucket,
-	(typeof PUBLIC_COST_PER_MERGED_PR_BUCKET_FIELDS)[number]
->;
-
-/**
- * `RunOutcomes` as a spectator sees it: steering intact, USD figures gone —
- * except the instance-wide cost/merged-PR ratio (warren-97ae, see the
- * allowlist comment above). The per-group buckets stay fully redacted.
- */
-export type PublicRunOutcomes = Omit<RunOutcomes, "costPerMergedPr"> & {
-	readonly costPerMergedPr: Omit<
-		CostPerMergedPr,
-		"overall" | "byAgent" | "byModel" | "byProvider"
-	> & {
-		readonly overall: Pick<
-			CostPerMergedPr["overall"],
-			(typeof PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS)[number]
-		>;
-		readonly byAgent: readonly PublicCostPerMergedPrBucket[];
-		readonly byModel: readonly PublicCostPerMergedPrBucket[];
-		readonly byProvider: readonly PublicCostPerMergedPrBucket[];
-	};
-};
+export type PublicRunOutcomes = RunOutcomes;
 
 export type PublicRunAnalytics = Omit<
 	Pick<RunAnalyticsBody, (typeof PUBLIC_RUN_ANALYTICS_FIELDS)[number]>,
@@ -249,19 +157,9 @@ export function projectRunAnalytics(
 	if (!isPublicOnly(actor)) return body;
 	const groups = (buckets: readonly RunGroupBucket[]) =>
 		buckets.map((b) => pickFields(b, PUBLIC_RUN_GROUP_FIELDS));
-	const costBuckets = (buckets: readonly CostPerMergedPrBucket[]) =>
-		buckets.map((b) => pickFields(b, PUBLIC_COST_PER_MERGED_PR_BUCKET_FIELDS));
-	const costPerMergedPr = body.outcomes.costPerMergedPr;
 	const outcomes: PublicRunOutcomes = {
 		steering: body.outcomes.steering,
 		autonomy: body.outcomes.autonomy,
-		costPerMergedPr: {
-			overall: pickFields(costPerMergedPr.overall, PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS),
-			byAgent: costBuckets(costPerMergedPr.byAgent),
-			byModel: costBuckets(costPerMergedPr.byModel),
-			byProvider: costBuckets(costPerMergedPr.byProvider),
-			confidence: costPerMergedPr.confidence,
-		},
 	};
 	return {
 		...pickFields(body, PUBLIC_RUN_ANALYTICS_FIELDS),

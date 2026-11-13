@@ -48,6 +48,18 @@ function gitSpawn(opts: { showStdout?: string; nameOnlyDiff?: string } = {}): {
 		if (cmd.includes("--name-only")) {
 			return { stdout: opts.nameOnlyDiff ?? "", stderr: "", exitCode: 0 };
 		}
+		// Arming now requires matching path, file-mode, and line-count evidence.
+		const paths = (opts.nameOnlyDiff ?? "").split("\0").filter(Boolean);
+		if (cmd.includes("--raw")) {
+			const sha = "a".repeat(40);
+			return {
+				stdout: paths.map((path) => `:100644 100644 ${sha} ${sha} M\0${path}\0`).join(""),
+				stderr: "",
+				exitCode: 0,
+			};
+		}
+		if (cmd.includes("--numstat"))
+			return { stdout: paths.map((path) => `1\t0\t${path}\0`).join(""), stderr: "", exitCode: 0 };
 		return { stdout: "", stderr: "", exitCode: 0 };
 	};
 	return { spawn, calls };

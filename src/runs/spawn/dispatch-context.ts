@@ -17,7 +17,6 @@ import type { Repos } from "../../db/repos/index.ts";
 import type { RunRow } from "../../db/schema.ts";
 import { type AgentDefinition, readRuntimeId } from "../../registry/schema.ts";
 import { type DefaultsConfig, interactiveRuntimeOverride } from "../../warren-config/schema.ts";
-import { readMaxCostUsd } from "../cost-cap.ts";
 import type { DispatchOrigin, SpawnLogger, SpawnRunInput } from "./types.ts";
 
 /** Closed vocabulary for `dispatch_context.retry_kind` (warren-36e7). */
@@ -52,10 +51,8 @@ export interface WriteDispatchContextInput {
 	frontmatter: Readonly<Record<string, unknown>>;
 	providerOverride?: string;
 	modelOverride?: string;
-	maxCostUsdOverride?: number;
 	projectDefaultProvider?: string;
 	projectDefaultModel?: string;
-	projectDefaultMaxCostUsd?: number;
 	runtimeId: string;
 	runtimeBackend: string;
 	prompt: string;
@@ -146,15 +143,11 @@ function assembleWriteInput(args: {
 	// as NULL rather than writing empty strings.
 	if (spawn.providerOverride !== undefined) draft.providerOverride = spawn.providerOverride;
 	if (spawn.modelOverride !== undefined) draft.modelOverride = spawn.modelOverride;
-	if (spawn.maxCostUsdOverride !== undefined) draft.maxCostUsdOverride = spawn.maxCostUsdOverride;
 	if (projectDefaults?.defaultProvider !== undefined) {
 		draft.projectDefaultProvider = projectDefaults.defaultProvider;
 	}
 	if (projectDefaults?.defaultModel !== undefined) {
 		draft.projectDefaultModel = projectDefaults.defaultModel;
-	}
-	if (projectDefaults?.maxCostUsd !== undefined) {
-		draft.projectDefaultMaxCostUsd = projectDefaults.maxCostUsd;
 	}
 	if (spawn.dispatchOrigin !== undefined) draft.dispatchOrigin = spawn.dispatchOrigin;
 	if (spawn.dispatcherHandle !== undefined) draft.dispatcherHandle = spawn.dispatcherHandle;
@@ -181,7 +174,6 @@ export async function buildDispatchContextRow(
 		input.projectDefaultModel,
 		input.model,
 	);
-	const { source: capSource, value: maxCostUsd } = resolveCapSource(input);
 	const meta = readMetadataBag(input.metadata);
 	const lineage = await resolveRetryLineage(input.repos, input.run, input.dispatchOrigin);
 	const queue = await snapshotQueue(input.repos, input.run.projectId);
@@ -194,8 +186,6 @@ export async function buildDispatchContextRow(
 		...(input.model !== undefined ? { model: input.model } : {}),
 		...(providerSource !== null ? { providerSource } : {}),
 		...(modelSource !== null ? { modelSource } : {}),
-		...(capSource !== null ? { capSource } : {}),
-		...(maxCostUsd !== null ? { maxCostUsd } : {}),
 		runtimeId: input.runtimeId,
 		runtimeBackend: input.runtimeBackend,
 		// warren-540f: prompt_bytes counts the user prompt plus the injected
@@ -240,36 +230,6 @@ export function resolveFieldSource(
 	const pd = projectDefault?.trim();
 	if (pd !== undefined && pd !== "") return "project_default";
 	return "frontmatter";
-}
-
-/**
- * Cap tier + effective USD. Precedence mirrors `resolveCapOverride`:
- * dispatch override > agent frontmatter (declared, even if malformed) >
- * project default. Tier detection reads the PRE-fold frontmatter so a
- * project default folded onto the frozen envelope is not mis-labelled
- * `frontmatter`. The value is the post-fold reading so the snapshot
- * matches what the bridge will enforce.
- */
-export function resolveCapSource(input: {
-	readonly maxCostUsdOverride?: number;
-	readonly baseFrontmatter: Readonly<Record<string, unknown>>;
-	readonly frontmatter: Readonly<Record<string, unknown>>;
-	readonly projectDefaultMaxCostUsd?: number;
-}): { source: OverrideSource | null; value: number | null } {
-	const effective = readMaxCostUsd(input.frontmatter);
-	if (input.maxCostUsdOverride !== undefined) {
-		return { source: "override", value: effective ?? input.maxCostUsdOverride };
-	}
-	const declared = input.baseFrontmatter.maxCostUsd;
-	if (declared !== undefined && declared !== null) {
-		// Malformed agent caps fail open (effective=null) but still count as
-		// the frontmatter tier — evidence of the typo stays attributed.
-		return { source: "frontmatter", value: effective };
-	}
-	if (input.projectDefaultMaxCostUsd !== undefined) {
-		return { source: "project_default", value: effective ?? input.projectDefaultMaxCostUsd };
-	}
-	return { source: null, value: null };
 }
 
 /**

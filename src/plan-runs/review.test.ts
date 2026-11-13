@@ -1,20 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import type { QualityGateResult } from "../core/quality-gate.ts";
+import { PlanRunSpawnDeferredError } from "./errors.ts";
 import type { HandleInFlightInput } from "./in-flight.ts";
 import {
 	advanceReview,
 	decideReviewStep,
-	describeGateForReviewer,
+	loadReviewStage,
 	MAX_REWORKS,
 	parseVerdict,
 	type ReviewStepRecord,
 	reviewStageOf,
 } from "./review.ts";
 
+const SHA = "a".repeat(40);
+const REPORT = `VERDICT: PASS\nREVIEWED_COMMIT: ${SHA}\nQUALITY_GATE: PASS`;
 const passed: ReviewStepRecord = {
 	step: "review",
 	state: "succeeded",
-	resultText: "VERDICT: PASS",
+	resultText: REPORT,
 };
 const changes: ReviewStepRecord = {
 	step: "review",
@@ -36,7 +38,7 @@ describe("parseVerdict", () => {
 
 describe("decideReviewStep", () => {
 	test("starts with a review", () => {
-		expect(decideReviewStep([])).toEqual({ kind: "spawn", step: "review", gate: null });
+		expect(decideReviewStep([])).toEqual({ kind: "spawn", step: "review" });
 	});
 
 	test("waits for a running step", () => {
@@ -54,16 +56,11 @@ describe("decideReviewStep", () => {
 			kind: "spawn",
 			step: "rework",
 			findings: changes.resultText as string,
-			cause: "review",
 		});
 	});
 
 	test("a finished rework goes back to review", () => {
-		expect(decideReviewStep([changes, reworked])).toEqual({
-			kind: "spawn",
-			step: "review",
-			gate: null,
-		});
+		expect(decideReviewStep([changes, reworked])).toEqual({ kind: "spawn", step: "review" });
 	});
 
 	test("stops after the rework limit with the findings still open", () => {
@@ -81,89 +78,6 @@ describe("decideReviewStep", () => {
 		expect(
 			decideReviewStep([{ step: "review", state: "succeeded", resultText: "looks fine" }]),
 		).toMatchObject({ kind: "finished", outcome: "broken" });
-	});
-});
-
-const greenGate: QualityGateResult = {
-	command: "pnpm check",
-	exitCode: 0,
-	timedOut: false,
-	durationMs: 95_000,
-	sha: "abc123",
-	logTail: "ok\n",
-};
-const redGate: QualityGateResult = {
-	...greenGate,
-	exitCode: 1,
-	logTail: "Type error: x\n",
-};
-
-describe("decideReviewStep with the post-run gate", () => {
-	test("a red implementer gate goes straight to rework without a reviewer", () => {
-		const decision = decideReviewStep([], redGate);
-		expect(decision).toMatchObject({ kind: "spawn", step: "rework", cause: "gate" });
-		const findings = (decision as { findings: string }).findings;
-		expect(findings).toContain("`pnpm check` exited with code 1 on commit abc123");
-		expect(findings).toContain("Type error: x");
-	});
-
-	test("a green gate starts the review and hands the result to it", () => {
-		expect(decideReviewStep([], greenGate)).toEqual({
-			kind: "spawn",
-			step: "review",
-			gate: greenGate,
-		});
-	});
-
-	test("a timed-out gate is red", () => {
-		const decision = decideReviewStep([], { ...greenGate, exitCode: null, timedOut: true });
-		expect(decision).toMatchObject({ kind: "spawn", step: "rework", cause: "gate" });
-		expect((decision as { findings: string }).findings).toContain("was stopped after 1 min 35 s");
-	});
-
-	test("a gate warren could not start still goes to review", () => {
-		const broken = { ...greenGate, exitCode: null, error: "spawn failed" };
-		expect(decideReviewStep([], broken)).toMatchObject({ kind: "spawn", step: "review" });
-	});
-
-	test("judges a rework by its own gate, not the implementer's", () => {
-		const fixed = { ...reworked, gate: greenGate };
-		const stillRed = { ...reworked, gate: redGate };
-		expect(decideReviewStep([fixed], redGate)).toMatchObject({ step: "review", gate: greenGate });
-		expect(decideReviewStep([changes, stillRed], greenGate)).toMatchObject({
-			step: "rework",
-			cause: "gate",
-		});
-	});
-
-	test("stops with the gate still red once the reworks run out", () => {
-		const stillRed = { ...reworked, gate: redGate };
-		const steps = Array.from({ length: MAX_REWORKS }, () => stillRed);
-		expect(decideReviewStep(steps, redGate)).toMatchObject({
-			kind: "finished",
-			outcome: "changes_left",
-		});
-	});
-
-	test("a red gate shows as reworking in the plan view", () => {
-		expect(reviewStageOf([], redGate)).toBe("reworking");
-	});
-});
-
-describe("describeGateForReviewer", () => {
-	test("tells the reviewer not to rerun a green gate on unchanged code", () => {
-		const text = describeGateForReviewer(greenGate);
-		expect(text).toContain("on commit abc123, and it passed in 1 min 35 s");
-		expect(text).toContain("git diff --quiet abc123 HEAD");
-		expect(text).toContain("do not run the gate again");
-	});
-
-	test("asks the reviewer to run the gate when warren could not", () => {
-		expect(describeGateForReviewer({ ...greenGate, exitCode: null, error: "no sh" })).toContain(
-			"Run it yourself",
-		);
-		expect(describeGateForReviewer({ ...greenGate, sha: null })).toContain("Run it yourself");
-		expect(describeGateForReviewer(null)).toBe("");
 	});
 });
 
@@ -189,11 +103,7 @@ describe("advanceReview", () => {
 	const run = { id: "run_a", branch: "factory/run_a", baseCommit: "abc" };
 	const prUrl = "https://github.com/o/r/pull/1";
 
-	function harness(agentName = "implementer", finished = false, gate?: QualityGateResult) {
-		const gateRow =
-			gate === undefined
-				? undefined
-				: { payloadJson: { type: "quality_gate", phase: "finished", ...gate } };
+	function harness(agentName = "implementer", finished = false) {
 		const spawned: unknown[] = [];
 		const emitted: string[] = [];
 		const comments: string[] = [];
@@ -202,13 +112,16 @@ describe("advanceReview", () => {
 			child: { seq: 1, seedId: "s-1" },
 			repos: {
 				events: {
-					listByRun: async () => [],
+					listByRun: async () =>
+						finished
+							? [{ kind: "plan_run.review_finished", payloadJson: { outcome: "changes_left" } }]
+							: [],
 					listTail: async () => [],
 					hasKind: async () => finished,
-					latestOfKind: async () => gateRow,
 				},
 				runs: { require: async () => ({}) },
 			},
+			getReviewHead: async () => SHA,
 			getIssue: async () => ({ id: "s-1", status: "open", title: "T", description: "D" }),
 			emit: async (_: string, kind: string) => {
 				emitted.push(kind);
@@ -216,7 +129,8 @@ describe("advanceReview", () => {
 			commentOnPr: async (_: string, body: string) => {
 				comments.push(body);
 			},
-			spawn: async (arg: unknown) => {
+			spawn: async (arg: { onRunCreated?: (id: string) => Promise<void> }) => {
+				await arg.onRunCreated?.("run_r");
 				spawned.push(arg);
 				return { runId: "run_r" };
 			},
@@ -236,38 +150,18 @@ describe("advanceReview", () => {
 		expect(emitted).toEqual(["plan_run.review_step"]);
 	});
 
-	test("gives the reviewer the green gate warren already ran", async () => {
-		const { input, spawned } = harness("implementer", false, greenGate);
-		await advanceReview(input, run as never, prUrl);
-		expect(spawned[0]).toMatchObject({ agentName: "reviewer" });
-		expect((spawned[0] as { prompt: string }).prompt).toContain("do not run the gate again");
-	});
-
-	test("sends a red gate to rework and records why", async () => {
-		const { input, spawned } = harness("implementer", false, redGate);
-		const payloads: unknown[] = [];
-		const recording = {
-			...input,
-			emit: async (_: string, _kind: string, payload: unknown) => {
-				payloads.push(payload);
-			},
-		} as HandleInFlightInput;
-		await advanceReview(recording, run as never, prUrl);
-		expect(spawned[0]).toMatchObject({ agentName: "rework", existingBranch: "factory/run_a" });
-		const prompt = (spawned[0] as { prompt: string }).prompt;
-		expect(prompt).toContain("quality gate on the branch of");
-		expect(prompt).toContain("Type error: x");
-		expect(payloads[0]).toMatchObject({ step: "rework", cause: "gate" });
-	});
-
 	test("a PASS merges the PR when merging is on, and says so", async () => {
 		const { input, comments } = harness();
+		const deliveryEvents: { kind: string; payloadJson: unknown }[] = [];
 		const merges: string[] = [];
 		const withMerge = {
 			...input,
+			emit: async (_: string, kind: string, payload: unknown) => {
+				deliveryEvents.push({ kind, payloadJson: payload });
+			},
 			mergePassedPr: async (_: string, branch: string) => {
 				merges.push(branch);
-				return true;
+				return { kind: "merged" as const };
 			},
 			repos: {
 				...input.repos,
@@ -275,11 +169,17 @@ describe("advanceReview", () => {
 					...input.repos.events,
 					listByRun: async () => [
 						{
-							kind: "plan_run.review_step",
-							payloadJson: { step: "review", stepRunId: "run_r" },
+							kind: "quality_gate.completed",
+							stream: "system",
+							payloadJson: { commit: SHA, command: "check", exitCode: 0 },
 						},
+						{
+							kind: "plan_run.review_step",
+							payloadJson: { step: "review", stepRunId: "run_r", reviewedCommit: SHA },
+						},
+						...deliveryEvents,
 					],
-					listTail: async () => [{ payloadJson: { type: "result", result: "VERDICT: PASS" } }],
+					listTail: async () => [{ payloadJson: { type: "result", result: REPORT } }],
 				},
 				runs: {
 					require: async () => ({ state: "succeeded", endedAt: "t", failureReason: null }),
@@ -302,6 +202,91 @@ describe("advanceReview", () => {
 		const { input, spawned, comments } = harness("implementer", true);
 		expect(await advanceReview(input, run as never, prUrl)).toBeNull();
 		expect(spawned).toEqual([]);
+		expect(comments).toEqual([]);
+	});
+
+	test("keeps the stage readable when a Codex reviewer commits no changes", async () => {
+		const { input } = harness();
+		const repos = {
+			...input.repos,
+			events: {
+				...input.repos.events,
+				listByRun: async () => [
+					{
+						kind: "quality_gate.completed",
+						stream: "system",
+						payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+					},
+					{
+						kind: "plan_run.review_step",
+						payloadJson: { step: "review", stepRunId: "r", reviewedCommit: SHA },
+					},
+				],
+				listTail: async () => [
+					{ payloadJson: { type: "result", runtime: "codex", result: REPORT } },
+				],
+			},
+			runs: {
+				require: async () => ({ state: "failed", failureReason: "no_changes", endedAt: "t" }),
+			},
+		} as unknown as HandleInFlightInput["repos"];
+		expect(await loadReviewStage(repos, "implementer", "run_a")).toBe("ready_to_merge");
+		expect(await loadReviewStage(repos, "pi", "run_a")).toBeNull();
+	});
+
+	test("waits for a running review and treats a missing final message as broken", async () => {
+		const { input, comments } = harness();
+		const repos = {
+			...input.repos,
+			events: {
+				...input.repos.events,
+				listByRun: async () => [
+					{
+						kind: "quality_gate.completed",
+						stream: "system",
+						payloadJson: { commit: SHA, command: "check", exitCode: 0 },
+					},
+					{
+						kind: "plan_run.review_step",
+						payloadJson: { step: "review", stepRunId: "r", reviewedCommit: SHA },
+					},
+				],
+			},
+			runs: { require: async () => ({ state: "running", endedAt: null }) },
+		} as unknown as HandleInFlightInput["repos"];
+		expect(await advanceReview({ ...input, repos }, run as never, prUrl)).toMatchObject({
+			result: { kind: "waiting_for_run" },
+		});
+		repos.runs.require = async () => ({ state: "succeeded", endedAt: "t" }) as never;
+		expect(await advanceReview({ ...input, repos }, run as never, prUrl)).toBeNull();
+		expect(comments[0]).toContain("no verdict");
+	});
+
+	test("reports a missing branch or failed dispatch without merging", async () => {
+		const { input, comments } = harness();
+		expect(await advanceReview(input, { ...run, branch: null } as never, prUrl)).toBeNull();
+		expect(comments[0]).toContain("no branch");
+		const failed = {
+			...input,
+			spawn: async () => {
+				throw new Error("login expired");
+			},
+		};
+		expect(await advanceReview(failed, run as never, prUrl)).toBeNull();
+		expect(comments[1]).toContain("did not start");
+	});
+
+	test("defers a review when the shared concurrency budget is occupied", async () => {
+		const { input, comments } = harness();
+		const deferred = {
+			...input,
+			spawn: async () => {
+				throw new PlanRunSpawnDeferredError("concurrency_limit");
+			},
+		};
+		expect(await advanceReview(deferred, run as never, prUrl)).toMatchObject({
+			result: { kind: "noop" },
+		});
 		expect(comments).toEqual([]);
 	});
 });

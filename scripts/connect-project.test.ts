@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	assertConnectBranchAvailable,
+	assertOnConnectBranch,
 	chooseAgentsFile,
 	fillPlaceholders,
 	renderWarrenConfig,
@@ -55,16 +58,70 @@ describe("chooseAgentsFile", () => {
 });
 
 describe("writeConnectFiles", () => {
-	test("writes the factory files and keeps an existing Warren config", () => {
+	test("writes the factory files and keeps matching config byte-for-byte", () => {
 		const dir = tempDir();
 		mkdirSync(join(dir, ".warren"));
-		writeFileSync(join(dir, ".warren/config.yaml"), "mine: true\n");
+		const config = '# my settings\nqualityGate: "make check"\nmaxCostUsd: 4\n';
+		writeFileSync(join(dir, ".warren/config.yaml"), config);
 
 		writeConnectFiles(dir, "make check", "main");
 
-		expect(readFileSync(join(dir, ".warren/config.yaml"), "utf8")).toBe("mine: true\n");
+		expect(readFileSync(join(dir, ".warren/config.yaml"), "utf8")).toBe(config);
 		expect(existsSync(join(dir, "docs/agents/issue-tracker.md"))).toBe(true);
 		expect(readFileSync(join(dir, "AGENTS.md"), "utf8")).toContain("## Agent skills");
+	});
+
+	for (const config of ["maxCostUsd: 4\n", "qualityGate: make other\n", "qualityGate: [bad]\n"]) {
+		test(`rejects an ineffective gate before writing onboarding files: ${config.trim()}`, () => {
+			const dir = tempDir();
+			mkdirSync(join(dir, ".warren"));
+			writeFileSync(join(dir, ".warren/config.yaml"), config);
+			expect(() => writeConnectFiles(dir, "make check", "main")).toThrow();
+			expect(readFileSync(join(dir, ".warren/config.yaml"), "utf8")).toBe(config);
+			expect(existsSync(join(dir, "AGENTS.md"))).toBe(false);
+			expect(existsSync(join(dir, "docs"))).toBe(false);
+		});
+	}
+
+	test("rejects an empty gate before creating config", () => {
+		const dir = tempDir();
+		expect(() => writeConnectFiles(dir, "  ", "main")).toThrow("non-empty");
+		expect(existsSync(join(dir, ".warren"))).toBe(false);
+	});
+
+	test("keeps legacy settings instead of shadowing them with a new config", () => {
+		const dir = tempDir();
+		mkdirSync(join(dir, ".warren"));
+		writeFileSync(join(dir, ".warren/defaults.json"), '{"qualityGate":"make check"}');
+		expect(() => writeConnectFiles(dir, "make check", "main")).toThrow("config migrate");
+		expect(existsSync(join(dir, ".warren/config.yaml"))).toBe(false);
+		expect(readFileSync(join(dir, ".warren/defaults.json"), "utf8")).toContain("make check");
+	});
+});
+
+describe("connectProjectCli", () => {
+	for (const command of [[], ["existing"], ["new"], ["finish"], ["register"]]) {
+		test(`shows successful help for ${command[0] ?? "all commands"}`, () => {
+			const result = spawnSync(
+				process.execPath,
+				["--env-file=/dev/null", join(import.meta.dir, "connect-project.ts"), ...command, "--help"],
+				{ encoding: "utf8" },
+			);
+			expect(result.status).toBe(0);
+			expect(result.stdout).toContain("Usage:");
+		});
+	}
+
+	test("rejects a missing gate without touching the target", () => {
+		const dir = tempDir();
+		const result = spawnSync(
+			process.execPath,
+			["--env-file=/dev/null", join(import.meta.dir, "connect-project.ts"), "existing", dir],
+			{ encoding: "utf8" },
+		);
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain("--gate");
+		expect(existsSync(join(dir, ".warren"))).toBe(false);
 	});
 });
 
@@ -81,5 +138,58 @@ describe("scaffold", () => {
 
 	test("fillPlaceholders replaces every occurrence", () => {
 		expect(fillPlaceholders("__PROJECT__ __PROJECT__ __MODULE__", "a", "b")).toBe("a a b");
+	});
+});
+
+describe("onboarding branch safety", () => {
+	function repo(): string {
+		const dir = tempDir();
+		for (const args of [
+			["init", "-b", "main"],
+			[
+				"-c",
+				"user.name=Test",
+				"-c",
+				"user.email=test@example.com",
+				"commit",
+				"--allow-empty",
+				"-m",
+				"initial",
+			],
+		]) {
+			const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+			expect(result.status).toBe(0);
+		}
+		return dir;
+	}
+	test("preserves an existing onboarding branch instead of resetting it", () => {
+		const dir = repo();
+		expect(() => assertConnectBranchAvailable(dir)).not.toThrow();
+		spawnSync("git", ["branch", "factory/connect"], { cwd: dir });
+		const before = spawnSync("git", ["rev-parse", "factory/connect"], {
+			cwd: dir,
+			encoding: "utf8",
+		}).stdout;
+		expect(() => assertConnectBranchAvailable(dir)).toThrow("not reset");
+		expect(
+			spawnSync("git", ["rev-parse", "factory/connect"], { cwd: dir, encoding: "utf8" }).stdout,
+		).toBe(before);
+		expect(() => assertOnConnectBranch(dir)).toThrow("no files were staged");
+		spawnSync("git", ["checkout", "factory/connect"], { cwd: dir });
+		expect(() => assertOnConnectBranch(dir)).not.toThrow();
+	});
+	test("refuses finish on the wrong branch before staging local edits", () => {
+		const dir = repo();
+		writeFileSync(join(dir, "keep.txt"), "unfinished work");
+		const result = spawnSync(
+			process.execPath,
+			["--env-file=/dev/null", join(import.meta.dir, "connect-project.ts"), "finish", dir],
+			{ encoding: "utf8" },
+		);
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain("Switch to factory/connect");
+		expect(
+			spawnSync("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" }).stdout.trim(),
+		).toBe("?? keep.txt");
 	});
 });

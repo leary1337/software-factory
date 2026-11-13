@@ -102,6 +102,10 @@ rev — `readProviderFrontmatter` / `readToolsFrontmatter` in
   system prompt to child runs that write code.
 - `tools` (object, warren-8dee) — per-agent tool allowlist/denylist
   consumed by the pi runtime; see the pi contract below.
+- `noCommits` (boolean) — the agent leaves the run branch untouched by
+  design, as the builtin `reviewer` does. Reap then keeps a zero-commit
+  ref-dispatch `succeeded` instead of failing it as `no_changes`
+  (`src/runs/reap/no-commits.ts`).
 
 `POST /runs` accepts `providerOverride` / `modelOverride`; the spawn
 composer merges overrides on top of frontmatter before freezing onto

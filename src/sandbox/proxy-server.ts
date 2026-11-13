@@ -70,8 +70,8 @@ export function matchAllowedDomain(host: string, allowed: readonly string[]): bo
 
 /**
  * Env vars the drive loop overlays onto the agent spawn when a restricted
- * proxy is live. Clears NO_PROXY so the agent cannot bypass the allowlist
- * via a host-inherited exception list.
+ * proxy is live. Replaces host exceptions with loopback only, matching the
+ * sandbox's local-server grant so smoke tests can reach their own app.
  */
 export function proxyEnvVars(proxyUrl: string): Record<string, string> {
 	return {
@@ -79,8 +79,8 @@ export function proxyEnvVars(proxyUrl: string): Record<string, string> {
 		HTTPS_PROXY: proxyUrl,
 		http_proxy: proxyUrl,
 		https_proxy: proxyUrl,
-		NO_PROXY: "",
-		no_proxy: "",
+		NO_PROXY: "localhost,127.0.0.1,::1",
+		no_proxy: "localhost,127.0.0.1,::1",
 	};
 }
 

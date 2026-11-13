@@ -9,7 +9,11 @@ import { computeAutoMergeChangedPaths, readBaseAutoMergeConfig } from "./auto-me
 import type { ChangedPaths } from "./auto-merge-policy.ts";
 import type { ReapExec } from "./types.ts";
 
-interface AutoMergeSnapshot {
+export interface AutoMergeSnapshot {
+	headCommit?: string;
+	baseCommit?: string;
+	/** True only when the tested head already contains the fetched base. */
+	baseIsAncestor?: boolean;
 	config: AutoMergeConfig | undefined;
 	changedPaths: ChangedPaths;
 }
@@ -37,7 +41,13 @@ export async function readAutoMergeSnapshot(
 		const base = await fetchCommit(exec, cwd, url, input.baseBranch, "base");
 		config = await readBaseAutoMergeConfig(exec, cwd, base);
 		const head = await fetchCommit(exec, cwd, url, input.branch, "head");
-		return { config, changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head) };
+		return {
+			config,
+			headCommit: head,
+			baseCommit: base,
+			baseIsAncestor: await includesBase(exec, cwd, base, head),
+			changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head),
+		};
 	} catch {
 		// Never expose fetch errors: their text can contain the minted credential.
 		// A failed base read is off; a failed head read is diff_unreadable.
@@ -45,6 +55,16 @@ export async function readAutoMergeSnapshot(
 	} finally {
 		await rm(cwd, { recursive: true, force: true }).catch(() => {});
 	}
+}
+
+async function includesBase(
+	exec: ReapExec,
+	cwd: string,
+	base: string,
+	head: string,
+): Promise<boolean> {
+	const result = await exec.run("git", ["merge-base", base, head], { cwd, timeoutMs: 10_000 });
+	return result.stdout.trim() === base;
 }
 
 async function fetchCommit(

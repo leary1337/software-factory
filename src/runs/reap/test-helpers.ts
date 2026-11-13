@@ -265,6 +265,18 @@ function routeDiffProbe(
 	nameOnlyDiff: string,
 ): ExecResult | null {
 	if (args.includes("--name-only")) return handleNameOnlyDiff(failNameOnlyDiff, nameOnlyDiff);
+	if (args.includes("-z")) {
+		const paths = nameOnlyDiff.split("\0").filter(Boolean);
+		if (args.includes("--raw"))
+			return {
+				stdout: paths
+					.map((path) => `:100644 100644 ${FAKE_REV_PARSE_SHA} ${FAKE_REV_PARSE_SHA} M\0${path}\0`)
+					.join(""),
+				stderr: "",
+			};
+		if (args.includes("--numstat"))
+			return { stdout: paths.map((path) => `1\t0\t${path}\0`).join(""), stderr: "" };
+	}
 	if (args.includes("--cached") && args.includes("--quiet")) {
 		return handleDiffCached(stagedDelta);
 	}

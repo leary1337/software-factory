@@ -66,6 +66,10 @@ export function caseName(pageId: string, viewport: ViewportName, theme: ThemeNam
 /** Every screen route in `src/ui/src/app.tsx`, in nav order. */
 export const PAGES: readonly PageSpec[] = [
 	{ id: "operations", route: "/operations", path: at("/operations") },
+	{ id: "overview", route: "/overview", path: at("/overview") },
+	{ id: "kanban", route: "/kanban", path: at("/kanban") },
+	{ id: "tasks", route: "/tasks", path: at("/tasks") },
+	{ id: "production", route: "/production", path: at("/production") },
 	{ id: "runs", route: "/runs", path: at("/runs") },
 	{ id: "run-detail", route: "/runs/:id", path: (ids) => `/runs/${ids.runs.running}` },
 	{ id: "dispatch", route: "/dispatch", path: at("/dispatch") },
@@ -86,7 +90,6 @@ export const PAGES: readonly PageSpec[] = [
 	{ id: "telemetry-loop", route: "/telemetry/loop", path: at("/telemetry/loop") },
 	{ id: "telemetry-behavior", route: "/telemetry/behavior", path: at("/telemetry/behavior") },
 	{ id: "telemetry-judge", route: "/telemetry/judge", path: at("/telemetry/judge") },
-	{ id: "telemetry-economics", route: "/telemetry/economics", path: at("/telemetry/economics") },
 	{ id: "events", route: "/events", path: at("/events") },
 	{ id: "instance", route: "/instance", path: at("/instance") },
 	{ id: "setup", route: "/setup", path: at("/setup") },

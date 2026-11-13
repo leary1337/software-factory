@@ -9,9 +9,8 @@ import { cn } from "@/lib/utils.ts";
  * Alert / Callout — a tinted box used for inline error, success,
  * warning, info, and neutral states. Backed by the semantic status
  * palette tokens added in Phase 1 (--color-success / -warning / -info /
- * -danger / -neutral) and their -foreground pairs added in this phase.
- * Pattern mirrors Badge's cva variants so the token surface stays
- * predictable.
+ * -danger / -neutral). Text uses the surface ink: the status -foreground
+ * pairs are for solid fills, not these translucent tints (warren-f110).
  *
  * Sizing/spacing follows the existing inline-error idiom across the UI
  * (rounded-md border, p-3, text-sm). The variant fill is a translucent
@@ -33,17 +32,14 @@ import { cn } from "@/lib/utils.ts";
  */
 
 const alertVariants = cva(
-	"relative flex w-full items-start gap-2.5 rounded-md border p-3 text-sm",
+	"relative flex w-full items-start gap-2.5 rounded-md border p-3 text-(--color-text) text-sm",
 	{
 		variants: {
 			variant: {
-				info: "border-(--color-info)/30 bg-(--color-info)/10 text-(--color-info-foreground)",
-				success:
-					"border-(--color-success)/30 bg-(--color-success)/10 text-(--color-success-foreground)",
-				warning:
-					"border-(--color-warning)/30 bg-(--color-warning)/10 text-(--color-warning-foreground)",
-				danger:
-					"border-(--color-danger)/30 bg-(--color-danger)/10 text-(--color-danger-foreground)",
+				info: "border-(--color-info)/30 bg-(--color-info-soft) text-(--color-text)",
+				success: "border-(--color-success)/30 bg-(--color-success-soft) text-(--color-text)",
+				warning: "border-(--color-warning)/30 bg-(--color-warning-soft) text-(--color-text)",
+				danger: "border-(--color-danger)/30 bg-(--color-danger-soft) text-(--color-text)",
 				neutral: "border-(--color-border) bg-(--color-muted) text-(--color-fg)",
 			},
 		},

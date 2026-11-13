@@ -37,8 +37,10 @@ import type { PrivateGitScope } from "../../sandbox/git-scope.ts";
 import type { SandboxProfile } from "../../sandbox/types.ts";
 import { WORKSPACE_GITCONFIG_FILENAME } from "../../workspace/git/identity.ts";
 import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
+import { allAdapters } from "../adapters/index.ts";
 import type { RunSpec } from "../contract.ts";
 import { privateGitDenyRoots } from "./paths.ts";
+import { resolveProjectInputs, withProjectInputs } from "./project-inputs.ts";
 
 /* -------------------------------------------------------------------------- */
 /* Env passthrough (warren-owned allowlist; warren-fb8d formalizes)            */
@@ -115,6 +117,7 @@ const SYSTEM_RO_PREFIXES = ["/usr", "/etc", "/lib", "/lib64", "/bin", "/sbin", "
 const AGENT_BINARIES: Readonly<Record<string, readonly string[]>> = {
 	"claude-code": ["claude"],
 	pi: ["pi"],
+	codex: ["codex"],
 };
 const COMMON_BINARIES: readonly string[] = ["git", "bun", "node"];
 
@@ -214,6 +217,9 @@ function defaultHostBunInstall(): string {
  * replaces this one.
  */
 export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = [
+	"chatgpt.com",
+	"auth.openai.com",
+	"api.openai.com",
 	"api.anthropic.com",
 	"platform.claude.com",
 	"claude.ai",
@@ -360,6 +366,7 @@ export async function buildLocalSandboxProfile(input: BuildProfileInput): Promis
 	const projectRoot = spec.hostClonePathHint ?? "";
 	const toml = projectRoot === "" ? {} : await readLocalSandboxConfig(projectRoot);
 	const hostHome = homedir();
+	const projectInputsPath = await resolveProjectInputs(spec.projectId);
 
 	const readOnlyMounts = (toml.readOnlyPaths ?? [])
 		.map((p) => expandHome(p, hostHome))
@@ -383,12 +390,15 @@ export async function buildLocalSandboxProfile(input: BuildProfileInput): Promis
 			? { timeoutMs: spec.timeoutMs }
 			: toml.timeoutMs !== undefined
 				? { timeoutMs: toml.timeoutMs }
-				: {}),
+				: {
+						timeoutMs: allAdapters().find((adapter) => adapter.runtimeId === spec.runtimeId)
+							?.defaultTimeoutMs,
+					}),
 	};
 	const memoryLimitMb = spec.resources?.memoryMiB ?? toml.memoryLimitMb;
 	if (memoryLimitMb !== undefined) profile.memoryLimitMb = memoryLimitMb;
 	const cpuMillicores = spec.resources?.cpuMillicores;
 	if (cpuMillicores !== undefined) profile.cpuLimit = cpuMillicores / 1000;
 	else if (toml.cpuLimit !== undefined) profile.cpuLimit = toml.cpuLimit;
-	return profile;
+	return withProjectInputs(profile, projectInputsPath);
 }

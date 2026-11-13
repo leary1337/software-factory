@@ -15,13 +15,11 @@
  * accepted in both files — the same vintage rule its siblings (tracker,
  * admission) follow, and `warren config migrate` carries it unchanged.
  *
- * Nothing consumes the block yet — the reap PR-open step (warren-14d6)
- * is the first consumer, behind the arming policy (warren-970a). Two
- * invariants those steps rely on are pinned here in prose because no
- * schema can enforce them: `.warren/config.yaml` itself is ALWAYS
- * implicitly protected, and the policy resolves from the base branch,
- * never the run branch — an agent must not be able to edit its own
- * merge policy.
+ * Native arming and reviewed-plan merge share this policy. The optional
+ * verification mode defaults to forge enforcement. Warren verification instead
+ * requires an explicit CI contract and a history-preserving merge. The config
+ * itself is ALWAYS protected, and policy resolves from the base branch, never
+ * the run branch: agents cannot edit their own merge permission.
  *
  * `protectedPaths` entries are repo-relative path prefixes or globs
  * (e.g. `docs/` or `src/forge/**`). Count and per-entry-length bounds
@@ -73,6 +71,9 @@ export const AutoMergeConfigSchema = z
 	.object(
 		{
 			method: AutoMergeMethodSchema.default(DEFAULT_AUTO_MERGE_METHOD),
+			verification: z.enum(["forge", "warren"]).optional(),
+			requiredChecks: z.array(z.string().trim().min(1).max(256)).min(1).max(100).optional(),
+			reviewedPaths: z.array(ProtectedPathSchema).max(MAX_AUTO_MERGE_PROTECTED_PATHS).optional(),
 			protectedPaths: z
 				.array(ProtectedPathSchema)
 				.max(
@@ -93,7 +94,17 @@ export const AutoMergeConfigSchema = z
 					: undefined,
 		},
 	)
-	.strict();
+	.strict()
+	.refine(
+		(value) =>
+			value.verification !== "warren" ||
+			(value.method === "merge" && (value.requiredChecks?.length ?? 0) > 0),
+		"Warren verification requires method: merge and explicit requiredChecks",
+	)
+	.refine(
+		(value) => !value.reviewedPaths?.length || value.verification === "warren",
+		"reviewedPaths requires Warren verification and an independent review",
+	);
 
 export type AutoMergeConfig = z.infer<typeof AutoMergeConfigSchema>;
 
@@ -114,5 +125,20 @@ export const DeployConfigSchema = z
 	.object({
 		workflow: z.string().min(1).optional(),
 		environment: z.string().min(1).optional(),
+		autoDeploy: z.boolean().default(false),
+		shaInput: z
+			.string()
+			.regex(/^[A-Za-z_][A-Za-z0-9_-]*$/)
+			.optional(),
+		smokeUrl: z
+			.url()
+			.refine((value) => /^https?:\/\//.test(value), "smokeUrl must use HTTP or HTTPS")
+			.optional(),
+		timeoutMs: z.number().int().positive().max(3_600_000).default(900_000),
+		smokeTimeoutMs: z.number().int().positive().max(60_000).default(10_000),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(value) => !value.autoDeploy || (value.smokeUrl !== undefined && value.shaInput !== undefined),
+		"deploy.autoDeploy requires explicit smokeUrl and shaInput",
+	);

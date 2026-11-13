@@ -22,31 +22,31 @@ export function DispatchPage() {
 
 	return (
 		<div className="flex min-h-full flex-col gap-1.5 px-3.5 pt-5 pb-12 md:px-6">
-			<p className="font-mono text-(--color-text-3) text-[10px] leading-3">RUNS / NEW</p>
+			<p className="font-mono text-(--color-text-3) text-xs leading-4">RUNS / NEW</p>
 			<div className="flex flex-col gap-[5px] pb-[20px]">
 				<h1 className="font-semibold text-(--color-text) text-xl leading-6 tracking-[-0.025em]">
 					Dispatch run
 				</h1>
-				<p className="max-w-prose text-(--color-text-2) text-[12px] leading-4">Start a run.</p>
+				<p className="max-w-prose text-(--color-text-2) text-xs leading-4">Start a run.</p>
 				{s.initialState.continueFromRunId !== undefined ? (
-					<p className="font-mono text-(--color-text-3) text-[10px] leading-3">
+					<p className="font-mono text-(--color-text-3) text-xs leading-4">
 						↪ CONTINUATION FROM {s.initialState.continueFromRunId}
 					</p>
 				) : null}
 				{s.initialState.cloneFromRunId !== undefined ? (
-					<p className="font-mono text-(--color-text-3) text-[10px] leading-3">
+					<p className="font-mono text-(--color-text-3) text-xs leading-4">
 						⟳ RE-RUN OF {s.initialState.cloneFromRunId}
 					</p>
 				) : null}
 			</div>
 
 			{s.noProjects ? (
-				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-[11px] leading-4">
+				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-xs leading-4">
 					No projects added. Visit Projects to clone one from GitHub.
 				</p>
 			) : null}
 			{s.noAgents ? (
-				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-[11px] leading-4">
+				<p className="max-w-[760px] rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface) p-3 text-(--color-danger) text-xs leading-4">
 					No agents registered. Visit Agents and click Refresh registry.
 				</p>
 			) : null}
@@ -64,10 +64,8 @@ export function DispatchPage() {
 					prompt={s.draft.prompt}
 					providerOverride={s.draft.providerOverride}
 					modelOverride={s.draft.modelOverride}
-					costCap={s.draft.costCap}
 					providerDefaultKind={s.providerDefaultKind}
 					modelDefaultKind={s.modelDefaultKind}
-					costCapError={s.costCapError}
 					submitError={s.submitError}
 					pending={s.pending}
 					onAgent={s.setAgent}
@@ -77,7 +75,6 @@ export function DispatchPage() {
 					onPrompt={s.setPrompt}
 					onProvider={s.setProvider}
 					onModel={s.setModel}
-					onCostCap={s.setCostCap}
 					onCancel={s.cancel}
 					onSubmit={s.submit}
 				/>
@@ -88,7 +85,6 @@ export function DispatchPage() {
 					agent={s.draft.agent}
 					provider={s.draft.providerOverride.trim()}
 					model={s.draft.modelOverride.trim()}
-					costCap={s.draft.costCap}
 					runBranchPrefix={s.defaults?.runBranchPrefix}
 					facts={s.facts}
 					valid={s.valid}

@@ -42,6 +42,7 @@ import type { EventStream, InboxPriority, RuntimeId } from "../../core/wire.ts";
 export interface AgentRuntimeAdapter {
 	/** The canonical id, matching the {@link KNOWN_RUNTIME_IDS} member. */
 	readonly runtimeId: RuntimeId;
+	readonly defaultTimeoutMs?: number;
 	/**
 	 * Workspace-relative path prefixes this harness writes at runtime, which
 	 * the agent never staged. Reap treats a zero-commit push whose only dirty
@@ -102,6 +103,12 @@ export interface AgentRuntimeAdapter {
 	 * under `./parsers/__golden__/`.
 	 */
 	parseEvents?(line: string): AdapterRuntimeEvent[];
+	/** Stateful parser scoped to one process, never shared by concurrent runs. */
+	createEventParser?(frontmatter?: AgentFrontmatter): (line: string) => AdapterRuntimeEvent[];
+	/** Prepare private HOME; return a cleanup that preserves refreshed credentials. */
+	prepareHome?(homePath: string): Promise<() => Promise<void>>;
+	/** Finish durable HOME cleanup after the owning server has restarted. */
+	recoverHome?(homePath: string): Promise<void>;
 
 	/**
 	 * Fold pending steering messages into the spawn's stdin payload
@@ -238,12 +245,6 @@ export interface AgentFrontmatter {
 	pi?: PiFrontmatterOptions;
 	/** Mulch experiment arm (`./mulch-arm.ts`); absent = default behavior. */
 	mulch?: "on" | "off";
-	/**
-	 * `warren` arms the post-run quality gate: once the agent exits cleanly,
-	 * the drive loop runs the project's `qualityGate` in this run's sandbox
-	 * (`src/runtime/local/post-run-gate.ts`). Absent = the agent owns the gate.
-	 */
-	qualityGate?: "warren";
 }
 
 /**

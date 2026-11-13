@@ -40,6 +40,7 @@
  * structured failed outcome rather than rejecting `runs.create`.
  */
 
+import { extractAgentEventEnvelope } from "../../core/event-envelope.ts";
 import type { ProxyHandle, StartProxyOptions } from "../../sandbox/proxy-server.ts";
 import { runSandboxed } from "../../sandbox/sandbox.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
@@ -54,14 +55,8 @@ import {
 	settleCancelledIfNeeded,
 } from "./drive-prepare.ts";
 import { createStdinController, type StdinController, startMidRunSteering } from "./drive-stdin.ts";
-import {
-	agentFinishedCleanly,
-	isTerminalEnvelope,
-	type PostRunGate,
-	readPostRunGate,
-	runPostRunGate,
-} from "./post-run-gate.ts";
-import { readLines } from "./read-lines.ts";
+import { runIndependentQualityGate } from "./quality-gate.ts";
+import { preserveFailedReviewUsage, recordFailedGateReview } from "./quality-gate-failure.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 
 /** Mid-run steering poll cadence — burrow's MID_RUN_INBOX_POLL_MS verbatim. */
@@ -108,6 +103,35 @@ export function readSpecFrontmatter(
 	return raw as AgentFrontmatter;
 }
 
+/** True when a parsed event is the agent's terminal envelope (`result` / `agent_end`). */
+function isTerminalEnvelope(ev: AdapterRuntimeEvent): boolean {
+	const env = extractAgentEventEnvelope(ev);
+	return env !== null && (env.type === "result" || env.type === "agent_end");
+}
+
+async function* readLines(stream: ReadableStream<Uint8Array>): AsyncGenerator<string, void, void> {
+	const reader = stream.getReader();
+	const decoder = new TextDecoder();
+	let buf = "";
+	try {
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) break;
+			buf += decoder.decode(value, { stream: true });
+			let idx = buf.indexOf("\n");
+			while (idx !== -1) {
+				yield buf.slice(0, idx);
+				buf = buf.slice(idx + 1);
+				idx = buf.indexOf("\n");
+			}
+		}
+		buf += decoder.decode();
+		if (buf.length > 0) yield buf;
+	} finally {
+		reader.releaseLock();
+	}
+}
+
 /**
  * Drive one run to a terminal record. Fire-and-forget from `create()` — the
  * returned promise resolves when the record terminalizes and never rejects:
@@ -129,6 +153,18 @@ export async function driveLocalRun(
 		if (store.isTerminal(record)) return;
 		const message = err instanceof Error ? err.message : String(err);
 		store.appendEvent(record, { kind: "error", stream: "system", payload: { message } });
+		// The bridge needs a failure envelope when post-agent verification throws.
+		store.appendEvent(record, {
+			kind: "state_change",
+			stream: "system",
+			payload: {
+				type: "result",
+				is_error: true,
+				synthesized: true,
+				source_type: "runtime_failed",
+				error: message,
+			},
+		});
 		store.terminalize(record, {
 			phase: "failed",
 			exitCode: null,
@@ -145,7 +181,6 @@ async function spawnAndPump(
 	profile: SandboxProfile,
 	deps: DriveDeps,
 ): Promise<void> {
-	const log = deps.log ?? (() => {});
 	// Cancel can win before spawn (LocalEngine.cancel terminalizes immediately).
 	if (cancelWon(store, record)) {
 		settleCancelledIfNeeded(store, record);
@@ -153,6 +188,20 @@ async function spawnAndPump(
 	}
 	const prepared = await prepareSpawn(store, record, spec, profile, deps);
 	if (prepared === null) return;
+	try {
+		await drivePrepared(store, record, prepared, deps);
+	} finally {
+		await prepared.finalizeHome?.();
+	}
+}
+
+async function drivePrepared(
+	store: LocalRunStore,
+	record: LocalRunRecord,
+	prepared: PreparedSpawn,
+	deps: DriveDeps,
+): Promise<void> {
+	const log = deps.log ?? (() => {});
 	// warren-7116: the workspace is prepared — stamp the stage timestamp via
 	// the injected domain signal (never a direct db write from the runtime).
 	try {
@@ -169,9 +218,13 @@ async function spawnAndPump(
 		return;
 	}
 	log(`local-drive: launching '${runtime.runtimeId}' in ${record.workspacePath}`);
+	const spawn =
+		deps.spawn ??
+		((profile: SandboxProfile, command: SpawnCommand) =>
+			runSandboxed(profile, command, { lifecyclePath: `${record.homePath}.lifecycle.json` }));
 	let proc: SpawnResult;
 	try {
-		proc = await (deps.spawn ?? runSandboxed)(runProfile, runCommand);
+		proc = await spawn(runProfile, runCommand);
 	} catch (err) {
 		await proxy?.stop();
 		throw err;
@@ -185,19 +238,30 @@ async function spawnAndPump(
 
 	const stdin = createStdinController(runtime, proc, useStdinHold);
 	const midRun = startMidRunSteering(store, record, runtime, proc, stdin, deps);
-	// The post-run gate (docs/design/post-run-quality-gate.md) holds the
-	// terminal envelope back so the bridge keeps reading while the gate runs.
-	const gate = readPostRunGate(spec, readSpecFrontmatter(spec.metadata));
+	const deadline = armRunDeadline(proc, runProfile.timeoutMs);
+	const beforeTerminal =
+		prepared.finalizeHome || deadline || prepared.qualityGate
+			? async (agentExitCode: number) => {
+					deadline?.stop();
+					deadline?.assertWithinLimit();
+					if (agentExitCode === 0 && prepared.qualityGate && !cancelWon(store, record))
+						await runIndependentQualityGate(
+							store,
+							record,
+							prepared.qualityGate,
+							runProfile,
+							runCommand.env,
+							{ spawn },
+						);
+					await prepared.finalizeHome?.();
+				}
+			: undefined;
 	try {
-		const outcome = await pumpToExit(store, record, runtime, proc, stdin, deps, gate !== null);
-		if (gate !== null) {
-			midRun.abort();
-			await midRun.done;
-			await gateThenRelease(store, record, gate, prepared, proc, outcome, deps);
-		}
+		const outcome = await pumpToExit(store, record, runtime, proc, stdin, deps, beforeTerminal);
 		terminalize(store, record, runProfile, proc, outcome, deps);
 		log(`local-drive: '${runtime.runtimeId}' exited ${outcome.exitCode}`);
 	} finally {
+		deadline?.stop();
 		// Stop the steering loop before tearing down stdin so its final
 		// poll tick can't race the closeStdin path (burrow dispatch.ts).
 		midRun.abort();
@@ -209,43 +273,25 @@ async function spawnAndPump(
 	}
 }
 
+function armRunDeadline(proc: SpawnResult, timeoutMs: number | undefined) {
+	if (timeoutMs === undefined || !Number.isFinite(timeoutMs) || timeoutMs <= 0) return undefined;
+	let expired = false;
+	const timer = setTimeout(() => {
+		expired = true;
+		proc.cancel();
+	}, timeoutMs);
+	return {
+		stop: () => clearTimeout(timer),
+		assertWithinLimit: () => {
+			if (expired) throw new Error(`agent exceeded run timeout (${timeoutMs}ms)`);
+		},
+	};
+}
+
 interface PumpOutcome {
 	readonly exitCode: number;
 	readonly sawTerminalEnvelope: boolean;
 	readonly streamError: unknown;
-	/** Terminal envelopes withheld from the store while a post-run gate is armed. */
-	readonly heldTerminals: readonly AdapterRuntimeEvent[];
-}
-
-/**
- * Run the armed gate when the agent finished cleanly, then release the held
- * terminal envelopes so the domain reaps. A cancel that won during the gate
- * already settled the record, and the envelopes stay withheld.
- */
-async function gateThenRelease(
-	store: LocalRunStore,
-	record: LocalRunRecord,
-	gate: PostRunGate,
-	prepared: PreparedSpawn,
-	proc: SpawnResult,
-	outcome: PumpOutcome,
-	deps: DriveDeps,
-): Promise<void> {
-	const eligible =
-		!cancelWon(store, record) &&
-		proc.oomKilled?.() !== true &&
-		outcome.streamError === undefined &&
-		agentFinishedCleanly(outcome.exitCode, outcome.heldTerminals);
-	if (eligible) {
-		await runPostRunGate(store, record, gate, prepared.runProfile, prepared.runCommand.env, {
-			spawn: deps.spawn ?? runSandboxed,
-			...(deps.now !== undefined ? { now: deps.now } : {}),
-		});
-	}
-	if (store.isTerminal(record)) return;
-	for (const ev of outcome.heldTerminals) {
-		store.appendEvent(record, { kind: ev.kind, stream: ev.stream, payload: ev.payload }, deps.now);
-	}
 }
 
 /** Run the stdout/stderr pumps alongside the child's exit; collect the outcome. */
@@ -256,22 +302,32 @@ async function pumpToExit(
 	proc: SpawnResult,
 	stdin: StdinController,
 	deps: DriveDeps,
-	holdTerminals: boolean,
+	beforeTerminal?: (exitCode: number) => Promise<void>,
 ): Promise<PumpOutcome> {
 	const now = deps.now ?? (() => new Date());
 	let sawTerminalEnvelope = false;
-	const heldTerminals: AdapterRuntimeEvent[] = [];
-	const persistOrHold = (ev: AdapterRuntimeEvent): void => {
-		const terminal = isTerminalEnvelope(ev);
-		if (terminal) sawTerminalEnvelope = true;
-		if (terminal && holdTerminals) heldTerminals.push(ev);
-		else store.appendEvent(record, { kind: ev.kind, stream: ev.stream, payload: ev.payload }, now);
+	const deferred: AdapterRuntimeEvent[] = [];
+	const persistEvent = (ev: AdapterRuntimeEvent): void => {
+		// Only the host runner may attest a quality gate. Harness stdout cannot.
+		if (
+			["quality_gate.", "review_check.", "acceptance.", "review."].some((prefix) =>
+				ev.kind.startsWith(prefix),
+			)
+		)
+			return;
+		if (beforeTerminal && isTerminalEnvelope(ev)) {
+			deferred.push(ev);
+			sawTerminalEnvelope = true;
+			return;
+		}
+		store.appendEvent(record, { kind: ev.kind, stream: ev.stream, payload: ev.payload }, now);
+		if (isTerminalEnvelope(ev)) sawTerminalEnvelope = true;
 	};
 	const pumpStdout = async (): Promise<void> => {
 		for await (const line of readLines(proc.stdout)) {
 			if (line.length === 0) continue;
 			const events = runtime.parseEvents?.(line) ?? [];
-			for (const ev of events) persistOrHold(ev);
+			events.forEach(persistEvent);
 			await stdin.autoRespond(events);
 			await stdin.closeOnTrigger(events);
 		}
@@ -292,7 +348,15 @@ async function pumpToExit(
 			streamError = streamError ?? err;
 		}),
 	]);
-	return { exitCode, sawTerminalEnvelope, streamError, heldTerminals };
+	try {
+		await beforeTerminal?.(exitCode);
+	} catch (error) {
+		recordFailedGateReview(store, record, error, exitCode, streamError, deferred);
+		preserveFailedReviewUsage(store, record, deferred, error);
+		throw error;
+	}
+	for (const ev of deferred) store.appendEvent(record, ev, now);
+	return { exitCode, sawTerminalEnvelope, streamError };
 }
 
 /** Map the pump outcome onto the record's terminal phase + witness events. */

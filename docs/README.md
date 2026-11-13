@@ -1,8 +1,16 @@
-# Warren documentation
+# Software Factory documentation
+
+For this personal fork, start with [PLAN.md](PLAN.md), [FACTORY-BACKLOG.md](FACTORY-BACKLOG.md), and [codex-runtime.md](codex-runtime.md). The supported factory path runs from a checkout on macOS.
+
+The remaining documents describe the inherited Warren substrate. Historical Docker/Linux and platform design records are not evidence of a tested factory distribution.
 
 This directory holds operator, API, architecture, and contributor documentation. Start with the root [README](../README.md) for the product boundary, then choose the path that matches your task.
 
 ## Run warren
+
+- [Production delivery](production-delivery.md): opt-in deploy, exact commit verification, smoke and incident recovery.
+- [Factory merge safety](factory-merge-safety.md): mandatory risk paths and diff limits.
+
 
 - [`quickstart.md`](quickstart.md) — the casual path end to end: install script, `warren up`, credential wizard, GitHub App connect, first run.
 - [`credentials.md`](credentials.md) — the two model paths and the two GitHub paths, including machine-account guidance.
@@ -28,7 +36,7 @@ This directory holds operator, API, architecture, and contributor documentation.
 
 - [`PHILOSOPHY.md`](PHILOSOPHY.md) — product and architecture policy.
 - [`design/README.md`](design/README.md) — complete design-record catalog with delivery state.
-- [`../ROADMAP.md`](../ROADMAP.md) — current direction and sequencing.
+- [`../ROADMAP.md`](../ROADMAP.md) — archived upstream direction and sequencing.
 - [`../SECURITY.md`](../SECURITY.md) — threat model and vulnerability reporting.
 - [`CONSTITUTION.md`](CONSTITUTION.md) — governance for warren-authored changes.
 
@@ -54,3 +62,8 @@ Docs paths are a public surface (warren-d602). When maintainers delete or move a
 ## History
 
 - [`CHANGELOG-archive.md`](CHANGELOG-archive.md) — releases older than the window in the current [`../CHANGELOG.md`](../CHANGELOG.md).
+
+## Retired public paths
+
+- `docs/RUNBOOK-K8S.md` -> [the supported runtime](codex-runtime.md). Kubernetes was removed from this fork.
+- `docs/design/k8s-migration.md` -> [the fork plan](PLAN.md). The migration does not apply to this fork.

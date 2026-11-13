@@ -59,7 +59,6 @@ export interface SeedRunOpts {
 	tokensCacheRead?: number | null;
 	tokensOutput?: number | null;
 	tokensCacheWrite?: number | null;
-	costUsd?: number | null;
 	startedAt: string;
 	endedAt?: string;
 }
@@ -87,15 +86,13 @@ export async function seedRun(repos: Repos, opts: SeedRunOpts): Promise<string> 
 		opts.tokensInput !== undefined ||
 		opts.tokensCacheRead !== undefined ||
 		opts.tokensOutput !== undefined ||
-		opts.tokensCacheWrite !== undefined ||
-		opts.costUsd !== undefined
+		opts.tokensCacheWrite !== undefined
 	) {
 		await repos.runs.attachStats(run.id, {
 			tokensInput: opts.tokensInput ?? null,
 			tokensCacheRead: opts.tokensCacheRead ?? null,
 			tokensOutput: opts.tokensOutput ?? null,
 			tokensCacheWrite: opts.tokensCacheWrite ?? null,
-			costUsd: opts.costUsd ?? null,
 		});
 	}
 	return run.id;

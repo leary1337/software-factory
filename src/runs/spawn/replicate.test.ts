@@ -30,6 +30,8 @@ describe("spawnRun: replicate (warren-e96f)", () => {
 			renderedAgentJson: makeAgentJson(),
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "succeeded");
 		return parent.id;
 	}
 
@@ -117,6 +119,7 @@ describe("spawnRun: replicate (warren-e96f)", () => {
 				projectId: "prj_xxxxxxxxxxxx",
 				prompt: "first pass",
 				parentRunId: otherParent.id,
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 				cloneKind: "replicate",
 			}),
 		).rejects.toBeInstanceOf(ValidationError);

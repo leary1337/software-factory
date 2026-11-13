@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RunRow } from "@/api/types.ts";
-import { capPctOf, costNoteToneOf, stateCellOf, sublineOf } from "./runs-card.helpers.ts";
+import { stateCellOf, sublineOf } from "./runs-card.helpers.ts";
 
 /** Minimal run-shaped fixture — only the fields the card helpers read. */
 function run(overrides: Partial<RunRow>): RunRow {
@@ -37,8 +37,6 @@ function run(overrides: Partial<RunRow>): RunRow {
 		model: null,
 		salvageRef: null,
 		salvagePath: null,
-		costUsd: null,
-		costBasis: "metered",
 		tokensInput: null,
 		tokensOutput: null,
 		tokensCacheRead: null,
@@ -103,24 +101,5 @@ describe("sublineOf", () => {
 		expect(sublineOf(run({ state: "succeeded", commitsAhead: 2 }), "os-eco/warren")).toBe(
 			"claude-code · os-eco/warren · 2 commits",
 		);
-	});
-
-	test("running rows near cap carry the cap percent, not branch noise", () => {
-		const row = run({ costUsd: 4.72, maxCostUsd: 5, targetBranch: "main" });
-		expect(sublineOf(row, "os-eco/mulch")).toBe("claude-code · os-eco/mulch · cap 94%");
-	});
-});
-
-describe("capPctOf / costNoteToneOf", () => {
-	test("returns null below the subline threshold and no cap at all", () => {
-		expect(capPctOf(run({ costUsd: 0.4, maxCostUsd: 5 }))).toBeNull();
-		expect(capPctOf(run({ costUsd: 0.4 }))).toBeNull();
-		expect(capPctOf(run({ costUsd: 0.4, maxCostUsd: null }))).toBeNull();
-	});
-
-	test("warns on the cost note only at the near-cap threshold", () => {
-		expect(costNoteToneOf(run({ costUsd: 4.0, maxCostUsd: 5 }))).toBe("default");
-		expect(costNoteToneOf(run({ costUsd: 4.5, maxCostUsd: 5 }))).toBe("warning");
-		expect(costNoteToneOf(run({ costUsd: 4.5 }))).toBe("default");
 	});
 });

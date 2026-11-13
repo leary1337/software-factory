@@ -28,6 +28,7 @@ import { basename, dirname, join } from "node:path";
 import { buildBwrapArgv, SANDBOX_HOME_PATH } from "./bwrap.ts";
 import { prepareSandboxCgroup, resolveSandboxLimits, wrapArgvForCgroup } from "./cgroup.ts";
 import { resolveSandboxEnv } from "./env.ts";
+import { spawnGuardedProcess } from "./guarded-process.ts";
 import { buildSeatbeltArgv, buildSeatbeltProfile } from "./seatbelt.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "./types.ts";
 
@@ -38,6 +39,7 @@ export interface RunSandboxedOptions {
 	sandboxExecBin?: string;
 	/** Defaults to `os.tmpdir()`. Used to host the rendered .sb file on macOS. */
 	tmpRoot?: string;
+	lifecyclePath?: string;
 }
 
 export async function runSandboxed(
@@ -70,20 +72,26 @@ async function spawnDarwin(
 		hostEnv: process.env,
 		workspacePath: resolved.workspace,
 	});
+	// Tools such as tsx and Playwright create IPC sockets in os.tmpdir().
+	// Only the run's private trees permit IPC; never widen access to host /tmp.
+	env.TMPDIR ??= resolved.home;
+	// Playwright CLI enables Chrome's nested Seatbelt sandbox by default.
+	// macOS refuses sandbox reinitialization; Warren remains the outer boundary.
+	env.PLAYWRIGHT_MCP_SANDBOX = "false";
 	const argv = buildSeatbeltArgv(profilePath, command, {
 		sandboxExecBin: options.sandboxExecBin,
 	});
 	const cwd = resolveCwd(resolved.workspace, command.cwd);
 
 	const wantsStdin = command.stdin !== undefined;
-	const proc = Bun.spawn(argv, {
+	const guarded = await spawnGuardedProcess({
+		argv,
 		cwd,
 		env,
-		detached: true,
 		stdin: wantsStdin ? "pipe" : "ignore",
-		stdout: "pipe",
-		stderr: "pipe",
+		...(options.lifecyclePath !== undefined ? { lifecyclePath: options.lifecyclePath } : {}),
 	});
+	const proc = guarded.proc;
 
 	await writeStringStdin(proc, command.stdin, command.holdStdin ?? false);
 
@@ -96,13 +104,12 @@ async function spawnDarwin(
 	const exited = proc.exited.finally(cleanup);
 
 	return {
-		pid: proc.pid,
+		pid: guarded.pid,
 		stdout: proc.stdout as ReadableStream<Uint8Array>,
 		stderr: proc.stderr as ReadableStream<Uint8Array>,
 		exited,
 		cancel: () => {
-			killProcessGroup(proc.pid);
-			proc.kill();
+			guarded.cancel();
 			cleanup();
 		},
 		closeStdin: makeCloseStdin(proc),
@@ -169,15 +176,6 @@ async function spawnLinux(
 	};
 }
 
-/** SIGKILL every process in `pgid`'s group; a no-op once the group is empty. */
-function killProcessGroup(pgid: number): void {
-	try {
-		process.kill(-pgid, "SIGKILL");
-	} catch {
-		// ESRCH: the group already exited.
-	}
-}
-
 async function writeStringStdin(
 	proc: Bun.Subprocess,
 	stdin: SpawnCommand["stdin"],
@@ -234,6 +232,9 @@ function canonicalizeProfilePaths(profile: SandboxProfile): SandboxProfile {
 		workspace: realpathOrSelf(profile.workspace),
 		home: realpathOrSelf(profile.home),
 		readOnlyMounts: profile.readOnlyMounts.map(realpathOrSelf),
+		projectInputsPath: profile.projectInputsPath
+			? realpathOrSelf(profile.projectInputsPath)
+			: undefined,
 		toolchainPaths: profile.toolchainPaths.map(realpathOrSelf),
 		sshAuthSock: profile.sshAuthSock ? realpathOrSelf(profile.sshAuthSock) : profile.sshAuthSock,
 	};

@@ -27,14 +27,12 @@ const PI_TURN_END = {
 			output: 25,
 			cacheRead: 10,
 			cacheWrite: 5,
-			cost: { total: 0.001 },
 		},
 	},
 };
 
 const CLAUDE_RESULT = {
 	type: "result",
-	total_cost_usd: 0.0421,
 	usage: {
 		input_tokens: 1200,
 		output_tokens: 400,
@@ -44,8 +42,8 @@ const CLAUDE_RESULT = {
 };
 
 describe("USAGE_SHAPES", () => {
-	test("declares shapes keyed off RuntimeId for pi and claude-code only", () => {
-		expect(Object.keys(USAGE_SHAPES).sort()).toEqual(["claude-code", "pi"]);
+	test("declares shapes keyed off RuntimeId for every shipped runtime", () => {
+		expect(Object.keys(USAGE_SHAPES).sort()).toEqual(["claude-code", "codex", "pi"]);
 		for (const id of Object.keys(USAGE_SHAPES)) {
 			expect(KNOWN_RUNTIME_IDS as readonly string[]).toContain(id);
 		}
@@ -64,7 +62,6 @@ describe("USAGE_SHAPES", () => {
 describe("readUsage", () => {
 	test("reads pi turn_end usage fields", () => {
 		expect(readUsage(envelopeFor(PI_TURN_END))).toEqual({
-			costUsd: 0.001,
 			tokensInput: 100,
 			tokensOutput: 25,
 			tokensCacheRead: 10,
@@ -74,7 +71,6 @@ describe("readUsage", () => {
 
 	test("reads claude-code result usage fields", () => {
 		expect(readUsage(envelopeFor(CLAUDE_RESULT))).toEqual({
-			costUsd: 0.0421,
 			tokensInput: 1200,
 			tokensOutput: 400,
 			tokensCacheRead: 300,
@@ -98,12 +94,9 @@ describe("readUsage", () => {
 	});
 
 	test("keeps null fields null in a partial reading", () => {
-		const reading = readUsage(
-			envelopeFor({ type: "turn_end", message: { usage: { cost: { total: 0.5 } } } }),
-		);
+		const reading = readUsage(envelopeFor({ type: "turn_end", message: { usage: { input: 3 } } }));
 		expect(reading).toEqual({
-			costUsd: 0.5,
-			tokensInput: null,
+			tokensInput: 3,
 			tokensOutput: null,
 			tokensCacheRead: null,
 			tokensCacheWrite: null,
@@ -114,7 +107,6 @@ describe("readUsage", () => {
 		const reading = readUsage(
 			envelopeFor({ type: "turn_end", message: { usage: { input: 3, output: 4 } } }),
 		);
-		expect(reading?.costUsd).toBeNull();
 		expect(reading?.tokensInput).toBe(3);
 	});
 });

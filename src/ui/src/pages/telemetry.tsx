@@ -11,37 +11,13 @@ import {
 } from "@/pages/telemetry/use-telemetry-window.tsx";
 
 export { TelemetryBehaviorTab } from "@/pages/telemetry/behavior-tab.tsx";
-export { TelemetryEconomicsTab } from "@/pages/telemetry/economics-tab.tsx";
 export { TelemetryJudgeTab } from "@/pages/telemetry/judge-tab.tsx";
 export { TelemetryLoopTab } from "@/pages/telemetry/loop-tab.tsx";
-
-/**
- * Telemetry (warren-7197 / pl-7e38 step 14) — the Direction C
- * consolidation of the four analysis surfaces under one tabbed page:
- * The Loop, Behavior, Judge, Economics (docs/ui-revamp/README.md,
- * c-telemetry). Cost, behavior, and delivery joined across run
- * records, forge PR state, and judge verdicts.
- *
- * This page replaces and deletes the legacy run-analytics and
- * cost-analytics pages: it consumes the same analytics endpoints
- * (`GET /analytics/runs`, `/analytics/behavior`, `/analytics/cost`)
- * without recharts — the outcome bars and ranking rows are lightweight
- * div/SVG marks so the consolidation shrinks the bundle. The Judge tab
- * reads the judge extension's published surface only.
- *
- * Routing (warren-6bca): every width routes the same way. The tabs are
- * child routes, and a /telemetry/<tab> link opens that tab at any
- * viewport; nothing here reads the viewport width to redirect. Below md
- * the tab strip scrolls sideways, there is no range selector (mock
- * mobile/telemetry.jsx), and the selected window surfaces as panel-header
- * meta (TelemetryPanel appends it).
- */
 
 const TABS = [
 	{ path: "loop", label: "DELIVERY" },
 	{ path: "behavior", label: "BEHAVIOR" },
 	{ path: "judge", label: "JUDGE" },
-	{ path: "economics", label: "ECONOMICS" },
 ] as const;
 
 /** "ENDS TODAY · AUG 26" — the window end label beside the selector. */
@@ -64,7 +40,7 @@ function ProjectSelector() {
 			value={projectId ?? ""}
 			onChange={(e) => setProjectId(e.target.value === "" ? null : e.target.value)}
 			aria-label="Filter by project"
-			className="hidden h-8 rounded-(--radius-sm) border border-(--color-border) bg-(--color-bg) px-2 font-mono text-(--color-text-2) text-[11px] leading-[14px] md:block"
+			className="hidden h-8 rounded-(--radius-sm) border border-(--color-border) bg-(--color-bg) px-2 font-mono text-(--color-text-2) text-xs leading-4 md:block"
 		>
 			<option value="">all projects</option>
 			{rows.map((p) => (
@@ -81,7 +57,7 @@ function RangeSelector() {
 	const { days, setDays } = useTelemetryWindow();
 	return (
 		<div className="hidden items-center gap-3 md:flex">
-			<span className="hidden font-mono text-(--color-text-3) text-[11px] leading-[14px] tracking-[0.04em] sm:inline">
+			<span className="hidden font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.04em] sm:inline">
 				{endsTodayLabel()}
 			</span>
 			<section
@@ -97,7 +73,7 @@ function RangeSelector() {
 							onClick={() => setDays(d)}
 							aria-pressed={active}
 							className={cn(
-								"px-2.5 py-1.5 font-mono text-[11px] leading-[14px]",
+								"px-2.5 py-1.5 font-mono text-xs leading-4",
 								active
 									? "bg-(--color-primary) font-medium text-(--color-primary-ink)"
 									: "text-(--color-text-3) hover:text-(--color-text-2)",
@@ -129,7 +105,7 @@ function TabNav() {
 					to={`/telemetry/${path}`}
 					className={({ isActive }) =>
 						cn(
-							"flex shrink-0 flex-col gap-2 pb-0 font-mono text-[11px] leading-[14px] tracking-[0.08em]",
+							"flex shrink-0 flex-col gap-2 pb-0 font-mono text-xs leading-4 tracking-[0.08em]",
 							isActive
 								? "font-semibold text-(--color-text)"
 								: "text-(--color-text-3) hover:text-(--color-text-2)",
@@ -165,8 +141,8 @@ export function TelemetryPage() {
 						<h1 className="font-semibold text-(--color-text) text-[22px] leading-7 tracking-[-0.025em]">
 							Telemetry
 						</h1>
-						<p className="text-(--color-text-2) text-[13px] leading-[18px]">
-							Cost, behavior, and delivery across runs.
+						<p className="text-(--color-text-2) text-sm leading-[18px]">
+							Behavior and delivery across runs.
 						</p>
 					</div>
 					<div className="flex items-center gap-3">

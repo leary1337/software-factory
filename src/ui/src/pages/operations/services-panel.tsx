@@ -21,8 +21,8 @@ function ServiceRow({ name, detail, ok }: { name: string; detail: string; ok: bo
 				aria-hidden
 			/>
 			<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-				<span className="font-medium text-(--color-text) text-[11px] leading-3.5">{name}</span>
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-[13px]">{detail}</span>
+				<span className="font-medium text-(--color-text) text-xs leading-4.5">{name}</span>
+				<span className="font-mono text-(--color-text-3) text-xs leading-4">{detail}</span>
 			</span>
 		</div>
 	);
@@ -39,10 +39,10 @@ export function ServicesPanel({
 	return (
 		<div className="flex min-w-0 flex-[1.8] flex-col overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-surface)">
 			<div className="flex h-[39px] shrink-0 items-center gap-2 border-(--color-border) border-b px-3">
-				<span className="font-semibold text-(--color-text) text-[11px] leading-3.5">Services</span>
+				<span className="font-semibold text-(--color-text) text-xs leading-4.5">Services</span>
 				<span className="flex-1" />
 				{overview ? (
-					<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">
 						snapshot {relativeTime(overview.generatedAt)}
 					</span>
 				) : null}

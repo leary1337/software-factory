@@ -59,14 +59,12 @@ and only spawns the next child when that slot transitions to `merged`
 or `skipped`. There is never more than one in-flight child per
 PlanRun.
 
-**Review step.** For a plan run of the `implementer` role, a child whose
-PR is open does not wait for the merge right away. `advanceReview`
-(`src/plan-runs/review.ts`) first chains `reviewer` and `rework` runs on
-the child's branch, recorded as `plan_run.review_step` events on the
-child's run. After the implementer and after each rework, warren runs the
-project's quality gate itself, in that run's sandbox. A red gate sends
-the branch straight to rework, and a green one rides into the reviewer's
-prompt. See [Post-run quality gate](./post-run-quality-gate.md).
+**Review step.** For an `implementer` plan, Warren reviews the open PR
+and dispatches any rework on the child's branch. It records each attempt in
+`plan_run.review_step` events so recovery can resume the same PR.
+After the reviewer exits, Warren runs the
+[independent quality gate](../factory-merge-safety.md#independent-gate-execution)
+against the pinned commit before automated delivery can proceed.
 
 **Coordinator state machine.** `advancePlanRun` in
 `src/plan-runs/coordinator.ts` is a pure function over a stub-injected
@@ -202,6 +200,17 @@ and `child_seed_not_found` remain genuine failures and are not
 resumable.
 
 **Server API.**
+
+An active implementer plan whose current PR needs attention can request a fresh
+review with `POST /plan-runs/:id/children/:seq/retry-review`. This dispatch-only
+action records `plan_run.review_retry_requested` under the coordinator lock;
+duplicate requests while pending are idempotent. The next tick pins the existing
+PR's current head and uses the usual reviewer dispatch, quality gate and budget
+checks. Past attempts, findings and rework usage remain intact. Running reviews,
+other children and terminal plans return 409. Dispatch failures expose their
+scrubbed cause through the operator-only `reviewFailure` field, including when
+no reviewer run could be created. The plan/task views and workspace task panel
+offer Retry review after the operator fixes the reported cause.
 
 ```
 POST   /plan-runs                 dispatch (rejects without project.hasSeeds)

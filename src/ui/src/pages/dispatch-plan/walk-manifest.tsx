@@ -2,7 +2,7 @@ import type { InstanceFactsResponse } from "@/api/instance-types.ts";
 import type { ProjectRow } from "@/api/types.ts";
 import type { AdmissionRow, AdmissionStatus, ManifestLine } from "../dispatch/manifest-view.ts";
 import { buildAdmissionRows, repositoryLabel } from "../dispatch/manifest-view.ts";
-import { parseCostCap, parseIssueIds, type WalkDraft } from "./walk-draft.ts";
+import { parseIssueIds, type WalkDraft } from "./walk-draft.ts";
 
 /**
  * Right rail of the Direction C Dispatch plan page (warren-02bb): the
@@ -16,10 +16,10 @@ import { parseCostCap, parseIssueIds, type WalkDraft } from "./walk-draft.ts";
  * full manifest and admission row list stay md+.
  */
 
-const keyClass = "font-mono text-[9px] leading-[15px] text-(--color-info)";
-const valueClass = "font-mono text-[9px] leading-[15px] text-(--color-success)";
-const summaryKeyClass = "font-mono text-[10px] leading-[14px] text-(--color-info)";
-const summaryValueClass = "font-mono text-[10px] leading-[14px] text-(--color-success)";
+const keyClass = "font-mono text-xs leading-4 text-(--color-info)";
+const valueClass = "font-mono text-xs leading-4 text-(--color-success)";
+const summaryKeyClass = "font-mono text-xs leading-4 text-(--color-info)";
+const summaryValueClass = "font-mono text-xs leading-4 text-(--color-success)";
 
 const DOT_CLASS: Record<AdmissionStatus, string> = {
 	ok: "bg-(--color-success)",
@@ -33,7 +33,6 @@ export interface WalkManifestInput {
 	readonly agent: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly costCap: string;
 	readonly planId: string;
 	readonly issuesText: string;
 	readonly sourceMode: WalkDraft["sourceMode"];
@@ -68,8 +67,6 @@ export function buildWalkManifestLines(input: WalkManifestInput): readonly Manif
 		{ key: "runtime:" },
 		{ indent: true, key: "adapter: ", value: input.agent.length > 0 ? input.agent : "—" },
 		{ indent: true, key: "model: ", value: modelValue(input.provider, input.model) },
-		{ key: "limits:" },
-		{ indent: true, key: "costUsd: ", value: costValue(input.costCap) },
 		{ key: "walk:" },
 		{
 			indent: true,
@@ -108,7 +105,6 @@ export function buildWalkManifestSummaryLines(input: WalkManifestInput): readonl
 			key: "children: ",
 			value: input.sourceMode === "issues" ? `${issues.length}` : openChildrenValue(input),
 		},
-		{ key: "costUsd: ", value: costValue(input.costCap) },
 		{ key: "gate: ", value: "previous PR merged" },
 	];
 }
@@ -126,11 +122,6 @@ function modelValue(provider: string, model: string): string {
 	if (model.length > 0) return model;
 	if (provider.length > 0) return provider;
 	return "—";
-}
-
-function costValue(costCap: string): string {
-	const parsed = parseCostCap(costCap);
-	return parsed !== null && "value" in parsed ? `${parsed.value.toFixed(2)} / child` : "—";
 }
 
 /** The admission-policy rows the right rail renders, in display order. */
@@ -189,8 +180,8 @@ function AdmissionRowView({ row }: { row: AdmissionRow }) {
 			<span className="w-[10px] shrink-0">
 				<span className={`block h-1.5 w-1.5 rounded-full ${DOT_CLASS[row.status]}`} />
 			</span>
-			<span className="flex-1 text-(--color-text-2) text-[10px] leading-3">{row.label}</span>
-			<span className="font-mono text-(--color-text-3) text-[9px] leading-3">{row.value}</span>
+			<span className="flex-1 text-(--color-text-2) text-xs leading-4">{row.label}</span>
+			<span className="font-mono text-(--color-text-3) text-xs leading-4">{row.value}</span>
 		</div>
 	);
 }
@@ -206,7 +197,7 @@ function AdmissionBand({ rows }: { rows: readonly AdmissionRow[] }) {
 					allOk ? "bg-(--color-success)" : "bg-(--color-neutral)"
 				}`}
 			/>
-			<span className="font-mono text-(--color-text-2) text-[10px] leading-[13px]">
+			<span className="font-mono text-(--color-text-2) text-xs leading-4">
 				{allOk
 					? "ADMISSION OK · policy checks pass"
 					: `ADMISSION · policy checks pending (${okCount}/${rows.length})`}
@@ -230,18 +221,16 @@ export function WalkManifest(props: WalkManifestProps) {
 	return (
 		<aside className="flex w-full shrink-0 flex-col overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-sidebar) md:bg-(--color-surface) lg:w-[350px]">
 			<div className="flex h-[39px] shrink-0 items-center border-(--color-border) border-b px-3">
-				<h2 className="font-semibold text-(--color-text) text-[11px] leading-[14px]">
-					Resolved manifest
-				</h2>
+				<h2 className="font-semibold text-(--color-text) text-xs leading-4">Resolved manifest</h2>
 				<div className="flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 md:hidden">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4 md:hidden">
 					READ-ONLY
 				</span>
 				<span
 					className={
 						props.valid
-							? "hidden font-mono text-(--color-success) text-[9px] leading-3 md:block"
-							: "hidden font-mono text-(--color-text-3) text-[9px] leading-3 md:block"
+							? "hidden font-mono text-(--color-success) text-xs leading-4 md:block"
+							: "hidden font-mono text-(--color-text-3) text-xs leading-4 md:block"
 					}
 				>
 					{props.valid ? "VALID" : "INCOMPLETE"}

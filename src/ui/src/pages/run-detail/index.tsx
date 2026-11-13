@@ -21,24 +21,13 @@ import {
 	PromptPanel,
 	RunDefinitionPanel,
 	RuntimePanel,
-	SpendPanel,
+	TokensPanel,
 } from "@/pages/run-detail/side-panels.tsx";
 import { CancelRunButton, SteerForm } from "@/pages/run-detail/steering-panel.tsx";
 import { extractReapSummary, isBridgeStalled } from "@/pages/run-detail-format.ts";
 import { projectLabel } from "@/pages/runs/runs-format.ts";
+import { RunReviewPanel } from "./review-panel.tsx";
 import { formatRunElapsed } from "./run-detail-format.ts";
-
-/**
- * Run detail — the Direction C workload inspector (warren-8c85 /
- * pl-7e38 step 4), translated from docs/ui-revamp/screens/run-detail.jsx:
- * breadcrumb + identity header, the five-cell lifecycle phase rail, the
- * structured event tail (main column), and the side column's Runtime /
- * Spend / Preview / Run definition / Prompt / Steering panels. Live
- * tailing rides the existing NDJSON stream reader (useEventStream);
- * operator affordances (cancel, re-run, steer, preview login/teardown)
- * ride OperatorOnly so the WARREN_AUTH=public spectator projection stays
- * read-only.
- */
 
 /**
  * Event kinds whose arrival means the warren run row may have advanced
@@ -125,7 +114,7 @@ function DispatchFromRunButtons({ run }: { run: RunRow }) {
 		prompt: run.prompt,
 	} as const;
 	const btn =
-		"inline-flex h-[31px] items-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] text-[11px] leading-[14px] font-medium text-(--color-text) hover:bg-(--color-surface-hover)";
+		"inline-flex h-[31px] items-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] text-xs leading-4 font-medium text-(--color-text) hover:bg-(--color-surface-hover)";
 	return (
 		<div className="flex flex-wrap gap-[7px]">
 			<button
@@ -211,7 +200,7 @@ function HeaderBadges({ run, reap }: { run: RunRow; reap: ReturnType<typeof extr
 					href={run.prUrl}
 					target="_blank"
 					rel="noreferrer noopener"
-					className="font-mono text-[10px] leading-3 underline underline-offset-2 hover:text-(--color-primary)"
+					className="font-mono text-xs leading-4 underline underline-offset-2 hover:text-(--color-primary)"
 					title="Open the auto-opened pull request on GitHub"
 				>
 					PR ↗
@@ -245,13 +234,13 @@ function RunHeader({
 			 * ~347px row); md+ keeps the desktop breadcrumb header verbatim.
 			 */}
 			<header className="flex shrink-0 flex-col gap-1.5 md:hidden">
-				<nav className="shrink-0 font-medium font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+				<nav className="shrink-0 font-medium font-mono text-(--color-text-3) text-xs leading-4">
 					<Link to="/runs" className="hover:text-(--color-text)">
 						← Runs
 					</Link>
 				</nav>
 				<div className="flex items-center gap-2">
-					<h1 className="font-mono font-semibold text-(--color-text) text-[14px] leading-[18px] tracking-[-0.02em]">
+					<h1 className="font-mono font-semibold text-(--color-text) text-sm leading-[18px] tracking-[-0.02em]">
 						{run.id}
 					</h1>
 					<span className="flex shrink-0 items-center gap-[5px] rounded-(--radius-sm) border border-(--color-border-strong) px-[7px] py-[3px]">
@@ -259,7 +248,7 @@ function RunHeader({
 							className={cn("h-[5px] w-[5px] rounded-full", stateDotClass(run.state))}
 							aria-hidden
 						/>
-						<span className={cn("font-mono text-[9px] leading-[11px]", stateColor(run.state))}>
+						<span className={cn("font-mono text-xs leading-4", stateColor(run.state))}>
 							{run.state}
 						</span>
 					</span>
@@ -275,7 +264,7 @@ function RunHeader({
 						) : null}
 					</OperatorOnly>
 				</div>
-				<p className="line-clamp-1 font-mono text-(--color-text-3) text-[10px] leading-[12px]">
+				<p className="line-clamp-1 font-mono text-(--color-text-3) text-xs leading-4">
 					{[
 						run.agentName,
 						projectName,
@@ -299,7 +288,7 @@ function RunHeader({
 				</h1>
 				<span className="flex items-center gap-[7px]">
 					<span className={cn("h-1.5 w-1.5 rounded-full", stateDotClass(run.state))} aria-hidden />
-					<span className={cn("font-mono text-[10px] leading-3", stateColor(run.state))}>
+					<span className={cn("font-mono text-xs leading-4", stateColor(run.state))}>
 						{run.state}
 					</span>
 				</span>
@@ -307,7 +296,7 @@ function RunHeader({
 					<RunFailureBadge reason={run.failureReason} />
 				) : null}
 				<HeaderBadges run={run} reap={reap} />
-				<span className="font-mono text-(--color-text-3) text-[10px] leading-3">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4">
 					{run.agentName} · {projectName}
 					{run.provider !== null ? ` · ${run.provider}` : ""}
 				</span>
@@ -374,7 +363,7 @@ export function RunDetailPage() {
 
 	return (
 		<div className="flex min-h-full flex-col gap-3 px-3.5 pt-[22px] pb-12 md:px-6 xl:h-full">
-			<nav className="hidden shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3 md:block">
+			<nav className="hidden shrink-0 font-mono text-(--color-text-3) text-xs leading-4 md:block">
 				RUNS / {r.id.toUpperCase()}
 			</nav>
 
@@ -385,6 +374,10 @@ export function RunDetailPage() {
 				reap={reap}
 				onCancelSettled={() => void qc.invalidateQueries({ queryKey: ["runs"] })}
 			/>
+
+			<OperatorOnly>
+				<RunReviewPanel run={r} events={stream.events} status={stream.status} />
+			</OperatorOnly>
 
 			{bridgeStalled ? (
 				<Alert variant="warning" title="Agent infrastructure unreachable">
@@ -401,7 +394,7 @@ export function RunDetailPage() {
 
 			{/*
 			 * Mobile section order (warren-3399): below md the stack reads
-			 * Runtime → Spend → Event stream → Steering, with Prompt / Run
+			 * Runtime → Tokens → Event stream → Steering, with Prompt / Run
 			 * definition / Preview collapsed into details disclosures — the
 			 * 375px mock omits them entirely; collapsing keeps the data
 			 * reachable. Breakpoint decision: the two-column row still cuts
@@ -430,7 +423,7 @@ export function RunDetailPage() {
 						<RuntimePanel run={r} />
 					</div>
 					<div className="order-2 md:order-none">
-						<SpendPanel run={r} />
+						<TokensPanel run={r} />
 					</div>
 					<div className="hidden md:contents">
 						{r.previewState !== null ? <PreviewPanel run={r} /> : null}
@@ -443,9 +436,9 @@ export function RunDetailPage() {
 						</div>
 					</OperatorOnly>
 					<details className="group order-5 md:hidden">
-						<summary className="flex h-[39px] cursor-pointer list-none items-center rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3 font-semibold text-(--color-text) text-[11px] leading-[14px] [&::-webkit-details-marker]:hidden">
+						<summary className="flex h-[39px] cursor-pointer list-none items-center rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3 font-semibold text-(--color-text) text-xs leading-4 [&::-webkit-details-marker]:hidden">
 							Prompt
-							<span className="ml-auto font-mono text-(--color-text-3) text-[9px] leading-3 transition group-open:rotate-90">
+							<span className="ml-auto font-mono text-(--color-text-3) text-xs leading-4 transition group-open:rotate-90">
 								&#9656;
 							</span>
 						</summary>
@@ -454,9 +447,9 @@ export function RunDetailPage() {
 						</div>
 					</details>
 					<details className="group order-6 md:hidden">
-						<summary className="flex h-[39px] cursor-pointer list-none items-center rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3 font-semibold text-(--color-text) text-[11px] leading-[14px] [&::-webkit-details-marker]:hidden">
+						<summary className="flex h-[39px] cursor-pointer list-none items-center rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3 font-semibold text-(--color-text) text-xs leading-4 [&::-webkit-details-marker]:hidden">
 							Run definition
-							<span className="ml-auto font-mono text-(--color-text-3) text-[9px] leading-3 transition group-open:rotate-90">
+							<span className="ml-auto font-mono text-(--color-text-3) text-xs leading-4 transition group-open:rotate-90">
 								&#9656;
 							</span>
 						</summary>
@@ -465,9 +458,9 @@ export function RunDetailPage() {
 						</div>
 					</details>
 					<details className="group order-7 md:hidden">
-						<summary className="flex h-[39px] cursor-pointer list-none items-center rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3 font-semibold text-(--color-text) text-[11px] leading-[14px] [&::-webkit-details-marker]:hidden">
+						<summary className="flex h-[39px] cursor-pointer list-none items-center rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3 font-semibold text-(--color-text) text-xs leading-4 [&::-webkit-details-marker]:hidden">
 							Preview
-							<span className="ml-auto font-mono text-(--color-text-3) text-[9px] leading-3 transition group-open:rotate-90">
+							<span className="ml-auto font-mono text-(--color-text-3) text-xs leading-4 transition group-open:rotate-90">
 								&#9656;
 							</span>
 						</summary>

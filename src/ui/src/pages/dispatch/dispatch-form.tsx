@@ -22,11 +22,11 @@ import { cn } from "@/lib/utils.ts";
 const controlClass = cn(
 	responsiveFormControl,
 	"w-full rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg) px-2.5 text-(--color-text) leading-[17px] placeholder:text-(--color-text-3) focus-visible:outline-none focus-visible:ring-(--color-primary) focus-visible:ring-2",
-	"sm:h-8 sm:text-[11px] sm:leading-[14px]",
+	"sm:h-8 sm:text-xs sm:leading-4",
 );
 
-const labelClass = "text-[10px] font-medium leading-3 text-(--color-text-2)";
-const hintClass = "font-mono text-[9px] leading-3 text-(--color-text-3)";
+const labelClass = "text-xs font-medium leading-4 text-(--color-text-2)";
+const hintClass = "font-mono text-xs leading-4 text-(--color-text-3)";
 
 function Section({
 	title,
@@ -50,10 +50,8 @@ function Section({
 		>
 			{/* Desktop header — below md the card's --color-thead bar replaces it. */}
 			<div className="hidden md:flex md:flex-col md:gap-[3px] md:px-[15px] md:pt-[15px] md:pb-[13px]">
-				<h2 className="font-semibold text-(--color-text) text-[11px] leading-[14px]">{title}</h2>
-				{description && (
-					<p className="text-(--color-text-3) text-[10px] leading-3">{description}</p>
-				)}
+				<h2 className="font-semibold text-(--color-text) text-xs leading-4">{title}</h2>
+				{description && <p className="text-(--color-text-3) text-xs leading-4">{description}</p>}
 			</div>
 			<div className="flex flex-col px-3 py-3 md:px-[15px] md:py-0 md:pb-[15px]">{children}</div>
 		</section>
@@ -70,7 +68,7 @@ function MobileCard({ title, children }: { title: string; children: ReactNode })
 	return (
 		<div className="flex flex-col overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) md:contents">
 			<div className="flex items-center border-(--color-border) border-b bg-(--color-thead) px-3 py-2.5 md:hidden">
-				<h2 className="font-semibold text-(--color-text) text-[12px] leading-[15px]">{title}</h2>
+				<h2 className="font-semibold text-(--color-text) text-xs leading-4">{title}</h2>
 			</div>
 			{children}
 		</div>
@@ -117,10 +115,8 @@ export interface DispatchFormProps {
 	prompt: string;
 	providerOverride: string;
 	modelOverride: string;
-	costCap: string;
 	providerDefaultKind: "project" | "agent" | null;
 	modelDefaultKind: "project" | "agent" | null;
-	costCapError: string | null;
 	submitError: string | null;
 	pending: boolean;
 	onAgent: (value: string) => void;
@@ -130,7 +126,6 @@ export interface DispatchFormProps {
 	onPrompt: (value: string) => void;
 	onProvider: (value: string) => void;
 	onModel: (value: string) => void;
-	onCostCap: (value: string) => void;
 	onCancel: () => void;
 	/** Fires on form submission (Enter key or the Dispatch button). */
 	onSubmit: () => void;
@@ -141,8 +136,7 @@ export function DispatchForm(props: DispatchFormProps) {
 		!props.pending &&
 		props.agent.length > 0 &&
 		props.project.length > 0 &&
-		props.prompt.trim().length > 0 &&
-		props.costCapError === null;
+		props.prompt.trim().length > 0;
 
 	return (
 		<form
@@ -302,27 +296,6 @@ export function DispatchForm(props: DispatchFormProps) {
 				</Section>
 			</MobileCard>
 
-			<MobileCard title="Guardrails">
-				<Section title="Guardrails" description="Optional limits for this run." divider="none">
-					<div className="grid gap-[12px] sm:grid-cols-2">
-						<Field
-							label="Cost cap (USD)"
-							hint={props.costCapError ?? "THE RUN STOPS AT THIS SPEND"}
-						>
-							<input
-								className={`${controlClass} ${props.costCapError ? "border-(--color-danger)" : ""} font-mono`}
-								value={props.costCap}
-								onChange={(e) => props.onCostCap(e.target.value)}
-								placeholder="unset"
-								inputMode="decimal"
-								autoComplete="off"
-								spellCheck={false}
-							/>
-						</Field>
-					</div>
-				</Section>
-			</MobileCard>
-
 			<div className={cn(responsiveFooterActions, "px-0 py-[12px] sm:items-center md:px-[15px]")}>
 				<p className={cn(hintClass, "hidden md:block md:flex-1")}>
 					Dispatch writes the run definition before admission.
@@ -333,7 +306,7 @@ export function DispatchForm(props: DispatchFormProps) {
 					disabled={props.pending}
 					className={cn(
 						responsiveFooterButton,
-						"hidden h-11 items-center justify-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] font-medium text-(--color-text-2) text-[11px] leading-[14px] hover:bg-(--color-surface-hover) disabled:opacity-50 sm:h-[31px] sm:justify-start md:flex",
+						"hidden h-11 items-center justify-center rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] font-medium text-(--color-text-2) text-xs leading-4 hover:bg-(--color-surface-hover) disabled:bg-(--color-surface-hover) disabled:text-(--color-text-2) disabled:opacity-100 sm:h-[31px] sm:justify-start md:flex",
 					)}
 				>
 					Cancel
@@ -343,7 +316,7 @@ export function DispatchForm(props: DispatchFormProps) {
 					disabled={!canSubmit}
 					className={cn(
 						responsiveFooterButton,
-						"flex h-11 items-center justify-center rounded-(--radius-sm) bg-(--color-primary) px-[11px] font-medium text-(--color-primary-ink) text-[11px] leading-[14px] disabled:opacity-50 sm:h-[31px] sm:justify-start",
+						"flex h-11 items-center justify-center rounded-(--radius-sm) bg-(--color-primary) px-[11px] font-medium text-(--color-primary-ink) text-xs leading-4 disabled:bg-(--color-surface-hover) disabled:text-(--color-text-2) disabled:opacity-100 sm:h-[31px] sm:justify-start",
 					)}
 				>
 					{props.pending ? "Dispatching…" : "Dispatch workload"}
@@ -351,7 +324,7 @@ export function DispatchForm(props: DispatchFormProps) {
 			</div>
 
 			{props.submitError ? (
-				<p className="px-3.5 py-2 font-mono text-(--color-danger) text-[10px] leading-3 md:border-(--color-border) md:border-t md:px-[15px]">
+				<p className="px-3.5 py-2 font-mono text-(--color-danger) text-xs leading-4 md:border-(--color-border) md:border-t md:px-[15px]">
 					{props.submitError}
 				</p>
 			) : null}

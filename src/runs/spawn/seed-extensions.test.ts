@@ -53,8 +53,12 @@ describe("spawnRun: post-dispatch seed extension write (pl-bb70)", () => {
 			lastRunAt: fixedNow.toISOString(),
 		});
 
-		// No system event — the write succeeded
-		expect(await repos.events.countByRun(result.run.id)).toBe(0);
+		// No seed warning event — the write succeeded
+		expect(
+			(await repos.events.listByRun(result.run.id)).filter(
+				(event) => event.kind !== "context.metrics",
+			),
+		).toHaveLength(0);
 	});
 
 	test("seedId without seedsCli is a no-op extension write (legacy callers, CLI)", async () => {
@@ -68,7 +72,11 @@ describe("spawnRun: post-dispatch seed extension write (pl-bb70)", () => {
 			seedId: "warren-abc",
 		});
 		expect(result.run.seedId).toBe("warren-abc");
-		expect(await repos.events.countByRun(result.run.id)).toBe(0);
+		expect(
+			(await repos.events.listByRun(result.run.id)).filter(
+				(event) => event.kind !== "context.metrics",
+			),
+		).toHaveLength(0);
 	});
 
 	test("seedsCli without seedId never shells out", async () => {
@@ -117,13 +125,15 @@ describe("spawnRun: post-dispatch seed extension write (pl-bb70)", () => {
 
 		// A single system event surfaces the lingering extension to the
 		// operator without forcing them to tail logs.
-		const events = await repos.events.listByRun(result.run.id);
+		const events = (await repos.events.listByRun(result.run.id)).filter(
+			(event) => event.kind !== "context.metrics",
+		);
 		expect(events).toHaveLength(1);
 		const evt = events[0];
 		if (evt === undefined) throw new Error("expected one event");
 		expect(evt.kind).toBe("seeds_extension_write_failed");
 		expect(evt.stream).toBe("system");
-		expect(evt.sandboxEventSeq).toBe(1);
+		expect(evt.sandboxEventSeq).toBe(2);
 		const payload = evt.payloadJson as { seedId: string; reason: string };
 		expect(payload.seedId).toBe("warren-abc");
 		expect(payload.reason).toContain("sd update");
@@ -173,8 +183,12 @@ describe("spawnRun: post-dispatch seed extension write (pl-bb70)", () => {
 				lastRunId: result.run.id,
 				lastRunAt: fixedNow.toISOString(),
 			});
-			// No system event — nothing was dropped.
-			expect(await repos.events.countByRun(result.run.id)).toBe(0);
+			// No seed warning event — nothing was dropped.
+			expect(
+				(await repos.events.listByRun(result.run.id)).filter(
+					(event) => event.kind !== "context.metrics",
+				),
+			).toHaveLength(0);
 		});
 	}
 
@@ -222,7 +236,9 @@ describe("spawnRun: post-dispatch seed extension write (pl-bb70)", () => {
 		// …but the drop is visible: one warning and one system event.
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0]?.trigger).toBe("totally-made-up");
-		const events = await repos.events.listByRun(result.run.id);
+		const events = (await repos.events.listByRun(result.run.id)).filter(
+			(event) => event.kind !== "context.metrics",
+		);
 		expect(events).toHaveLength(1);
 		expect(events[0]?.kind).toBe(UNKNOWN_TRIGGER_EVENT);
 		expect(events[0]?.stream).toBe("system");

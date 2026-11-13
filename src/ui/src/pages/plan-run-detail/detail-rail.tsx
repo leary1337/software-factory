@@ -1,166 +1,94 @@
 import type { PlanRunDetailResponse, RunRow } from "@/api/types.ts";
 import { formatTimestamp } from "@/lib/utils.ts";
-import { formatCostUsd } from "@/pages/run-detail-format.ts";
-
-/**
- * The right rail of the walk inspector (warren-2520): the source plan
- * definition, the prompt template every child was dispatched under, and
- * the delivered PRs pulled off the child runs. Read-only on every
- * capability level — the spectator projection carries the same rows.
- */
 
 export function DetailRail({
 	detail,
 	projectLabel,
-	cost,
 }: {
 	detail: PlanRunDetailResponse;
 	projectLabel: string;
-	cost: { sum: number; priced: number; total: number };
 }) {
 	const { planRun, children, runs } = detail;
 	const delivered = collectDeliveredPrs(children, runs);
-	const ref = refLine(planRun.ref, runs);
-
 	return (
-		<aside className="flex w-full shrink-0 flex-col gap-4 lg:w-[336px]">
-			<RailCard title="Plan definition" meta="SOURCE PLAN">
+		<aside className="flex w-full min-w-0 flex-col gap-4 lg:w-80">
+			<RailCard title="Plan definition">
 				<Facts
 					rows={[
-						{
-							label: "plan",
-							value: planRun.planId ?? "issues list",
-							accent: planRun.planId !== null,
-						},
-						{ label: "project", value: projectLabel },
-						...(ref !== null ? [{ label: "ref", value: ref }] : []),
-						{ label: "agent", value: planRun.agentName },
-						{
-							label: "model",
-							value: planRun.modelOverride ?? "—",
-							hint: planRun.modelOverride == null ? "agent default" : undefined,
-						},
-						...(planRun.providerOverride != null
-							? [{ label: "provider", value: planRun.providerOverride }]
-							: []),
-						{
-							label: "per-child cap",
-							value: formatCostUsd(planRun.maxCostUsd),
-							hint:
-								planRun.maxCostUsd == null
-									? "no cap declared"
-									: cost.priced === 0
-										? "no child cost recorded yet"
-										: `spent ${formatCostUsd(cost.sum)} across ${cost.priced} of ${cost.total} priced child runs`,
-						},
-						{ label: "dispatcher", value: planRun.dispatcherHandle ?? "—" },
-						{ label: "trigger", value: planRun.trigger },
-						{ label: "started", value: formatTimestamp(planRun.startedAt) },
-						{ label: "ended", value: formatTimestamp(planRun.endedAt) },
+						{ label: "Plan", value: planRun.planName ?? "Selected issues" },
+						{ label: "Project", value: projectLabel },
+						{ label: "Started", value: formatTimestamp(planRun.startedAt) },
+						{ label: "Ended", value: formatTimestamp(planRun.endedAt) },
 					]}
 				/>
-			</RailCard>
-
-			{planRun.promptTemplate !== undefined ? (
-				<RailCard title="Prompt template" meta={`${children.length} CHILDREN`}>
-					<pre className="max-h-[220px] overflow-auto whitespace-pre-wrap break-words font-mono text-(--color-text-2) text-[10px] leading-4">
-						{planRun.promptTemplate}
-					</pre>
-				</RailCard>
-			) : null}
-
-			<RailCard
-				title="Delivery"
-				meta={`${delivered.length} ${delivered.length === 1 ? "PR" : "PRS"}`}
-			>
-				{delivered.length === 0 ? (
-					<p className="font-mono text-(--color-text-3) text-[10px] leading-3">
-						No PRs yet — nothing has cleared reap.
-					</p>
-				) : (
-					<div className="flex flex-col gap-2.5">
-						{delivered.map((pr) => (
-							<div key={pr.url} className="flex items-center gap-2.5">
-								<a
-									href={pr.url}
-									target="_blank"
-									rel="noreferrer noopener"
-									className="min-w-0 truncate font-mono text-(--color-primary) text-[10px] leading-3 underline-offset-2 hover:underline"
-								>
-									{pr.label}
-								</a>
-								<div className="min-w-0 flex-1" />
-								<span
-									className="shrink-0 font-mono text-[9px] leading-3"
-									style={{ color: pr.color }}
-								>
-									{pr.stateLabel}
-								</span>
-							</div>
-						))}
+				<details className="text-sm">
+					<summary className="cursor-pointer text-(--color-text-2)">Technical details</summary>
+					<div className="mt-3">
+						<Facts
+							rows={[
+								{ label: "Attempt ID", value: planRun.id },
+								{ label: "Tracker plan", value: planRun.planId ?? "Issues list" },
+								{ label: "Agent", value: planRun.agentName },
+								{ label: "Model", value: planRun.modelOverride ?? "Agent default" },
+								{ label: "Provider", value: planRun.providerOverride ?? "Agent default" },
+								{ label: "Base", value: refLine(planRun.ref, runs) ?? "Project default" },
+								{ label: "Started by", value: planRun.dispatcherHandle ?? "Unknown" },
+								{ label: "Trigger", value: planRun.trigger },
+							]}
+						/>
 					</div>
+				</details>
+			</RailCard>
+			<RailCard title="Delivery">
+				{delivered.length === 0 ? (
+					<p className="text-(--color-text-2) text-sm">No pull requests have been recorded yet.</p>
+				) : (
+					delivered.map((pr) => (
+						<div key={pr.url} className="flex flex-wrap justify-between gap-2 text-sm">
+							<a
+								className="wrap-anywhere text-(--color-primary) hover:underline"
+								href={pr.url}
+								target="_blank"
+								rel="noreferrer noopener"
+							>
+								{pr.label}
+							</a>
+							<span className={pr.tone}>{pr.stateLabel}</span>
+						</div>
+					))
 				)}
 			</RailCard>
+			{planRun.promptTemplate !== undefined ? (
+				<details className="rounded-lg border border-(--color-border) bg-(--color-surface) p-4 text-sm">
+					<summary className="cursor-pointer font-medium">Plan instructions</summary>
+					<pre className="wrap-anywhere mt-3 max-h-60 overflow-auto whitespace-pre-wrap font-mono text-(--color-text-2) text-xs">
+						{planRun.promptTemplate}
+					</pre>
+				</details>
+			) : null}
 		</aside>
 	);
 }
 
-function RailCard({
-	title,
-	meta,
-	children,
-}: {
-	title: string;
-	meta: string;
-	children: React.ReactNode;
-}) {
+function RailCard({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
-		<section className="flex flex-col rounded border border-(--color-border) bg-(--color-surface)">
-			<header className="flex h-[41px] shrink-0 items-center border-(--color-border) border-b px-3.5">
-				<h2 className="font-semibold text-(--color-text) text-[12px] leading-4">{title}</h2>
-				<div className="min-w-0 flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 tracking-[0.05em]">
-					{meta}
-				</span>
-			</header>
-			<div className="flex flex-col gap-2.5 px-3.5 py-3">{children}</div>
+		<section className="space-y-3 rounded-lg border border-(--color-border) bg-(--color-surface) p-4">
+			<h2 className="font-semibold text-base">{title}</h2>
+			{children}
 		</section>
 	);
 }
 
-function Facts({
-	rows,
-}: {
-	rows: readonly {
-		label: string;
-		value: string;
-		accent?: boolean;
-		hint?: string;
-	}[];
-}) {
+function Facts({ rows }: { rows: readonly { label: string; value: string }[] }) {
 	return (
-		<div className="flex flex-col gap-2.5">
-			{rows.map((r) => (
-				<div key={r.label} className="flex items-baseline gap-2.5">
-					<span className="w-[88px] shrink-0 text-(--color-text-3) text-[11px] leading-[14px]">
-						{r.label}
-					</span>
-					<span
-						className={`min-w-0 truncate font-mono text-[10px] leading-3 ${
-							r.accent ? "text-(--color-primary)" : "text-(--color-text-2)"
-						}`}
-						title={r.hint ?? (r.value === "—" ? undefined : r.value)}
-					>
-						{r.value}
-					</span>
-					{r.hint !== undefined ? (
-						<span className="truncate font-mono text-(--color-text-3) text-[9px] leading-3">
-							{r.hint}
-						</span>
-					) : null}
+		<dl className="space-y-3">
+			{rows.map((row) => (
+				<div key={row.label}>
+					<dt className="text-(--color-text-2) text-xs">{row.label}</dt>
+					<dd className="wrap-anywhere mt-1 text-sm">{row.value}</dd>
 				</div>
 			))}
-		</div>
+		</dl>
 	);
 }
 
@@ -168,7 +96,7 @@ interface DeliveredPr {
 	url: string;
 	label: string;
 	stateLabel: string;
-	color: string;
+	tone: string;
 }
 
 /**
@@ -191,7 +119,7 @@ function collectDeliveredPrs(
 			url,
 			label: prLabel(url),
 			stateLabel: prStateLabel(c, run),
-			color: c.state === "merged" ? "var(--color-success)" : "var(--color-warning)",
+			tone: c.state === "merged" ? "text-(--color-success)" : "text-(--color-warning)",
 		});
 	}
 	return out;

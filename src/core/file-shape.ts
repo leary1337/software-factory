@@ -122,6 +122,7 @@ const PI_FILE_SHAPE: FileShape = {
  */
 export const FILE_SHAPES: Readonly<Partial<Record<RuntimeId, FileShape>>> = {
 	"claude-code": CLAUDE_CODE_FILE_SHAPE,
+	codex: { ...CLAUDE_CODE_FILE_SHAPE, runtime: "codex" },
 	pi: PI_FILE_SHAPE,
 };
 

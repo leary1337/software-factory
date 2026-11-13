@@ -46,7 +46,7 @@ describe("warren-config field classification (warren-b754)", () => {
 			"errors",
 			"warnings",
 		] as const satisfies readonly (keyof LoadedWarrenConfig)[];
-		const defaultsKeys = Object.keys(DefaultsConfigSchema.shape);
+		const defaultsKeys = Object.keys(DefaultsConfigSchema._def.out.shape);
 		const classified: string[] = [
 			...PUBLIC_WARREN_CONFIG_FIELDS,
 			...PUBLIC_WARREN_CONFIG_DEFAULTS_FIELDS,
@@ -56,18 +56,6 @@ describe("warren-config field classification (warren-b754)", () => {
 			[...new Set<string>([...envelopeKeys, ...defaultsKeys])].sort(),
 		);
 		expect(new Set(classified).size).toBe(classified.length);
-	});
-
-	test("prompt text, the gate command and the spend cap are redacted defaults", () => {
-		for (const dropped of ["defaultPrompt", "qualityGate", "maxCostUsd", "repoContext"] as const) {
-			expect(REDACTED_WARREN_CONFIG_FIELDS).toContain(dropped);
-		}
-		for (const kept of ["triggers", "prTemplate", "errors"] as const) {
-			expect(REDACTED_WARREN_CONFIG_FIELDS).toContain(kept);
-		}
-		for (const kept of ["sourceFile", "warnings", "defaults"] as const) {
-			expect(PUBLIC_WARREN_CONFIG_FIELDS).toContain(kept);
-		}
 	});
 
 	test("the project pair still partitions ProjectRow beside it", () => {
@@ -125,6 +113,13 @@ describe("public projections over the wire — warren-config (warren-b754)", () 
 				"defaultPrompt: SECRET-PROMPT-TEXT",
 				"qualityGate: bun run check:all",
 				"maxCostUsd: 5",
+				"acceptance:",
+				"  checks:",
+				"    - id: login",
+				"      command: SECRET-ACCEPTANCE-COMMAND",
+				"planRunBudget:",
+				"  task:",
+				"    maxRuns: 8",
 				"",
 			].join("\n"),
 		);
@@ -139,8 +134,10 @@ describe("public projections over the wire — warren-config (warren-b754)", () 
 		const defaults = body.defaults as Record<string, unknown>;
 		expect(Object.keys(defaults).sort()).toEqual([...PUBLIC_WARREN_CONFIG_DEFAULTS_FIELDS].sort());
 		expect(defaults.defaultRole).toBe("planner");
-		expect(defaults.maxCostUsd).toBeUndefined();
+		expect(defaults.acceptance).toBeUndefined();
+		expect(defaults.planRunBudget).toBeUndefined();
 		expect(JSON.stringify(body)).not.toContain("SECRET-PROMPT-TEXT");
+		expect(JSON.stringify(body)).not.toContain("SECRET-ACCEPTANCE-COMMAND");
 
 		const operatorBody = await get(`/projects/${project.id}/warren-config`, TOKEN);
 		expect(Object.keys(operatorBody).sort()).toEqual(
@@ -148,5 +145,7 @@ describe("public projections over the wire — warren-config (warren-b754)", () 
 		);
 		expect(JSON.stringify(operatorBody)).toContain("SECRET-PROMPT-TEXT");
 		expect((operatorBody.defaults as DefaultsConfig).defaultPrompt).toBe("SECRET-PROMPT-TEXT");
+		expect((operatorBody.defaults as DefaultsConfig).planRunBudget?.task?.maxRuns).toBe(8);
+		expect(JSON.stringify(operatorBody)).toContain("SECRET-ACCEPTANCE-COMMAND");
 	});
 });

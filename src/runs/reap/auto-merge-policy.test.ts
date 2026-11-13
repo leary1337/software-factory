@@ -27,6 +27,38 @@ function changed(paths: readonly string[]): AutoMergePolicyInput["changedPaths"]
 
 const UNREADABLE: AutoMergePolicyInput["changedPaths"] = { kind: "unreadable" };
 
+test("delegation never arms unreviewed delivery or overrides explicit policy protection", () => {
+	const input: AutoMergePolicyInput = {
+		config: config({
+			method: "merge",
+			verification: "warren",
+			requiredChecks: ["test"],
+			reviewedPaths: ["**"],
+		}),
+		forgeCanArm: true,
+		ciFixerRun: false,
+		changedPaths: changed(["scripts/check.py"]),
+	};
+	expect(decideAutoMerge(input)).toMatchObject({ reason: "protected_path" });
+	expect(decideAutoMerge({ ...input, independentlyReviewed: true })).toMatchObject({
+		decision: "arm",
+	});
+	expect(
+		decideAutoMerge({
+			...input,
+			independentlyReviewed: true,
+			changedPaths: changed([ALWAYS_PROTECTED_CONFIG_PATH]),
+		}),
+	).toMatchObject({ reason: "config_changed" });
+	expect(
+		decideAutoMerge({
+			...input,
+			independentlyReviewed: true,
+			config: config({ ...input.config, protectedPaths: ["scripts/"] }),
+		}),
+	).toMatchObject({ reason: "protected_path" });
+});
+
 interface Case {
 	readonly name: string;
 	readonly input: AutoMergePolicyInput;

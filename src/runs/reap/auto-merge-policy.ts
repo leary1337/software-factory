@@ -26,13 +26,15 @@
  *   1. ci_fixer_run     — the CI-fixer pushes onto an existing PR head
  *   2. off              — the base ref carries no `pr.autoMerge` block
  *   3. unsupported_forge — the forge reports `autoMergeArm: false`
- *   4. diff rules: empty_diff, diff_unreadable, protected_path, config_changed
+ *   4. diff rules: unreadable/unsafe/empty, protected_path, config_changed
  *
- * Nothing calls this yet — the wiring into reap is warren-14d6.
+ * Both reap's arming step and the PlanRun reviewed-merge step use this policy.
  */
 
+import type { PullRequestDiffRisk } from "../../core/wire.ts";
 import { warrenConfigRelativePath } from "../../warren-config/config.ts";
 import type { AutoMergeConfig, AutoMergeMethod } from "../../warren-config/pr-config.ts";
+import { MANDATORY_REVIEW_PATHS } from "./auto-merge-risk-paths.ts";
 
 /* ----------------------------------------------------------------------- */
 /* Vocabulary                                                               */
@@ -40,6 +42,7 @@ import type { AutoMergeConfig, AutoMergeMethod } from "../../warren-config/pr-co
 
 /** Every reason arming can be skipped before it starts (design record §5). */
 export type AutoMergeSkipReason =
+	| PullRequestDiffRisk
 	| "off"
 	| "unsupported_forge"
 	| "protected_path"
@@ -55,6 +58,11 @@ export type AutoMergeSkipReason =
  */
 export type ChangedPaths =
 	| { readonly kind: "changed"; readonly paths: readonly string[] }
+	| {
+			readonly kind: "unsafe";
+			readonly paths: readonly string[];
+			readonly reason: PullRequestDiffRisk;
+	  }
 	| { readonly kind: "unreadable" };
 
 /** The policy's answer: arm with the resolved method, or skip with a reason. */
@@ -63,7 +71,7 @@ export type AutoMergeDecision =
 	| {
 			readonly decision: "skip";
 			readonly reason: AutoMergeSkipReason;
-			/** Matching changed files — present on `protected_path` / `config_changed`. */
+			/** Matching changed files on path or structural-diff refusals. */
 			readonly paths?: readonly string[];
 	  };
 
@@ -77,6 +85,8 @@ export const ALWAYS_PROTECTED_CONFIG_PATH = warrenConfigRelativePath("config");
 
 /** Policy inputs — every value the decision needs, none of the I/O. */
 export interface AutoMergePolicyInput {
+	/** Only the reviewed plan delivery boundary may apply owner-delegated paths. */
+	readonly independentlyReviewed?: boolean;
 	/**
 	 * The `pr.autoMerge` block resolved from the PR's BASE ref (design record
 	 * §3.1), never from the run-branch working tree — the agent authors the
@@ -128,10 +138,18 @@ export function decideAutoMerge(input: AutoMergePolicyInput): AutoMergeDecision 
 	// away from a silent permit, and a git read cannot key the wrong field.
 	const changed = input.changedPaths;
 	if (changed.kind === "unreadable") return { decision: "skip", reason: "diff_unreadable" };
+	if (changed.kind === "unsafe")
+		return { decision: "skip", reason: changed.reason, paths: changed.paths };
 	if (changed.paths.length === 0) return { decision: "skip", reason: "empty_diff" };
-	const matched = changed.paths.filter((path) =>
-		pathMatchesProtectedEntry(path, config.protectedPaths),
-	);
+	const matched = changed.paths.filter((path) => {
+		if (pathMatchesProtectedEntry(path, config.protectedPaths)) return true;
+		if (!pathMatchesProtectedEntry(path, MANDATORY_REVIEW_PATHS)) return false;
+		return !(
+			input.independentlyReviewed &&
+			config.verification === "warren" &&
+			pathMatchesProtectedEntry(path, config.reviewedPaths ?? [])
+		);
+	});
 	if (matched.length > 0) {
 		return { decision: "skip", reason: "protected_path", paths: matched };
 	}

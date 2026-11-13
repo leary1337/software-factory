@@ -17,8 +17,8 @@
  * same-named library agent — refresh upserts on top.
  */
 
+import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
 import type { AgentDefinition } from "../schema.ts";
-import { MODEL_TIERS } from "./model-tiers.ts";
 import {
 	GATE_FINAL_RUN_RULE,
 	MULCH_FRAGMENT,
@@ -84,16 +84,10 @@ export const PR_FIXER_BUILTIN: AgentDefinition = {
 	frontmatter: {
 		source: "builtin",
 		tags: ["agent"],
-		runtime: "pi",
-		// warren-3305: this harness consumes steering only at spawn
-		// (encodeInboxMessage folds pending inbox rows into the prompt);
-		// no builtin runtime reads steering mid-run, so a steer against
-		// a running run must fail 409 rather than record a dead
-		// steer.sent. Flip to "mid-run" only when the runtime gains a
-		// proven live steering channel.
+		runtime: "codex",
+		// Codex consumes pending steering when the process starts.
 		steering: "spawn-only",
-		// Sonnet tier (model-tiers.ts): smallest correct fix to a known CI
-		// failure, gated by the PR's re-run CI.
-		...MODEL_TIERS.sonnet,
+		provider: "openai",
+		model: CODEX_DEFAULT_MODEL,
 	},
 };

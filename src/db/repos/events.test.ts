@@ -48,21 +48,6 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			});
 		}
 
-		test("latestOfKind returns the newest matching event on the stream", async () => {
-			const { handle, events, runId } = await open();
-			try {
-				await append(events, runId, 1, "quality_gate", "system");
-				await append(events, runId, 2, "quality_gate", "stdout");
-				await append(events, runId, 3, "quality_gate", "system");
-				await append(events, runId, 4, "text", "system");
-				const row = await events.latestOfKind(runId, "quality_gate", "system");
-				expect(row?.sandboxEventSeq).toBe(3);
-				expect(await events.latestOfKind(runId, "missing", "system")).toBeUndefined();
-			} finally {
-				await handle.close();
-			}
-		});
-
 		test("append returns the inserted row with an autoincrement id and parsed payload", async () => {
 			const { handle, events, runId } = await open();
 			try {

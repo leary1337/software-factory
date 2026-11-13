@@ -44,30 +44,10 @@ export const PUBLIC_PLAN_RUN_FIELDS = [
 	"resumedAt",
 ] as const satisfies readonly (keyof PlanRunRow)[];
 
-/**
- * The complement of `PUBLIC_PLAN_RUN_FIELDS`, spelled out so the
- * classification is a decision on record and
- * `plan-runs.projection.test.ts` can assert the two partition
- * `PlanRunRow`.
- *
- * - `promptTemplate` — the rendered prompt skeleton. Prompt engineering
- *   is the IP here, same posture as `renderedAgentJson` on runs.
- * - `dispatcherHandle` — who kicked the plan-run off. Operator identity
- *   is not spectator business.
- * - `providerOverride` / `modelOverride` / `maxCostUsd` — dispatch-time
- *   config the operator set; noise to a spectator and a hint about
- *   internal provider plumbing and budgets.
- * - `failureReason` — a raw internal error string
- *   (`dispatch_failed:${formatError(err)}`) that can interpolate
- *   subprocess stderr and host paths. Withheld wholesale: the body/log
- *   split (warren-4385) puts that text in the operator logs, not on the
- *   wire. `state: "failed"` already tells the spectator it failed.
- */
 export const REDACTED_PLAN_RUN_FIELDS = [
 	"promptTemplate",
 	"providerOverride",
 	"modelOverride",
-	"maxCostUsd",
 	"dispatcherHandle",
 	"failureReason",
 ] as const satisfies readonly (keyof PlanRunRow)[];

@@ -1,17 +1,3 @@
-/**
- * Resume-safe usage accounting for the event bridge (warren-1247, gh #1306).
- *
- * A reconnecting `bridgeRunStream` call resumes after the persisted cursor
- * and dedups every `seq <= resumeSeq` event, so its fresh accumulators would
- * only see the new stream segment: the spend cap compared segment cost, not
- * run cost, and the terminal write understated `runs.cost_usd`.
- * `seedResumeUsage` folds the run's already-persisted usage envelopes through
- * the same accumulators the bridge uses, so a reconnected run and an
- * uninterrupted run reach the same totals and the same cap decision. Claude's
- * cumulative `result` envelope folds in `assign` mode, so replaying it never
- * doubles.
- */
-
 import type { Repos } from "../../db/repos/index.ts";
 import {
 	accumulatePiUsage,
@@ -62,7 +48,7 @@ export async function seedResumeUsage(
 	} catch (err) {
 		logger?.warn?.(
 			{ runId, resumeSeq, err: err instanceof Error ? err.message : String(err) },
-			"failed to seed resumed usage; spend accounting restarts from this stream segment",
+			"failed to seed resumed usage; token accounting restarts from this stream segment",
 		);
 		return {
 			piUsage: newSessionStatsAccumulator(),

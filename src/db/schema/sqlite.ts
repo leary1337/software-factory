@@ -30,7 +30,6 @@ import {
 	index,
 	integer,
 	primaryKey,
-	real,
 	sqliteTable,
 	text,
 	uniqueIndex,
@@ -46,7 +45,6 @@ import {
 	PLAN_RUN_STATES,
 	PREVIEW_STATES,
 	PULL_REQUEST_LIFECYCLES,
-	RUN_COST_BASES,
 	RUN_FAILURE_REASONS,
 	RUN_MODES,
 	RUN_STATES,
@@ -180,11 +178,6 @@ export const runs = sqliteTable(
 		// local). Both null ⇒ no salvage was captured (or none was needed).
 		salvageRef: text("salvage_ref"),
 		salvagePath: text("salvage_path"),
-		// Per-run cost + token accounting (warren-a7dc). All nullable: the pi runtime's
-		// best-effort session stats; cost is the persisted start/end delta.
-		costUsd: real("cost_usd"),
-		// Cost basis (warren-f3c3): `subscription_estimate` = subscription auth — an estimate, not a bill.
-		costBasis: text("cost_basis", { enum: RUN_COST_BASES }).notNull().default("api"),
 		tokensInput: integer("tokens_input"),
 		tokensOutput: integer("tokens_output"),
 		tokensCacheRead: integer("tokens_cache_read"),
@@ -212,7 +205,7 @@ export const runs = sqliteTable(
 		// prior run's pushed branch as the workspace base (instead of the
 		// project default branch). This column records which run this one
 		// continues from, so the UI can render a chain indicator and chain
-		// cost/token totals are derivable by walking the link. Cost/tokens on
+
 		// each run stay independent — they are NOT accumulated with the
 		// parent. Nullable: the overwhelming majority of runs are roots.
 		// Plain text (no FK) for symmetry with the other run back-links and to
@@ -285,14 +278,11 @@ export const events = sqliteTable(
 			.notNull()
 			.references(() => runs.id, { onDelete: "cascade" }),
 		sandboxEventSeq: integer("sandbox_event_seq").notNull(),
+		runtimeEventSeq: integer("runtime_event_seq"),
 		ts: text("ts").notNull(),
 		kind: text("kind").notNull(),
 		stream: text("stream", { enum: EVENT_STREAMS }),
-		// Parse-boundary provenance (warren-5a07) — `"agent"` marks an
-		// unattributed line re-parsed off a transport the agent can write
-		// to; absent reads as warren-authored in the in-memory stream view.
-		// Nullable: historical rows predate the column and read as unknown
-		// — never fold NULL into a real bucket (mixed-semantics rule).
+		// Parse-boundary provenance (warren-5a07); historical NULL remains unknown.
 		origin: text("origin"),
 		payloadJson: text("payload_json", { mode: "json" }).notNull(),
 	},
@@ -367,10 +357,6 @@ export const planRuns = sqliteTable(
 		ref: text("ref"),
 		providerOverride: text("provider_override"),
 		modelOverride: text("model_override"),
-		// warren-a63d: per-dispatch USD spend cap applied to EACH child run
-		// (forwarded as spawnRun maxCostUsdOverride), persisted like the
-		// provider/model overrides so the coordinator re-reads it per child.
-		maxCostUsd: real("max_cost_usd"),
 		dispatcherHandle: text("dispatcher_handle").notNull().default("operator"),
 		trigger: text("trigger").notNull().default("manual"),
 		// Back-link to the parent run that created this plan-run via
@@ -444,7 +430,9 @@ export type ProjectRow = typeof projects.$inferSelect;
 export type ProjectInsert = typeof projects.$inferInsert;
 export type RunRow = typeof runs.$inferSelect;
 export type RunInsert = typeof runs.$inferInsert;
-export type EventRow = typeof events.$inferSelect;
+export type EventRow = Omit<typeof events.$inferSelect, "runtimeEventSeq"> & {
+	runtimeEventSeq?: number | null;
+};
 export type EventInsert = typeof events.$inferInsert;
 export type TriggerRow = typeof triggers.$inferSelect;
 export type TriggerInsert = typeof triggers.$inferInsert;
@@ -523,8 +511,6 @@ export const dispatchContext = sqliteTable(
 		model: text("model"),
 		providerSource: text("provider_source"),
 		modelSource: text("model_source"),
-		capSource: text("cap_source"),
-		maxCostUsd: real("max_cost_usd"),
 		runtimeId: text("runtime_id"),
 		runtimeBackend: text("runtime_backend"),
 		promptBytes: integer("prompt_bytes"),

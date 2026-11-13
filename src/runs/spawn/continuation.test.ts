@@ -29,6 +29,8 @@ describe("spawnRun: continuation (warren-4b11)", () => {
 			renderedAgentJson: makeAgentJson(),
 			trigger: "manual",
 		});
+		await repos.runs.markRunning(parent.id);
+		await repos.runs.finalize(parent.id, "succeeded");
 		return parent.id;
 	}
 
@@ -165,6 +167,7 @@ describe("spawnRun: continuation (warren-4b11)", () => {
 				projectId: "prj_xxxxxxxxxxxx",
 				prompt: "follow up",
 				parentRunId: otherParent.id,
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 			}),
 		).rejects.toBeInstanceOf(ValidationError);
 	});
@@ -253,6 +256,7 @@ describe("spawnRun: continuation (warren-4b11)", () => {
 				projectId: "prj_xxxxxxxxxxxx",
 				prompt: "finish the rescued work",
 				parentRunId: otherParent.id,
+				serverEnv: { WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS: "2" },
 				cloneKind: "rescue",
 				existingBranch: `warren/rescue/${otherParent.id}`,
 				projectsConfig: { root: "/data/projects", gitBinary: "git" },

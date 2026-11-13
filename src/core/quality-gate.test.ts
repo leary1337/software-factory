@@ -1,51 +1,64 @@
 import { describe, expect, test } from "bun:test";
-import { isQualityGateGreen, qualityGateRan, readQualityGateResult } from "./quality-gate.ts";
+import {
+	hasQualityGateWitness,
+	type QualityGateEvent,
+	reportWithVerifiedGate,
+} from "./quality-gate.ts";
+import { summarizeReviewEvidence } from "./review-evidence.ts";
+import { passedReviewCommit } from "./review-result.ts";
 
-const finished = {
-	type: "quality_gate",
-	phase: "finished",
-	command: "make check",
-	exitCode: 0,
-	timedOut: false,
-	durationMs: 1200,
-	sha: "abc",
-	logTail: "ok\n",
+const commit = "a".repeat(40);
+const success: QualityGateEvent = {
+	kind: "quality_gate.completed",
+	stream: "system",
+	payloadJson: { commit, command: "check", exitCode: 0 },
 };
-
-describe("readQualityGateResult", () => {
-	test("reads a finished payload", () => {
-		expect(readQualityGateResult(finished)).toEqual({
-			command: "make check",
-			exitCode: 0,
-			timedOut: false,
-			durationMs: 1200,
-			sha: "abc",
-			logTail: "ok\n",
-		});
+describe("hasQualityGateWitness", () => {
+	test("requires an exact successful runtime witness", () => {
+		expect(hasQualityGateWitness([success], commit)).toBe(true);
+		expect(hasQualityGateWitness([success], "b".repeat(40))).toBe(false);
+		expect(hasQualityGateWitness([{ ...success, stream: "stdout" }], commit)).toBe(false);
+		expect(
+			hasQualityGateWitness(
+				[{ ...success, payloadJson: { commit, command: "check", exitCode: 1 } }],
+				commit,
+			),
+		).toBe(false);
+		expect(hasQualityGateWitness([], commit)).toBe(false);
 	});
-
-	test("ignores the started phase and foreign payloads", () => {
-		expect(readQualityGateResult({ ...finished, phase: "started" })).toBeNull();
-		expect(readQualityGateResult({ type: "result" })).toBeNull();
-		expect(readQualityGateResult("quality_gate")).toBeNull();
-		expect(readQualityGateResult({ ...finished, exitCode: "0" })).toBeNull();
+	test("refuses stale success when a later execution is unfinished or failed", () => {
+		expect(
+			hasQualityGateWitness([success, { ...success, kind: "quality_gate.started" }], commit),
+		).toBe(false);
+		expect(
+			hasQualityGateWitness(
+				[success, { ...success, payloadJson: { commit, command: "check", exitCode: 1 } }],
+				commit,
+			),
+		).toBe(false);
 	});
-
-	test("normalizes an empty sha and keeps a start error", () => {
-		const result = readQualityGateResult({ ...finished, exitCode: null, sha: "", error: "boom" });
-		expect(result).toMatchObject({ sha: null, exitCode: null, error: "boom" });
+	test("reconciles only the matching report header and preserves findings", () => {
+		const report = `VERDICT: PASS\nREVIEWED_COMMIT: ${commit}\nQUALITY_GATE: NOT_RUN\nNotes: reviewed`;
+		expect(reportWithVerifiedGate(report, commit)).toBe(report.replace("NOT_RUN", "PASS"));
+		expect(reportWithVerifiedGate(report, "b".repeat(40))).toBe(report);
 	});
-});
-
-describe("isQualityGateGreen", () => {
-	test("is green only on a real exit 0", () => {
-		const green = readQualityGateResult(finished);
-		if (green === null) throw new Error("unreadable");
-		expect(isQualityGateGreen(green)).toBe(true);
-		expect(isQualityGateGreen({ ...green, exitCode: 2 })).toBe(false);
-		expect(isQualityGateGreen({ ...green, timedOut: true })).toBe(false);
-		expect(isQualityGateGreen({ ...green, error: "x" })).toBe(false);
-		expect(qualityGateRan({ ...green, exitCode: 2 })).toBe(true);
-		expect(qualityGateRan({ ...green, error: "x" })).toBe(false);
+	test("reconciles the explicit deferred gate protocol without waiving skipped checks", () => {
+		const report = `VERDICT: PASS\nREVIEWED_COMMIT: ${commit}\nQUALITY_GATE: NOT_RUN\nRUNTIME_GATE: DEFERRED\nNotes: reviewed`;
+		const verified = reportWithVerifiedGate(report, commit);
+		expect(verified).toContain("RUNTIME_GATE: VERIFIED");
+		expect(passedReviewCommit(verified)).toBe(commit);
+		expect(summarizeReviewEvidence(report, "succeeded", null, commit, []).status).not.toBe(
+			"passed",
+		);
+		expect(summarizeReviewEvidence(report, "succeeded", null, commit, [success]).status).toBe(
+			"passed",
+		);
+		for (const skipped of [
+			"Not run: browser tests",
+			"Not run: Full `scripts/check.sh` gate; Warren owns this verification.",
+		])
+			expect(
+				passedReviewCommit(reportWithVerifiedGate(`${report}\n${skipped}`, commit)),
+			).toBeNull();
 	});
 });

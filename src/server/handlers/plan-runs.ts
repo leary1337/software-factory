@@ -19,6 +19,7 @@ import {
 	type PlanRunStateFilter,
 } from "../../core/wire.ts";
 import { mintGitCredential } from "../../forge/credentials.ts";
+import { loadPlanRunBudgetView } from "../../plan-runs/budget-policy.ts";
 import {
 	buildDefaultPlanRunEmit,
 	cancelPlanRun,
@@ -26,11 +27,19 @@ import {
 	resumePlanRun,
 	tailPlanRunEvents,
 } from "../../plan-runs/index.ts";
+import { loadProductionVerification } from "../../plan-runs/production-verification.ts";
 import { loadReviewStage } from "../../plan-runs/review.ts";
+import {
+	loadReviewFailure,
+	loadReviewMergeResult,
+	loadReviewSummaries,
+} from "../../plan-runs/review-summary.ts";
+import { loadTaskMetrics } from "../../plan-runs/task-metrics-load.ts";
+import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
 import type { RouteHandler, ServerDeps } from "../types.ts";
-import { optionalPositiveNumber, optionalStringArray } from "./body-fields.ts";
+import { optionalStringArray } from "./body-fields.ts";
 import {
 	optionalString,
 	parseBoolean,
@@ -81,9 +90,6 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
 		// is required — the domain (createPlanRun) owns that assertion.
 		const planId = optionalString(body, "planId");
 		const issues = optionalStringArray(body, "issues");
-		// warren-a63d: per-child spend cap; each child dispatch carries it as
-		// maxCostUsdOverride. Same boundary validation as POST /runs.
-		const maxCostUsd = optionalPositiveNumber(body, "maxCostUsd");
 
 		const projectId = requireString(body, "project");
 		// warren-6c4c: mint the pre-dispatch refresh-fetch credential per-spawn
@@ -100,7 +106,6 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
 			...(ref !== undefined ? { ref } : {}),
 			...(providerOverride !== undefined ? { providerOverride } : {}),
 			...(modelOverride !== undefined ? { modelOverride } : {}),
-			...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
 			...(dispatcherHandle !== undefined ? { dispatcherHandle } : {}),
 			repos: deps.repos,
 			issueTracker: deps.issueTracker,
@@ -189,6 +194,9 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 		const children = await deps.repos.planRuns.listChildren(id);
 		const runIds = children.map((c) => c.runId).filter((v): v is string => v !== null);
 		const runs = await deps.repos.runs.listByIds(runIds);
+		const budgets = isPublicOnly(ctx.actor)
+			? new Map()
+			: await loadPlanRunBudgetView(deps.repos, planRun);
 		return jsonResponse(200, {
 			planRun: {
 				...projectPlanRun(planRun, ctx.actor),
@@ -198,6 +206,26 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 				children.map(async (child) => ({
 					...projectPlanRunChild(child, ctx.actor),
 					title: await ticketTitle(deps, planRun.projectId, child.seedId),
+					...(isPublicOnly(ctx.actor)
+						? {}
+						: {
+								productionVerification: await loadProductionVerification(deps.repos, child.runId),
+								reviewMerge:
+									child.runId !== null
+										? await loadReviewMergeResult(deps.repos, child.runId)
+										: null,
+								metrics: await loadTaskMetrics(
+									deps.repos,
+									planRun.projectId,
+									child,
+									(deps.now?.() ?? new Date()).getTime(),
+								),
+								budget: budgets.get(child.seq) ?? null,
+								reviewFailure:
+									child.runId !== null ? await loadReviewFailure(deps.repos, child.runId) : null,
+								reviewSteps:
+									child.runId !== null ? await loadReviewSummaries(deps.repos, child.runId) : [],
+							}),
 					reviewStage:
 						child.state === "pr_open" && child.runId !== null
 							? await loadReviewStage(deps.repos, planRun.agentName, child.runId)

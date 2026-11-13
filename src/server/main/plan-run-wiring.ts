@@ -14,6 +14,10 @@ import type { Repos } from "../../db/repos/index.ts";
 import type { Forge, PullRequestRef, RepoRef } from "../../forge/contract.ts";
 import { mintGitCredential } from "../../forge/credentials.ts";
 import {
+	createDeploymentGate,
+	createProjectDeploymentBlocker,
+} from "../../plan-runs/deployment-gate.ts";
+import {
 	bootPlanRunCoordinator,
 	type CoordinatorCloseChildSeedFn,
 	closeMergedChildSeed,
@@ -23,6 +27,11 @@ import {
 	loadPlanRunCoordinatorConfigFromEnv,
 	type PlanRunCoordinatorHandle,
 } from "../../plan-runs/index.ts";
+import {
+	createReviewChangedPathsReader,
+	createReviewedMerge,
+	createReviewHeadReader,
+} from "../../plan-runs/review-forge.ts";
 import type { SpawnFn } from "../../projects/clone.ts";
 import type { ProjectsConfig } from "../../projects/config.ts";
 import {
@@ -69,7 +78,6 @@ function buildReopenPrContent(
 		agentName: run.agentName,
 		...(run.startedAt !== null ? { startedAt: run.startedAt } : {}),
 		...(run.endedAt !== null ? { endedAt: run.endedAt } : {}),
-		...(run.costUsd !== null ? { costUsd: run.costUsd } : {}),
 		...(run.tokensInput !== null ? { tokensInput: run.tokensInput } : {}),
 		...(run.tokensOutput !== null ? { tokensOutput: run.tokensOutput } : {}),
 		...(run.tokensCacheRead !== null ? { tokensCacheRead: run.tokensCacheRead } : {}),
@@ -78,35 +86,18 @@ function buildReopenPrContent(
 	return { title: content.title, body: content.body };
 }
 
-/** Squash-merge a PR that passed review, then delete its branch. */
-export function createMergePassedPr(deps: {
-	readonly forge: Forge;
-	readonly logger: { warn: (obj: object, msg: string) => void };
-}): (prUrl: string, branch: string) => Promise<boolean> {
-	return async (prUrl, branch) => {
-		const target = resolvePollTarget(deps.forge, prUrl);
-		if (target.kind === "unparseable") return false;
-		const merged = await deps.forge.mergePullRequest(target.ref, target.pr);
-		if (!merged.ok) {
-			deps.logger.warn({ prUrl, reason: merged.error.kind }, "plan_run.review_merge_failed");
-			return false;
-		}
-		await deps.forge.deleteBranch(target.ref, branch);
-		return true;
-	};
-}
-
-/** Post the finished review on the PR. Best-effort: a failed comment is only logged. */
+/** Post the review idempotently; propagate failure to the durable retry loop. */
 export function createCommentOnPr(deps: {
 	readonly forge: Forge;
 	readonly logger: { warn: (obj: object, msg: string) => void };
-}): (prUrl: string, body: string) => Promise<void> {
-	return async (prUrl, body) => {
+}): (prUrl: string, body: string, key: string) => Promise<void> {
+	return async (prUrl, body, key) => {
 		const target = resolvePollTarget(deps.forge, prUrl);
-		if (target.kind === "unparseable") return;
-		const result = await deps.forge.commentOnPullRequest(target.ref, target.pr, body);
+		if (target.kind === "unparseable") throw new Error("Invalid review PR URL");
+		const result = await deps.forge.commentOnPullRequest(target.ref, target.pr, body, key);
 		if (!result.ok) {
 			deps.logger.warn({ prUrl, reason: result.error.kind }, "plan_run.review_comment_failed");
+			throw new Error("Review comment delivery failed");
 		}
 	};
 }
@@ -219,7 +210,7 @@ async function armReopenedPr(deps: ReopenPrDeps, target: ReopenedPrArmTarget): P
 		const config = await warrenConfigs.get(project.id, project.localPath);
 		await runAutoMergeArm({
 			projectAutoMerge: config.defaults?.pr?.autoMerge ?? undefined,
-			run: { id: run.id, trigger: run.trigger },
+			run: { id: run.id, trigger: run.trigger, agentName: run.agentName },
 			project: { gitUrl: project.gitUrl, localPath: project.localPath },
 			prUrl: target.prRef.webUrl,
 			prNumber: target.prRef.number,
@@ -346,6 +337,7 @@ export interface PlanRunWiringInput {
 	readonly forge: Forge;
 	readonly bridges: BridgeRegistry;
 	readonly warrenConfigs: WarrenConfigCache;
+	readonly deploymentAdmission?: import("../../projects/deployment-admission.ts").DeploymentAdmission;
 	readonly projectsConfig: ProjectsConfig;
 	readonly autoOpenPr: AutoOpenPrConfig;
 	readonly runBranchPrefixDefault?: string;
@@ -401,8 +393,21 @@ export function bootPlanRunCoordinatorWiring(input: PlanRunWiringInput): PlanRun
 		probeMergeStall: createMergeStallProbe({ forge }),
 		mergeStallWarningMs: planRunCoordinatorConfig.mergeStallWarningMs,
 		commentOnPr: createCommentOnPr({ forge, logger }),
+		verifyDeployment: createDeploymentGate({
+			repos,
+			forge,
+			warrenConfigs,
+			...(input.deploymentAdmission ? { deploymentAdmission: input.deploymentAdmission } : {}),
+		}),
+		deploymentBlocked: createProjectDeploymentBlocker({ repos }),
+		getReviewHead: createReviewHeadReader(forge),
+		getReviewChangedPaths: createReviewChangedPathsReader({
+			forge,
+			repos,
+			exec: execFromSpawn(projectSpawn),
+		}),
 		...(planRunCoordinatorConfig.mergeOnPass
-			? { mergePassedPr: createMergePassedPr({ forge, logger }) }
+			? { mergePassedPr: createReviewedMerge({ forge, repos, exec: execFromSpawn(projectSpawn) }) }
 			: {}),
 		// warren-3806: deterministic host-side seed close when a child merges.
 		closeChildSeed: createCloseChildSeed({

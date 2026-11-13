@@ -23,14 +23,17 @@
  *     (`off`), so arming never engages without a positive, valid opt-in on
  *     the ref this PR actually targets.
  *
- * The wiring into the reap PR-open step is warren-14d6; nothing here calls
- * the policy or the forge.
+ * Reap and the reviewed-merge coordinator use these reads through the isolated
+ * snapshot. This module itself calls neither the policy nor the forge.
  */
 
 import { load } from "js-yaml";
+import { AcceptanceConfigSchema } from "../../warren-config/acceptance-config.ts";
 import { warrenConfigRelativePath } from "../../warren-config/config.ts";
 import { type AutoMergeConfig, PrConfigSchema } from "../../warren-config/pr-config.ts";
+import { assessAutoMergeDiff } from "./auto-merge-diff-safety.ts";
 import type { ChangedPaths } from "./auto-merge-policy.ts";
+import { qualityGateProtectedPaths } from "./auto-merge-risk-paths.ts";
 import type { ReapExec } from "./types.ts";
 
 /** Same per-call budget `outcome-facts.ts` gives its git reads. */
@@ -54,6 +57,8 @@ const GIT_TIMEOUT_MS = 10_000;
  * OUT of a protected path would silently miss the protected side. With it,
  * a rename lists both the old and the new path. `-z` gives NUL-separated
  * unquoted paths, so a path with quotes or unicode matches literally.
+ * Matching raw-mode and numstat reads enforce the structural safety limits;
+ * all three measurements must describe exactly the same changed paths.
  *
  * Any git failure (bad ref, unborn repo, timeout) resolves to the
  * `unreadable` marker — never a throw, never a guessed list.
@@ -70,7 +75,22 @@ export async function computeAutoMergeChangedPaths(
 			["diff", "--name-only", "--no-renames", "-z", `${baseRef}...${headRef}`],
 			{ cwd, timeoutMs: GIT_TIMEOUT_MS },
 		);
-		return { kind: "changed", paths: out.stdout.split("\0").filter((path) => path !== "") };
+		const [raw, stats] = await Promise.all([
+			exec.run(
+				"git",
+				["diff", "--raw", "--no-abbrev", "--no-renames", "-z", `${baseRef}...${headRef}`],
+				{ cwd, timeoutMs: GIT_TIMEOUT_MS },
+			),
+			exec.run("git", ["diff", "--numstat", "--no-renames", "-z", `${baseRef}...${headRef}`], {
+				cwd,
+				timeoutMs: GIT_TIMEOUT_MS,
+			}),
+		]);
+		return assessAutoMergeDiff(
+			out.stdout.split("\0").filter((path) => path !== ""),
+			raw.stdout,
+			stats.stdout,
+		);
 	} catch {
 		return { kind: "unreadable" };
 	}
@@ -119,7 +139,9 @@ export async function readBaseAutoMergeConfig(
  * the `pr.autoMerge` block, reusing `PrConfigSchema` — the same schema the
  * on-disk loader validates the block against, so there is exactly one
  * definition of the shape (AGENTS.md "Single source of truth"). Pure, so
- * the table tests drive it without git.
+ * the table tests drive it without git. Literal local script paths in the
+ * base qualityGate become additional protected paths without changing the
+ * project's stored configuration.
  *
  * `undefined` whenever the block is absent (`pr` key missing, `autoMerge`
  * key missing) or the content does not validate (malformed YAML, a
@@ -141,7 +163,27 @@ export function parseBaseAutoMergeConfig(raw: string): AutoMergeConfig | undefin
 		return undefined;
 	}
 	if (typeof document !== "object" || document === null) return undefined;
-	const parsed = PrConfigSchema.safeParse((document as Record<string, unknown>).pr);
+	const record = document as Record<string, unknown>;
+	const parsed = PrConfigSchema.safeParse(record.pr);
 	if (!parsed.success) return undefined;
-	return parsed.data.autoMerge;
+	const config = parsed.data.autoMerge;
+	if (config === undefined) return undefined;
+	const acceptance =
+		record.acceptance === undefined
+			? undefined
+			: AcceptanceConfigSchema.safeParse(record.acceptance);
+	if (acceptance && !acceptance.success) return undefined;
+	if (
+		record.qualityGate !== undefined &&
+		(typeof record.qualityGate !== "string" || !record.qualityGate.trim())
+	)
+		return undefined;
+	const commands = [
+		typeof record.qualityGate === "string" ? record.qualityGate : "",
+		...(acceptance?.success ? acceptance.data.checks.map((check) => check.command) : []),
+	];
+	return {
+		...config,
+		protectedPaths: [...config.protectedPaths, ...commands.flatMap(qualityGateProtectedPaths)],
+	};
 }

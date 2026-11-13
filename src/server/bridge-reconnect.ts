@@ -363,14 +363,7 @@ interface ReconcileLostSandboxRunInput {
 	readonly runtimeProvider: RuntimeProvider;
 }
 
-/**
- * warren-b1a9: transition a non-terminal warren run to `failed` with
- * `failure_reason='sandbox_run_lost'` and emit a `bridge_lost` audit event.
- * Used both by the live-bridge 404 catch and by the boot-time reconciler.
- * Idempotent: an already-terminal run is left alone (the event is still
- * appended). The state machine forbids `queued → failed` directly, so this
- * mirrors reap's `markRunning` shim for queued ghost runs.
- */
+/** Reconcile a missing runtime, preserving its workspace before allowing any retry. */
 export async function reconcileLostSandboxRun(input: ReconcileLostSandboxRunInput): Promise<void> {
 	const now = (input.now ?? (() => new Date()))();
 	const failureReason: RunFailureReason = input.failureReason ?? "sandbox_run_lost";
@@ -438,15 +431,15 @@ export async function reconcileLostSandboxRun(input: ReconcileLostSandboxRunInpu
 			"reconcileLostSandboxRun: failed to emit bridge_lost event",
 		);
 	}
-	// warren-4f01 / warren-a7cb / warren-5a3f: tear down the sandbox (the terminal
-	// run's later `reapRun` short-circuits without doing it) via the provider seam
-	// — see `./bridge-reconnect-teardown.ts`, which calls `provider.terminate()` on
-	// the boot-resolved backend so nothing here speaks burrow.
+	// Preserve recoverable work before reclaiming a lost runtime.
+	let workspaceSafe = sandboxToDestroy === null;
 	if (sandboxToDestroy !== null) {
-		await teardownLostRunWorkspace({
+		workspaceSafe = await teardownLostRunWorkspace({
 			runId: input.runId,
 			sandboxRunId: input.sandboxRunId,
 			sandbox: sandboxToDestroy,
+			recordRecovery: (bundlePath) =>
+				input.repos.runs.setSalvage(input.runId, { rescueRef: null, bundlePath }).then(() => {}),
 			runtimeProvider: input.runtimeProvider,
 			emit: (kind, payload) =>
 				emitBridgeSystemEvent({
@@ -467,7 +460,12 @@ export async function reconcileLostSandboxRun(input: ReconcileLostSandboxRunInpu
 	// warren-4af7: a freshly-finalized infra-lost run earns ONE automatic retry
 	// (src/runs/retry/infra-lost-retry.ts); a stall-ceiling `sandbox_unreachable` does not qualify.
 	const onInfraLostRun = cancelRequested ? undefined : input.onInfraLostRun;
-	if (finalized && isInfraLostRunFailure(failureReason) && onInfraLostRun !== undefined) {
+	if (
+		finalized &&
+		workspaceSafe &&
+		isInfraLostRunFailure(failureReason) &&
+		onInfraLostRun !== undefined
+	) {
 		try {
 			await onInfraLostRun(input.runId);
 		} catch (err) {

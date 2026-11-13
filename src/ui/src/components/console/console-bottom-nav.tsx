@@ -1,65 +1,45 @@
+import { Ellipsis } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { MOBILE_BOTTOM_NAV_ITEMS } from "@/components/console/console-nav.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
+import { useWorkspaceLink } from "@/pages/workspace/project-scope.tsx";
 
-/**
- * Mobile bottom tab bar (warren-4d4a, pl-4ab6): the mock's 54px bar that
- * ends every phone artboard (docs/ui-revamp/screens/mobile/operations.jsx).
- * Five equal flex-1 tabs, each a centered two-line column with a 2px TOP
- * border — primary when active, transparent otherwise. The fifth tab
- * ("05 More") is not a route: it opens the existing mobile drawer.
- *
- * Numbering: the bar numbers its own tabs 01-05 contiguously
- * (warren-c023); the sidebar indices stay canvas-fixed (see
- * console-nav.ts).
- * Phone only; mounted below md in the console shell.
- */
-
-interface ConsoleBottomNavProps {
-	readonly onOpenMore: () => void;
-}
-
-function tabClass(isActive: boolean): string {
-	return cn(
-		"flex flex-1 basis-0 flex-col items-center justify-center gap-[3px] border-t-2",
-		isActive ? "border-t-(--color-primary)" : "border-t-transparent",
-	);
-}
-
-export function ConsoleBottomNav({ onOpenMore }: ConsoleBottomNavProps) {
+export function ConsoleBottomNav({ onOpenMore }: { readonly onOpenMore: () => void }) {
+	const caps = useCapabilities();
+	const scopedLink = useWorkspaceLink();
 	return (
 		<nav
 			aria-label="Primary"
-			className="flex h-[54px] shrink-0 border-(--color-border) border-t bg-(--color-sidebar) pb-[env(safe-area-inset-bottom)] md:hidden"
+			className="flex min-h-14 shrink-0 border-(--color-border) border-t bg-(--color-sidebar) md:hidden"
 		>
-			{MOBILE_BOTTOM_NAV_ITEMS.map((item) => (
-				<NavLink key={item.to} to={item.to} className={({ isActive }) => tabClass(isActive)}>
-					{({ isActive }) => (
-						<>
-							<span
-								className={cn(
-									"font-mono text-[9px] leading-[11px]",
-									isActive ? "text-(--color-primary)" : "text-(--color-text-3)",
-								)}
-							>
-								{item.index}
-							</span>
-							<span
-								className={cn(
-									"text-[10px] leading-3",
-									isActive ? "font-medium text-(--color-text)" : "text-(--color-text-3)",
-								)}
-							>
-								{item.label}
-							</span>
-						</>
-					)}
-				</NavLink>
-			))}
-			<button type="button" onClick={onOpenMore} className={tabClass(false)}>
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px]">05</span>
-				<span className="text-(--color-text-3) text-[10px] leading-3">More</span>
-			</button>
+			{MOBILE_BOTTOM_NAV_ITEMS.filter((item) => !item.capability || caps.can(item.capability)).map(
+				(item) => (
+					<NavLink
+						key={item.to}
+						to={scopedLink(item.to)}
+						className={({ isActive }) =>
+							cn(
+								"flex min-h-14 min-w-0 flex-1 items-center justify-center border-t-2 px-1 text-xs",
+								isActive
+									? "border-(--color-primary) font-medium text-(--color-primary)"
+									: "border-transparent text-(--color-text-2)",
+							)
+						}
+					>
+						{item.label}
+					</NavLink>
+				),
+			)}
+			<Button
+				variant="ghost"
+				onClick={onOpenMore}
+				className="h-auto flex-1 flex-col gap-1 rounded-none text-xs"
+			>
+				<Ellipsis className="h-4 w-4" />
+				More
+			</Button>
 		</nav>
 	);
 }
