@@ -205,6 +205,58 @@ describe("advanceReview", () => {
 		expect(comments).toEqual([]);
 	});
 
+	test("resumes an old budget stop using the recorded reproduction on the same head", async () => {
+		const { input, spawned } = harness();
+		const report = "VERDICT: CHANGES\nA preserved assertion still fails.";
+		const evidence = {
+			commit: SHA,
+			findings: [
+				{
+					id: "bad-value",
+					title: "Reject invalid values",
+					command: "sh repro.sh",
+					files: [{ path: "repro.sh", contents: "exit 1" }],
+				},
+			],
+			results: [{ id: "bad-value", exitCode: 1 }],
+		};
+		const events = [
+			{
+				kind: "plan_run.review_step",
+				payloadJson: {
+					step: "review",
+					stepRunId: "r",
+					reviewedCommit: SHA,
+					evidenceRequired: true,
+				},
+			},
+			{
+				kind: "plan_run.review_finished",
+				payloadJson: {
+					outcome: "changes_left",
+					report: `Review loop stopped: round_budget_exhausted.\n\n${report}`,
+				},
+			},
+		];
+		const repos = {
+			...input.repos,
+			events: {
+				...input.repos.events,
+				listByRun: async (id: string) =>
+					id === "r"
+						? [{ kind: "review_check.evidence", stream: "system", payloadJson: evidence }]
+						: events,
+				listTail: async () => [{ payloadJson: { type: "result", result: report } }],
+			},
+			runs: { require: async () => ({ id: "r", state: "succeeded", endedAt: "t" }) },
+		} as unknown as HandleInFlightInput["repos"];
+		expect(await advanceReview({ ...input, repos }, run as never, prUrl)).toMatchObject({
+			result: { kind: "dispatched" },
+		});
+		expect(spawned[0]).toMatchObject({ agentName: "rework" });
+		expect((spawned[0] as { prompt: string }).prompt).toContain("bad-value");
+	});
+
 	test("keeps the stage readable when a Codex reviewer commits no changes", async () => {
 		const { input } = harness();
 		const repos = {

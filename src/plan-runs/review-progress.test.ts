@@ -71,15 +71,17 @@ describe("review progress", () => {
 		} as unknown as ReviewRepos;
 		expect(await readResultText(repos, "review")).toBe("VERDICT: PASS");
 	});
-	test("continues beyond two reworks when original reproductions close", () => {
-		const steps = [
-			reviewed(["a"]),
-			rework,
-			reviewed(["b"], ["a"]),
-			rework,
-			reviewed(["c"], ["a", "b"]),
-		];
+	test("continues beyond the old round, step, and time defaults with verified progress", () => {
+		const ids = Array.from({ length: 14 }, (_, i) => `finding-${i}`);
+		const steps = ids.flatMap((id, i) => [
+			{ ...reviewed([id], ids.slice(0, i)), activeMs: 600_000 },
+			...(i === ids.length - 1 ? [] : [rework]),
+		]);
 		expect(decideReviewStep(steps)).toMatchObject({ kind: "spawn", step: "rework" });
+		expect(decideReviewStep(steps, { maxReworks: 8 })).toMatchObject({
+			kind: "finished",
+			report: expect.stringContaining("round_budget_exhausted"),
+		});
 	});
 	test("retries one stalled rework, then stops if the original finding still fails", () => {
 		const steps = [reviewed(["a"]), rework, reviewed(["a"])];
@@ -122,7 +124,9 @@ describe("review progress", () => {
 				kind: "finished",
 				outcome: "changes_left",
 			});
-		expect(decideReviewStep([{ ...reviewed(["a"]), activeMs: null }])).toMatchObject({
+		expect(
+			decideReviewStep([{ ...reviewed(["a"]), activeMs: null }], { maxActiveMs: 2000 }),
+		).toMatchObject({
 			kind: "finished",
 			report: expect.stringContaining("budget_unknown"),
 		});

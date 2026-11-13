@@ -35,12 +35,15 @@ The operator can bound this loop with environment variables:
 
 | Variable | Default | Meaning |
 |---|---:|---|
-| `WARREN_REWORK_MAX_ROUNDS` | 8 | Rework runs for this task, including previous attempts |
-| `WARREN_REWORK_MAX_STEPS` | 24 | Review, UI review and rework dispatches combined |
-| `WARREN_REWORK_MAX_ACTIVE_MS` | 7200000 | Sum of their recorded execution durations |
+| `WARREN_REWORK_MAX_ROUNDS` | Unset | Rework runs for this task, including previous attempts |
+| `WARREN_REWORK_MAX_STEPS` | Unset | Review, UI review and rework dispatches combined |
+| `WARREN_REWORK_MAX_ACTIVE_MS` | Unset | Sum of their recorded execution durations |
 
-These limits govern admission of the next step. Unknown duration stops admission.
-Limits on execution time and step counts include all recorded review attempts.
+When configured, these limits govern admission of the next step. A time limit
+requires recorded durations. Legacy reviews without independent reproductions
+retain their default eight-round cap. A review stopped under an earlier budget
+can resume on the same head when its retained evidence warrants the next step
+under the current settings.
 
 A legacy loop that stopped with CHANGES can obtain one fresh review using this
 protocol, within the same budget. It keeps its old attempts and execution time. Missing

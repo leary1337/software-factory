@@ -6,7 +6,7 @@ export { decideReviewStep } from "./review-decision.ts";
 import { failedGateChangesReport } from "../core/review-check-failure.ts";
 import type { ReviewEvidence, ReviewFinding } from "../core/review-findings.ts";
 import { parseReviewArtifacts, parseReviewEvidence } from "../runtime/review-artifacts.ts";
-import { loadReviewBudget, reviewBudgetReason } from "./review-progress.ts";
+import { loadReviewBudget, type ReviewLoopBudget, reviewBudgetReason } from "./review-progress.ts";
 
 export { MAX_REWORKS } from "./review-progress.ts";
 
@@ -14,7 +14,7 @@ import { includeUiReview } from "./ui-review.ts";
 /**
  * The factory's review step: between a child's PR opening and the human merge,
  * run `reviewer`, and on a CHANGES verdict run `rework` on the same branch,
- * up to {@link MAX_REWORKS} times. The steps are recorded as events on the
+ * while independent evidence confirms progress. The steps are recorded as events on the
  * child's run, so the state survives a server restart with no new columns.
  */
 
@@ -210,17 +210,27 @@ async function reviewHeadChanged(
 	return head === null ? null : head !== last.reviewedCommit;
 }
 
-function needsPortableReview(
-	last: ReviewStepRecord | undefined,
+function resumeFinishedReview(
 	steps: readonly ReviewStepRecord[],
-): boolean {
-	return (
-		!!last &&
+	budget: ReviewLoopBudget,
+	report: string | undefined,
+): Extract<ReviewDecision, { kind: "spawn" }> | null {
+	const last = steps.at(-1);
+	const budgetStop =
+		/^Review loop stopped: (round_budget_exhausted|step_budget_exhausted|time_budget_exhausted|budget_unknown)\./;
+	if (report && budgetStop.test(report) && steps.some((step) => step.evidenceRequired)) {
+		const decision = decideReviewStep(steps, budget);
+		return decision.kind === "spawn" ? decision : null;
+	}
+	// Upgrade an exhausted legacy loop once: obtain portable proofs before another rework.
+	if (
+		last?.state === "succeeded" &&
 		!last.evidenceRequired &&
-		last.state === "succeeded" &&
 		parseVerdict(last.resultText ?? "") === "CHANGES" &&
-		reviewBudgetReason(steps, loadReviewBudget()) === null
-	);
+		reviewBudgetReason(steps, budget) === null
+	)
+		return { kind: "spawn", step: "review" };
+	return null;
 }
 
 /**
@@ -241,11 +251,12 @@ export async function advanceReview(
 	const stale = await reviewHeadChanged(input, steps, prUrl);
 	if (stale === null) return { kind: "result", result: { kind: "waiting_for_run" } };
 	if (stale) return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
-	if (events.some((event) => event.kind === "plan_run.review_finished")) {
-		// Upgrade an exhausted legacy loop once: obtain portable proofs before another rework.
-		if (needsPortableReview(last, steps))
-			return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
-		return null;
+	const finished = events.find((event) => event.kind === "plan_run.review_finished");
+	const budget = loadReviewBudget();
+	if (finished) {
+		const { report } = finished.payloadJson as { report?: string };
+		const resumed = resumeFinishedReview(steps, budget, report);
+		return resumed ? spawnReviewStep(input, run, prUrl, resumed) : null;
 	}
 
 	const pending = await pendingReviewDelivery(input, run.id);
@@ -257,7 +268,7 @@ export async function advanceReview(
 					report: "The runtime quality-gate witness is missing.",
 				}
 			: { kind: "finished", ...pending }
-		: decideReviewStep(steps, loadReviewBudget());
+		: decideReviewStep(steps, budget);
 
 	const decision = await includeUiReview(input, run.branch, prUrl, last, baseDecision);
 

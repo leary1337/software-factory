@@ -1,6 +1,7 @@
 import type { ReviewDecision, ReviewStepRecord } from "./review.ts";
 import {
 	DEFAULT_REVIEW_BUDGET,
+	MAX_REWORKS,
 	type ReviewLoopBudget,
 	reviewBudgetReason,
 	reviewProgressDecision,
@@ -73,7 +74,8 @@ function decideFinishedReview(
 		return stoppedReview("missing_failing_reproduction", report, true);
 	const blocked = reviewBudgetReason(steps, budget);
 	if (blocked) return stoppedReview(blocked, report);
-	if (steps.filter((s) => s.step === "rework").length >= budget.maxReworks)
+	const roundLimit = budget.maxReworks ?? (progress ? Infinity : MAX_REWORKS);
+	if (steps.filter((s) => s.step === "rework").length >= roundLimit)
 		return stoppedReview("round_budget_exhausted", report);
 	return progress ?? { kind: "spawn", step: "rework", findings: report };
 }
