@@ -86,7 +86,6 @@ beforeEach(() => {
 	campaignId = store.campaigns.createCampaign({
 		manifestDigest: "digest-body-refresh",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	}).id;
 	workItemId = store.campaigns.addWorkItem({
 		campaignId,

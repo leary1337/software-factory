@@ -39,7 +39,7 @@ import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
 import type { RouteHandler, ServerDeps } from "../types.ts";
-import { optionalPositiveNumber, optionalStringArray } from "./body-fields.ts";
+import { optionalStringArray } from "./body-fields.ts";
 import {
 	optionalString,
 	parseBoolean,
@@ -90,9 +90,6 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
 		// is required — the domain (createPlanRun) owns that assertion.
 		const planId = optionalString(body, "planId");
 		const issues = optionalStringArray(body, "issues");
-		// warren-a63d: per-child spend cap; each child dispatch carries it as
-		// maxCostUsdOverride. Same boundary validation as POST /runs.
-		const maxCostUsd = optionalPositiveNumber(body, "maxCostUsd");
 
 		const projectId = requireString(body, "project");
 		// warren-6c4c: mint the pre-dispatch refresh-fetch credential per-spawn
@@ -109,7 +106,6 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
 			...(ref !== undefined ? { ref } : {}),
 			...(providerOverride !== undefined ? { providerOverride } : {}),
 			...(modelOverride !== undefined ? { modelOverride } : {}),
-			...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
 			...(dispatcherHandle !== undefined ? { dispatcherHandle } : {}),
 			repos: deps.repos,
 			issueTracker: deps.issueTracker,

@@ -7,7 +7,6 @@ import type { SqliteDrizzleDb } from "../client.ts";
 import type {
 	CloneKind,
 	PullRequestLifecycle,
-	RunCostBasis,
 	RunFailureReason,
 	RunMode,
 	RunRow,
@@ -91,8 +90,6 @@ export interface CreateRunInput {
 	 * Null = agent declares none (or a historical row). */
 	provider?: string | null;
 	model?: string | null;
-	/** Cost basis (warren-f3c3); defaults to `api`. */
-	costBasis?: RunCostBasis;
 	/** Queued-instant override (warren-0af9); defaults to the wall clock at insert. */
 	now?: Date;
 }
@@ -104,7 +101,6 @@ export interface AttachBurrowInput {
 }
 
 export interface AttachStatsInput {
-	costUsd?: number | null;
 	tokensInput?: number | null;
 	tokensOutput?: number | null;
 	tokensCacheRead?: number | null;
@@ -123,7 +119,6 @@ export class RunsRepo {
 	}
 
 	async create(input: CreateRunInput): Promise<RunRow> {
-		const { costBasis = "api" } = input;
 		const row: RunRow = {
 			id: input.id ?? generateId("run"),
 			agentName: input.agentName,
@@ -168,8 +163,6 @@ export class RunsRepo {
 			deletions: null,
 			salvageRef: null,
 			salvagePath: null,
-			costUsd: null,
-			costBasis,
 			tokensInput: null,
 			tokensOutput: null,
 			tokensCacheRead: null,
@@ -205,12 +198,7 @@ export class RunsRepo {
 
 	/** Read/query methods (warren-ac7f); bodies live in runs-queries.ts. */
 	listAll(
-		options: {
-			limit?: number;
-			offset?: number;
-			sort?: "started" | "cost";
-			dir?: "asc" | "desc";
-		} = {},
+		options: { limit?: number; offset?: number; sort?: "started"; dir?: "asc" | "desc" } = {},
 	): Promise<RunRow[]> {
 		return listAll(this.adapter, options);
 	}
@@ -220,7 +208,7 @@ export class RunsRepo {
 		options: {
 			limit?: number;
 			offset?: number;
-			sort?: "started" | "cost";
+			sort?: "started";
 			dir?: "asc" | "desc";
 		} = {},
 	): Promise<RunRow[]> {
@@ -232,7 +220,7 @@ export class RunsRepo {
 		options: {
 			limit?: number;
 			offset?: number;
-			sort?: "started" | "cost";
+			sort?: "started";
 			dir?: "asc" | "desc";
 		} = {},
 	): Promise<RunRow[]> {
@@ -241,8 +229,6 @@ export class RunsRepo {
 
 	aggregate(filter: { projectId?: string; agentName?: string } = {}): Promise<{
 		total: number;
-		costTotalUsd: number;
-		costPricedCount: number;
 	}> {
 		return aggregate(this.adapter, filter);
 	}
@@ -342,18 +328,8 @@ export class RunsRepo {
 		return { ...current, ...patch };
 	}
 
-	/**
-	 * Persist per-run cost + token accounting (warren-a7dc). All fields are
-	 * optional patches — omitted fields preserve the existing value, explicit
-	 * `null` clears it. Mirrors `attachBurrow`'s partial-input semantics so the
-	 * bridge can land start-snapshot and end-snapshot writes on different turns
-	 * without juggling intermediate state. Throws ValidationError if no fields
-	 * were supplied, matching `attachBurrow`. The columns are nullable so
-	 * non-pi runs (or pi runs whose stats RPC failed) leave them at null.
-	 */
 	async attachStats(id: string, input: AttachStatsInput): Promise<RunRow> {
 		const keys: (keyof AttachStatsInput)[] = [
-			"costUsd",
 			"tokensInput",
 			"tokensOutput",
 			"tokensCacheRead",
@@ -373,16 +349,9 @@ export class RunsRepo {
 		return { ...current, ...patch };
 	}
 
-	/**
-	 * Narrow write-through for the usage hydrator (warren-b33e): persist
-	 * derived cost/token totals onto the run row wholesale (no partial
-	 * patch semantics — the caller always has a full aggregate). Leaves
-	 * `cost_basis` and every other column untouched.
-	 */
 	async updateUsage(
 		id: string,
 		stats: {
-			costUsd: number;
 			tokensInput: number;
 			tokensOutput: number;
 			tokensCacheRead: number;

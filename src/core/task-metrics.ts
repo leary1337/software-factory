@@ -3,10 +3,6 @@ export interface TaskMetrics {
 	readonly runCount: number;
 	readonly missingRunCount: number;
 	readonly incomplete: boolean;
-	/** Sum of known costs; includes subscription API-equivalent estimates, never a bill. */
-	readonly costUsd: number | null;
-	readonly costUnknownRuns: number;
-	readonly subscriptionEstimateRuns: number;
 	/** Sum of complete four-bucket token observations; cached input is counted once. */
 	readonly totalTokens: number | null;
 	readonly tokenUnknownRuns: number;

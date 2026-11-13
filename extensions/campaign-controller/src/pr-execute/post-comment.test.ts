@@ -127,7 +127,6 @@ beforeEach(() => {
 	const campaign = store.campaigns.createCampaign({
 		manifestDigest: "digest-post-comment",
 		manifestJson: "{}",
-		budgetCapUsdCents: 100_00,
 	});
 	campaignId = campaign.id;
 	workItemId = store.campaigns.addWorkItem({
@@ -336,7 +335,7 @@ describe("postFindingResponseComment", () => {
 	test("exceeding the per-day per-campaign cap raises an attention item and posts nothing", async () => {
 		const { transport, bodies } = fakePoster();
 		const deps: PostCommentDeps = { store, poster: transport };
-		// Profile A caps at 3/day. Spend it across distinct cycles.
+
 		for (const cycle of ["c1", "c2", "c3"]) {
 			const outcome = await postFindingResponseComment(deps, input({ cycleId: cycle }));
 			expect(outcome.status).toBe("posted");

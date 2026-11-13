@@ -18,7 +18,6 @@ import type {
 	InboxState,
 	PreviewState,
 	PullRequestLifecycle,
-	RunCostBasis,
 	RunFailureReason,
 	RunMode,
 	RunState,
@@ -44,7 +43,6 @@ export {
 	type PreviewState,
 	type PullRequestLifecycle,
 	RUN_TERMINAL_STATES,
-	type RunCostBasis,
 	type RunFailureReason,
 	type RunMode,
 	type RunState,
@@ -167,19 +165,10 @@ export interface RunRow {
 	 */
 	salvageRef: string | null;
 	salvagePath: string | null;
-	costUsd: number | null;
-	/** How `costUsd` was priced (warren-f3c3): `subscription_estimate` when
-	 * the run authenticated via CLAUDE_CODE_OAUTH_TOKEN — an API-priced
-	 * estimate, not a bill. `api` otherwise (and for legacy rows). */
-	costBasis: RunCostBasis;
 	/** Runtime backend kind frozen at dispatch (warren-a0f4):
 	 * `local` | `docker` | `k8s`. Operator-only runs-list overlay; absent
 	 * for spectators and detail GETs, null when no dispatch-context row. */
 	runtimeBackend?: string | null;
-	/** Per-run USD spend cap (warren-f8a2 list / warren-b19e detail GET):
-	 * from the dispatch-context row; operator-only overlay, absent for
-	 * spectators, null when no dispatch-context row. */
-	maxCostUsd?: number | null;
 	tokensInput: number | null;
 	tokensOutput: number | null;
 	tokensCacheRead: number | null;
@@ -249,8 +238,6 @@ export interface CreateRunInput {
 	 * cloneFromRunId / existingBranch.
 	 */
 	rescueFromRunId?: string;
-	/** Per-run USD spend cap (warren-a63d): wins over the agent's own and the project default. */
-	maxCostUsd?: number;
 	/** Mulch experiment arm: "on" installs mulch's Claude hooks, "off" injects no mulch. */
 	mulch?: "on" | "off";
 }
@@ -418,8 +405,6 @@ export interface ListRunsResponse {
 	total: number;
 	limit: number;
 	offset: number;
-	costTotalUsd: number | null;
-	costPricedCount: number;
 }
 
 /* ----------------------------------------------------------------------- */

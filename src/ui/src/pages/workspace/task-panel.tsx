@@ -13,7 +13,6 @@ import { DeploymentIncident } from "../plan-run-detail/deployment-incident.tsx";
 import { RetryReview } from "../plan-run-detail/retry-review.tsx";
 import { TaskHistory } from "../plan-run-detail/task-history.tsx";
 import { EventTail } from "../run-detail/event-tail.tsx";
-import { TaskCostPanel } from "../tasks/cost-panel.tsx";
 import { taskUrl } from "../tasks/task-attempts.ts";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
@@ -157,7 +156,7 @@ export function TaskPanel({ task, onClose }: { task: WorkspaceTask; onClose: () 
 				{current ? (
 					<>
 						<TaskBudgetPanel child={current.child} />
-						<TaskCostPanel child={current.child} run={implementation} />
+
 						<details className="rounded-lg border border-(--color-border) p-3">
 							<summary className="cursor-pointer text-sm">Review и история попытки</summary>
 							<div className="mt-3">

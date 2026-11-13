@@ -1,15 +1,11 @@
-import {
-	burnValue,
-	healthLabel,
-	runtimeValue,
-} from "@/components/console/console-topbar.helpers.ts";
+import { healthLabel, runtimeValue } from "@/components/console/console-topbar.helpers.ts";
 import type { ConsoleStats } from "@/components/console/use-console-stats.ts";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
 
 /**
  * The 42px Direction C status strip (warren-4ed7): health, RUNNING, QUEUE,
- * BURN, RUNTIME, identity. Mono 10px figures; labels in text-3, values in
+ * RUNTIME, identity. Mono 10px figures; labels in text-3, values in
  * text-2. Figures whose data is unavailable render a quiet "—" placeholder —
  * never a fabricated number.
  */
@@ -87,21 +83,6 @@ function IdentityStat() {
 	);
 }
 
-/** BURN: ops-overview spend rate (warren-d6ea); "—" while loading or spectator. */
-function BurnStat({ burnUsdPerHour }: { burnUsdPerHour: ConsoleStats["burnUsdPerHour"] }) {
-	return (
-		<Stat
-			label="BURN"
-			value={burnValue(burnUsdPerHour)}
-			title={
-				burnUsdPerHour === null
-					? "Spend rate unavailable (loading or spectator view)"
-					: "Spend rate over the last 24 hours"
-			}
-		/>
-	);
-}
-
 /** RUNTIME: boot-resolved provider off `GET /instance` (warren-d6ea). */
 function RuntimeStat({ runtime }: { runtime: ConsoleStats["runtime"] }) {
 	return (
@@ -128,7 +109,7 @@ export function ConsoleTopbar({ stats }: { stats: ConsoleStats }) {
 				shortLabel="QUE"
 				value={stats.queuedCount === null ? "—" : String(stats.queuedCount)}
 			/>
-			<BurnStat burnUsdPerHour={stats.burnUsdPerHour} />
+
 			<span className="flex-1" />
 			<RuntimeStat runtime={stats.runtime} />
 			<IdentityStat />
@@ -138,7 +119,7 @@ export function ConsoleTopbar({ stats }: { stats: ConsoleStats }) {
 
 /**
  * The 34px phone status strip (warren-3290, docs/ui-revamp/screens/mobile/
- * operations.jsx): exactly the four mobile figures — HEALTHY, RUN, QUE, BURN —
+ * operations.jsx): the three mobile figures — HEALTHY, RUN, QUE —
  * left-packed with no spacer, on its own row under the brand bar.
  */
 export function ConsoleMobileStatusStrip({ stats }: { stats: ConsoleStats }) {
@@ -155,7 +136,6 @@ export function ConsoleMobileStatusStrip({ stats }: { stats: ConsoleStats }) {
 				shortLabel="QUE"
 				value={stats.queuedCount === null ? "—" : String(stats.queuedCount)}
 			/>
-			<BurnStat burnUsdPerHour={stats.burnUsdPerHour} />
 		</header>
 	);
 }

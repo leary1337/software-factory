@@ -38,12 +38,6 @@ describe("DefaultsConfigSchema", () => {
 		expect(DefaultsConfigSchema.safeParse({ agentImage: 7 }).success).toBe(false);
 	});
 
-	test("accepts a positive maxCostUsd project-wide spend cap (warren-a63d)", () => {
-		const parsed = DefaultsConfigSchema.safeParse({ maxCostUsd: 2.5 });
-		expect(parsed.success).toBe(true);
-		if (parsed.success) expect(parsed.data.maxCostUsd).toBe(2.5);
-	});
-
 	// warren-540f: repoContext — free-text onboarding block, capped at 8 KiB so
 	// a runaway blob cannot silently eat the prompt budget.
 	test("accepts repoContext up to 8192 characters and rejects longer or empty values", () => {
@@ -54,12 +48,6 @@ describe("DefaultsConfigSchema", () => {
 		expect(DefaultsConfigSchema.safeParse({ repoContext: "x".repeat(8192) }).success).toBe(true);
 		expect(DefaultsConfigSchema.safeParse({ repoContext: "x".repeat(8193) }).success).toBe(false);
 		expect(DefaultsConfigSchema.safeParse({ repoContext: "" }).success).toBe(false);
-	});
-
-	test("rejects a non-positive or string maxCostUsd", () => {
-		for (const bad of [0, -1, "2.5"]) {
-			expect(DefaultsConfigSchema.safeParse({ maxCostUsd: bad }).success).toBe(false);
-		}
 	});
 
 	test("rejects extra fields so typos surface loudly", () => {

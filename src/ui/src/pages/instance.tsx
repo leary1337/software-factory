@@ -225,7 +225,7 @@ function AuthenticationSection({ facts }: { facts: InstanceFactsResponse | undef
 function AdmissionSection({ facts }: { facts: InstanceFactsResponse | undefined }) {
 	const admission = facts?.admission ?? null;
 	return (
-		<Section title="Admission" sub="Concurrency and spend caps." last>
+		<Section title="Admission" sub="Concurrency limits." last>
 			{admission ? (
 				<div className="grid w-full grid-cols-2 gap-2.5 sm:flex sm:flex-row sm:gap-3">
 					<FactField

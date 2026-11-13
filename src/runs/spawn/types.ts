@@ -61,7 +61,6 @@ export type DispatchOrigin = (typeof DISPATCH_ORIGINS)[number];
 
 export interface SpawnRunInput {
 	readonly reviewFindings?: readonly ReviewFinding[];
-	readonly reviewRemainingCostUsd?: number;
 	readonly repos: Repos;
 	/**
 	 * Runtime-provider seam (warren-c42c: burrow-client eviction, bucket 2).
@@ -106,17 +105,6 @@ export interface SpawnRunInput {
 	readonly providerOverride?: string;
 	/** Optional per-run override of the agent's `frontmatter.model`. */
 	readonly modelOverride?: string;
-	/**
-	 * Per-trigger / per-dispatch spend cap (warren-a63d). Set by a
-	 * `.warren/triggers.yaml` cron entry or a `POST /runs` `maxCostUsd`
-	 * body field. When set, the spawn composer folds it onto
-	 * `frontmatter.maxCostUsd` (overriding the agent's own value) before
-	 * freezing `runs.rendered_agent_json`, so the bridge enforces a single
-	 * override > agent precedence cap. Omitted for runs with no explicit
-	 * cap — the agent's own `maxCostUsd` (or, failing that, the project's
-	 * `.warren/config.yaml` `maxCostUsd` default) still applies.
-	 */
-	readonly maxCostUsdOverride?: number;
 	/**
 	 * Mulch experiment arm (`src/runtime/adapters/mulch-arm.ts`), folded onto
 	 * `frontmatter.mulch`. Omitted = default behavior, unchanged.

@@ -68,7 +68,6 @@ describe("createProviderRetryLifecycleExtension", () => {
 		// retry resolves off the agent and the project defaults as it did.
 		expect(call.providerOverride).toBeUndefined();
 		expect(call.modelOverride).toBeUndefined();
-		expect(call.maxCostUsdOverride).toBeUndefined();
 		expect(started).toEqual([spawn.newRunId]);
 
 		// The successor names its origin (also the single-retry bound marker).
@@ -93,14 +92,12 @@ describe("createProviderRetryLifecycleExtension", () => {
 			frontmatter: {
 				provider: "openrouter",
 				model: "deepseek/deepseek-v4-pro-0813",
-				maxCostUsd: 6,
 			},
 		});
 		const { spawn } = await fire(fixture);
 		const call = spawn.calls[0] as SpawnCall;
 		expect(call.providerOverride).toBe("openrouter");
 		expect(call.modelOverride).toBe("deepseek/deepseek-v4-pro-0813");
-		expect(call.maxCostUsdOverride).toBe(6);
 	});
 
 	test("retries a 5xx httpStatus even when the prose names no status code", async () => {

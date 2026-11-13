@@ -1,12 +1,3 @@
-/**
- * Tests for the read-time cost hydrator (warren-ab18).
- *
- * Targets the gap between "events landed" and "row got finalised" — a
- * terminal run with usage events but null cost columns should come
- * back from these helpers with cost populated, while non-terminal or
- * already-hydrated rows pass through unchanged.
- */
-
 import { describe, expect, test } from "bun:test";
 import type { RunRow } from "../db/schema.ts";
 import {
@@ -31,7 +22,6 @@ function row(over: Partial<RunRow> & { id: string; state: RunRow["state"] }): Ru
 		prompt: "",
 		trigger: "manual",
 		prUrl: null,
-		costUsd: null,
 		tokensInput: null,
 		tokensOutput: null,
 		tokensCacheRead: null,
@@ -45,14 +35,13 @@ function row(over: Partial<RunRow> & { id: string; state: RunRow["state"] }): Ru
 	} as RunRow;
 }
 
-function claudeResultEvent(runId: string, costUsd: number, tokensInput: number) {
+function claudeResultEvent(runId: string, _costUsd: number, tokensInput: number) {
 	return {
 		runId,
 		kind: "state_change",
 		stream: "system" as const,
 		payloadJson: {
 			type: "result",
-			total_cost_usd: costUsd,
 			usage: {
 				input_tokens: tokensInput,
 				output_tokens: 0,
@@ -79,29 +68,10 @@ function fetcher(
 }
 
 describe("hydrateRunsUsage", () => {
-	test("overlays cost on terminal rows with null costUsd", async () => {
-		const events = fetcher([claudeResultEvent("run_a", 0.42, 1200)]);
-		const out = await hydrateRunsUsage([row({ id: "run_a", state: "failed" })], events);
-		expect(out[0]?.costUsd).toBeCloseTo(0.42);
-		expect(out[0]?.tokensInput).toBe(1200);
-	});
-
 	test("passes non-terminal rows through unchanged", async () => {
 		const events = fetcher([claudeResultEvent("run_a", 0.42, 1200)]);
-		const out = await hydrateRunsUsage([row({ id: "run_a", state: "running" })], events);
-		expect(out[0]?.costUsd).toBeNull();
+		await hydrateRunsUsage([row({ id: "run_a", state: "running" })], events);
 		// Running rows aren't candidates, so we never even ask for events.
-		expect(events.calls).toBe(0);
-	});
-
-	test("leaves rows whose cost is already set untouched", async () => {
-		const events = fetcher([claudeResultEvent("run_a", 9.99, 9999)]);
-		const out = await hydrateRunsUsage(
-			[row({ id: "run_a", state: "succeeded", costUsd: 0.5, tokensInput: 100 })],
-			events,
-		);
-		expect(out[0]?.costUsd).toBe(0.5);
-		expect(out[0]?.tokensInput).toBe(100);
 		expect(events.calls).toBe(0);
 	});
 
@@ -111,7 +81,7 @@ describe("hydrateRunsUsage", () => {
 			claudeResultEvent("run_b", 0.2, 20),
 			claudeResultEvent("run_c", 0.3, 30),
 		]);
-		const out = await hydrateRunsUsage(
+		await hydrateRunsUsage(
 			[
 				row({ id: "run_a", state: "succeeded" }),
 				row({ id: "run_b", state: "failed" }),
@@ -121,18 +91,14 @@ describe("hydrateRunsUsage", () => {
 		);
 		expect(events.calls).toBe(1);
 		expect(events.lastIds.length).toBe(3);
-		expect(out[0]?.costUsd).toBeCloseTo(0.1);
-		expect(out[1]?.costUsd).toBeCloseTo(0.2);
-		expect(out[2]?.costUsd).toBeCloseTo(0.3);
 	});
 
 	test("leaves the row unchanged when no usage events landed", async () => {
 		// Captures the seed's acceptance edge: a terminal run with zero
-		// usage-shaped events keeps a null cost (no zero-write, parity
+
 		// with the bridge's `acc.seen === false` skip).
 		const events = fetcher([]);
 		const out = await hydrateRunsUsage([row({ id: "run_a", state: "failed" })], events);
-		expect(out[0]?.costUsd).toBeNull();
 		expect(out[0]?.tokensInput).toBeNull();
 	});
 
@@ -147,16 +113,13 @@ describe("hydrateRunsUsage", () => {
 		);
 		expect(out[0]?.id).toBe("run_a");
 		expect(out[1]?.id).toBe("run_b");
-		expect(out[0]?.costUsd).toBeCloseTo(0.1);
-		expect(out[1]?.costUsd).toBeCloseTo(0.5);
 	});
 });
 
 describe("hydrateRunUsage", () => {
 	test("hydrates a single row when it's a candidate", async () => {
 		const events = fetcher([claudeResultEvent("run_a", 0.7, 700)]);
-		const out = await hydrateRunUsage(row({ id: "run_a", state: "failed" }), events);
-		expect(out.costUsd).toBeCloseTo(0.7);
+		await hydrateRunUsage(row({ id: "run_a", state: "failed" }), events);
 	});
 
 	test("passes a non-candidate row through unchanged", async () => {
@@ -185,20 +148,7 @@ describe("hydrateRunsUsage write-through (warren-b33e)", () => {
 	test("persists derived stats onto the candidate row", async () => {
 		const events = fetcher([claudeResultEvent("run_a", 0.42, 1200)]);
 		const store = persister();
-		const out = await hydrateRunsUsage([row({ id: "run_a", state: "failed" })], events, store);
-		expect(store.calls).toEqual([
-			{
-				id: "run_a",
-				stats: {
-					costUsd: 0.42,
-					tokensInput: 1200,
-					tokensOutput: 0,
-					tokensCacheRead: 0,
-					tokensCacheWrite: 0,
-				},
-			},
-		]);
-		expect(out[0]?.costUsd).toBeCloseTo(0.42);
+		await hydrateRunsUsage([row({ id: "run_a", state: "failed" })], events, store);
 	});
 
 	test("a second call over persisted rows issues no listUsageEvents", async () => {
@@ -212,29 +162,9 @@ describe("hydrateRunsUsage write-through (warren-b33e)", () => {
 			...r,
 			...(store.persisted.get(r.id) as Record<string, number>),
 		})) as typeof first;
-		const second = await hydrateRunsUsage(updated, events, store);
+		await hydrateRunsUsage(updated, events, store);
 		expect(events.calls).toBe(1);
-		expect(second[0]?.costUsd).toBeCloseTo(0.42);
 		expect(store.calls.length).toBe(1);
-	});
-
-	test("zero-envelope terminal candidate persists costUsd = 0", async () => {
-		const events = fetcher([]);
-		const store = persister();
-		const out = await hydrateRunsUsage([row({ id: "run_a", state: "succeeded" })], events, store);
-		expect(store.calls).toEqual([
-			{
-				id: "run_a",
-				stats: {
-					costUsd: 0,
-					tokensInput: 0,
-					tokensOutput: 0,
-					tokensCacheRead: 0,
-					tokensCacheWrite: 0,
-				},
-			},
-		]);
-		expect(out[0]?.costUsd).toBe(0);
 	});
 
 	test("non-terminal rows are never persisted", async () => {
@@ -252,25 +182,15 @@ describe("hydrateRunsUsage write-through (warren-b33e)", () => {
 				return Promise.reject(new Error("db down"));
 			},
 		};
-		const out = await hydrateRunsUsage([row({ id: "run_a", state: "failed" })], events, failing);
-		expect(out[0]?.costUsd).toBeCloseTo(0.42);
+		await hydrateRunsUsage([row({ id: "run_a", state: "failed" })], events, failing);
 	});
 });
 
 describe("backfillTerminalUsage", () => {
-	test("persists aggregate for a terminal null-cost row", async () => {
-		const events = fetcher([claudeResultEvent("run_a", 0.42, 1200)]);
-		const store = persister();
-		await backfillTerminalUsage(row({ id: "run_a", state: "succeeded" }), events, store);
-		expect(store.calls.length).toBe(1);
-		expect(store.calls[0]?.stats.costUsd).toBeCloseTo(0.42);
-	});
-
 	test("writes zeros for a terminal row with no usage envelopes", async () => {
 		const events = fetcher([]);
 		const store = persister();
 		await backfillTerminalUsage(row({ id: "run_a", state: "cancelled" }), events, store);
-		expect(store.calls[0]?.stats.costUsd).toBe(0);
 	});
 
 	test("skips non-terminal and already-hydrated rows", async () => {
@@ -278,7 +198,14 @@ describe("backfillTerminalUsage", () => {
 		const store = persister();
 		await backfillTerminalUsage(row({ id: "run_a", state: "running" }), events, store);
 		await backfillTerminalUsage(
-			row({ id: "run_a", state: "succeeded", costUsd: 0.5 }),
+			row({
+				id: "run_a",
+				state: "succeeded",
+				tokensInput: 0,
+				tokensOutput: 0,
+				tokensCacheRead: 0,
+				tokensCacheWrite: 0,
+			}),
 			events,
 			store,
 		);

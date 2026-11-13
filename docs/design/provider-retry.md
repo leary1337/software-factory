@@ -151,11 +151,6 @@ stands down where another owns the case.
 | Infra-lost retry (`src/runs/retry/infra-lost-retry.ts`) | `sandbox_run_lost`, `preempted` | one | the `runs.retry_of` link itself |
 | Plan-run child retry ([coordinator](./plan-run-coordinator.md)) | a retryable child failure cause | `MAX_CHILD_RETRIES` | `plan_run_children.retry_count` |
 
-The infra-lost retry also inherits the original run's cost cap minus what
-the first attempt spent, so the two attempts share one shrinking ceiling.
-The provider retry has no equivalent, because the failure it answers
-happens before the agent burns the budget it was given.
-
 ### A killed agent is not a provider error (warren-a757)
 
 An agent that dies without its own terminal envelope gets a synthesized

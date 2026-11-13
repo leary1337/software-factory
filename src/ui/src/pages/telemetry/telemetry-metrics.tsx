@@ -1,16 +1,8 @@
 import { cn } from "@/lib/utils.ts";
-import { formatCostUsd } from "@/pages/run-detail-format.ts";
 import { formatDuration } from "@/pages/telemetry/format.ts";
 import { summarizeJudgeVerdicts, useJudgeVerdicts } from "@/pages/telemetry/judge-verdicts.ts";
 import { useTelemetryWindow } from "@/pages/telemetry/use-telemetry-window.tsx";
 
-/**
- * The shared metric strip (warren-7197): four joined figures above the
- * tab content, from the Paper artboards. Cost per merged PR comes from
- * `GET /analytics/runs` outcomes (spectator-redacted → "—"); judge pass
- * comes from the judge extension's verdict export (absent → "—").
- * Autonomy and dispatch→merge come from `GET /analytics/runs` (warren-bc9c).
- */
 function MetricCell({
 	label,
 	value,
@@ -137,11 +129,6 @@ export function TelemetryMetricStrip() {
 	const verdicts = useJudgeVerdicts();
 
 	const outcomes = runs.data?.outcomes;
-	// warren-97ae: the instance-wide ratio is public for spectators (the
-	// per-agent/per-model/per-provider buckets keep their USD figures
-	// redacted), so overall.costPerMergedPrUsd is always present once
-	// outcomes load.
-	const costPerMergedPr = outcomes?.costPerMergedPr.overall.costPerMergedPrUsd;
 
 	const judgeSummary =
 		verdicts.data?.available === true ? summarizeJudgeVerdicts(verdicts.data.rows) : null;
@@ -149,27 +136,6 @@ export function TelemetryMetricStrip() {
 
 	return (
 		<div className="grid w-full grid-cols-2 overflow-hidden rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) md:flex">
-			<MetricCell
-				label="COST / MERGED PR"
-				value={
-					outcomes === undefined
-						? "—"
-						: costPerMergedPr === null || costPerMergedPr === undefined
-							? "—"
-							: formatCostUsd(costPerMergedPr)
-				}
-				note={
-					outcomes === undefined
-						? "loading run outcomes…"
-						: costPerMergedPr === undefined || costPerMergedPr === null
-							? "no priced runs in window"
-							: "all spend over merges · failed runs included"
-				}
-				title="Windowed USD rollup divided by merged PRs (GET /analytics/runs outcomes)"
-				mobileBottom
-				mobileRight
-				hasRightBorder
-			/>
 			{autonomyCell(outcomes?.autonomy)}
 			{dispatchMergeCell(runs.data?.delivery.dispatchToMergeMs.median)}
 			<MetricCell

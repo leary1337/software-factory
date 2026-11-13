@@ -2,28 +2,12 @@ import { ValidationError } from "../../../core/errors.ts";
 import type { DispatchFacts } from "../../../db/repos/dispatch-context.ts";
 import { readProviderFrontmatter } from "../../../registry/index.ts";
 import type { RunRow } from "../../../runs/index.ts";
-import {
-	buildCostAnalytics,
-	type CostAnalyticsRow,
-	hydrateRunsUsage,
-	hydrateRunUsage,
-} from "../../../runs/index.ts";
+import { hydrateRunsUsage, hydrateRunUsage } from "../../../runs/index.ts";
 import { isPublicOnly, pickFields } from "../../projection.ts";
 import { jsonResponse } from "../../response.ts";
 import type { Actor, RouteHandler, ServerDeps } from "../../types.ts";
 import { requireParam } from "../index.ts";
 
-/**
- * The run columns a `readPublic`-only spectator sees (warren-946f /
- * pl-b82d step 14). An allowlist, so a column added to `runs` tomorrow is
- * absent from the public body until someone classifies it here — see
- * `src/server/projection.ts` for why this is never a denylist.
- *
- * The prompt stays: "here's what we asked, here's what it did" is the
- * interesting half of a public instance. Per-run `costUsd` and the token
- * counts stay too — cost-per-merged-PR is the metric the instance exists
- * to show, and it is os-eco's own spend on its own public repos.
- */
 export const PUBLIC_RUN_FIELDS = [
 	"id",
 	"agentName",
@@ -89,10 +73,6 @@ export const PUBLIC_RUN_FIELDS = [
 	"filesChanged",
 	"insertions",
 	"deletions",
-	"costUsd",
-	// warren-f3c3: how costUsd was priced — the same spectator-safe class as
-	// costUsd itself (it qualifies the number, adds nothing new).
-	"costBasis",
 	"tokensInput",
 	"tokensOutput",
 	"tokensCacheRead",
@@ -142,15 +122,12 @@ export function projectRun<T extends RunRow>(run: T, actor: Actor | undefined): 
 	return isPublicOnly(actor) ? pickFields(run, PUBLIC_RUN_FIELDS) : run;
 }
 
-function parseRunsSort(ctx: { url: URL }): { sort: "started" | "cost"; dir: "asc" | "desc" } {
+function parseRunsSort(ctx: { url: URL }): { sort: "started"; dir: "asc" | "desc" } {
 	const rawSort = ctx.url.searchParams.get("sort");
 	const rawDir = ctx.url.searchParams.get("dir");
-	let sort: "started" | "cost" = "started";
-	if (rawSort !== null) {
-		if (rawSort !== "started" && rawSort !== "cost") {
-			throw new ValidationError(`?sort must be 'started' or 'cost'; got '${rawSort}'`);
-		}
-		sort = rawSort;
+	const sort: "started" = "started";
+	if (rawSort !== null && rawSort !== "started") {
+		throw new ValidationError("?sort must be 'started'");
 	}
 	let dir: "asc" | "desc" = "desc";
 	if (rawDir !== null) {
@@ -194,14 +171,7 @@ export function parseRunsPagination(ctx: { url: URL }): { limit: number; offset:
 	return { limit, offset };
 }
 
-/**
- * Overlay the dispatch-context spend cap onto the projected list rows
- * (warren-f8a2): `maxCostUsd` is the per-run USD cap the mobile runs card
- * uses for its near-cap tint. A spectator gets no caps at all, so the cap
- * never reaches the public projection — same posture as the list's
- * `costTotalUsd`.
- */
-async function projectRunsWithCaps(
+async function projectRunsWithFacts(
 	deps: ServerDeps,
 	runs: readonly RunRow[],
 	actor: Actor | undefined,
@@ -216,7 +186,6 @@ async function projectRunsWithCaps(
 		const fact = facts.get(run.id);
 		return {
 			...projected,
-			maxCostUsd: fact?.maxCostUsd ?? null,
 			runtimeBackend: fact?.runtimeBackend ?? null,
 		};
 	});
@@ -238,7 +207,7 @@ export function listRunsHandler(deps: ServerDeps): RouteHandler {
 				: agent !== null
 					? await deps.repos.runs.listByAgent(agent, listOpts)
 					: await deps.repos.runs.listAll(listOpts);
-		// warren-ab18: surface in-events cost for terminal runs whose
+
 		// bridge died before the final checkpoint landed.
 		const hydrated = await hydrateRunsUsage(rows, deps.repos.events, deps.repos.runs);
 		// warren-ee50 / pl-b0c0 step 1: aggregate the full filtered set so
@@ -248,17 +217,11 @@ export function listRunsHandler(deps: ServerDeps): RouteHandler {
 			...(agent !== null ? { agentName: agent } : {}),
 		};
 		const agg = await deps.repos.runs.aggregate(aggFilter);
-		// warren-946f: `costTotalUsd` is an instance-wide all-time number.
-		// Unlabeled on a list endpoint it reads as a headline out of
-		// context, so it belongs in a deliberately framed ledger view
-		// rather than here; per-run `costUsd` survives the projection.
-		const publicOnly = isPublicOnly(ctx.actor);
-		const projectedRuns = await projectRunsWithCaps(deps, hydrated, ctx.actor);
+
+		const projectedRuns = await projectRunsWithFacts(deps, hydrated, ctx.actor);
 		return jsonResponse(200, {
 			runs: projectedRuns,
 			total: agg.total,
-			...(publicOnly ? {} : { costTotalUsd: agg.costTotalUsd }),
-			costPricedCount: agg.costPricedCount,
 			limit: page.limit,
 			offset: page.offset,
 		});
@@ -270,82 +233,12 @@ export function getRunHandler(deps: ServerDeps): RouteHandler {
 		const id = requireParam(ctx, "id");
 		const row = await deps.repos.runs.require(id);
 		// warren-ab18: same compute-on-read fallback as the list handler
-		// so the RunDetail page shows cost for ghost / reboot-orphaned runs.
+
 		const run = await hydrateRunUsage(row, deps.repos.events);
-		// warren-b19e: the detail GET carries the dispatch-context spend cap
-		// too — the Spend panel renders "$X of $Y cap" off it. Operator-only,
-		// same posture as the list overlay in projectRunsWithCaps: a spectator
-		// gets no caps at all, so the cap never reaches the public projection.
-		if (!isPublicOnly(ctx.actor)) {
-			const fact = await deps.repos.dispatchContext.getByRunId(id);
-			return jsonResponse(200, {
-				run: { ...projectRun(run, ctx.actor), maxCostUsd: fact?.maxCostUsd ?? null },
-			});
-		}
 		// warren-7d84: detail GETs wrap the resource, matching POST /runs
 		// ({run}) and the plan-runs family ({planRun, children, runs}) so
 		// consumers need no per-route envelope knowledge.
 		return jsonResponse(200, { run: projectRun(run, ctx.actor) });
-	};
-}
-
-/**
- * `GET /analytics/cost?from=&to=&projectId=` (warren-cf63 / pl-b0c0 step 6).
- *
- * Window defaults to the last 30 days whenever `from` is absent —
- * including when `to` is supplied — and the from..to span is clamped to
- * 90 days, so no anonymous request can drop the lower bound and scan
- * the whole table (warren-30cc). Both
- * bounds and `projectId` are validated lightly — a malformed date is a
- * 400 because the lexicographic ISO8601 compare in `listForAnalytics`
- * would silently produce surprising results otherwise.
- */
-export function listCostAnalyticsHandler(deps: ServerDeps): RouteHandler {
-	return async (ctx) => {
-		const projectId = ctx.url.searchParams.get("projectId") ?? undefined;
-		const from = parseAnalyticsDateBound(ctx, "from");
-		const to = parseAnalyticsDateBound(ctx, "to");
-		const window = resolveAnalyticsWindow(from, to, deps.now?.().getTime());
-		const filter: { projectId?: string; from?: string; to?: string } = {
-			from: window.from,
-			to: window.to,
-		};
-		if (projectId !== undefined) filter.projectId = projectId;
-		const rowsRaw = await deps.repos.runs.listForAnalytics(filter);
-		// Hydrate so terminal runs with bridge-died cost still count.
-		const rows = await hydrateRunsUsage(rowsRaw, deps.repos.events, deps.repos.runs);
-		const planByRun = new Map<string, string | null>();
-		if (rows.length > 0) {
-			const joined = await deps.repos.planRuns.resolvePlanForRunIds(rows.map((r) => r.id));
-			for (const j of joined) planByRun.set(j.runId, j.planId);
-		}
-		const analyticsRows: CostAnalyticsRow[] = rows.map((r) => {
-			// warren-2ede: read the dispatch-frozen columns; the frontmatter
-			// re-parse survives only as the historical-row (NULL) fallback.
-			const fallback =
-				r.provider === null || r.model === null ? extractProviderModel(r.renderedAgentJson) : {};
-			return {
-				runId: r.id,
-				projectId: r.projectId,
-				agentName: r.agentName,
-				planId: planByRun.get(r.id) ?? null,
-				planRunId: null,
-				provider: r.provider ?? fallback.provider ?? null,
-				model: r.model ?? fallback.model ?? null,
-				costUsd: r.costUsd,
-				costBasis: r.costBasis,
-				startedAt: r.startedAt,
-			};
-		});
-		const analytics = buildCostAnalytics(analyticsRows);
-		return jsonResponse(200, {
-			filter: {
-				projectId: projectId ?? null,
-				from: window.from,
-				to: window.to,
-			},
-			...analytics,
-		});
 	};
 }
 
@@ -366,15 +259,6 @@ export const ANALYTICS_MAX_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Resolve the analytics window, defaulting `from` to the last 30 days
- * whenever it is absent — including when `to` is supplied — so a fresh
- * install renders a useful chart and no anonymous request can drop the
- * lower bound entirely (warren-30cc). The total span is clamped to
- * {@link ANALYTICS_MAX_WINDOW_DAYS} by pulling `from` forward, so the
- * scan stays bounded no matter what the caller supplies. Shared by the
- * cost + run analytics handlers (warren-cf63 / warren-0692).
- */
 export function resolveAnalyticsWindow(
 	from: string | undefined,
 	to: string | undefined,

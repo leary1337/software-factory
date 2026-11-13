@@ -102,7 +102,6 @@ function stateRunSpecs(projectId: string): RunSpec[] {
 			seedId: "ah-fx-102",
 			createdMin: 9,
 			startedMin: 8,
-			costUsd: 0.62,
 			prompt: "Fix the runs table gutter so it no longer overflows at 393px",
 		},
 		{
@@ -113,7 +112,6 @@ function stateRunSpecs(projectId: string): RunSpec[] {
 			startedMin: 94,
 			endedMin: 71,
 			terminal: "succeeded",
-			costUsd: 1.18,
 			filesChanged: 0,
 			prompt: "Audit the telemetry copy for implementation notes (report only)",
 		},
@@ -127,7 +125,6 @@ function stateRunSpecs(projectId: string): RunSpec[] {
 			endedMin: 118,
 			terminal: "failed",
 			failureReason: FAILED_REASON,
-			costUsd: 3.41,
 			prompt: "Migrate the plan-runs table to the card primitive",
 		},
 		{
@@ -138,7 +135,6 @@ function stateRunSpecs(projectId: string): RunSpec[] {
 			startedMin: 239,
 			endedMin: 232,
 			terminal: "cancelled",
-			costUsd: 0.21,
 			prompt: "Rename the operations page services panel",
 		},
 		{
@@ -150,7 +146,6 @@ function stateRunSpecs(projectId: string): RunSpec[] {
 			startedMin: 51,
 			endedMin: 33,
 			terminal: "succeeded",
-			costUsd: 1.94,
 			filesChanged: 4,
 			prNumber: 1406,
 			prState: "open",
@@ -201,7 +196,6 @@ function planChildRunSpec(c: PlanChild, runId: string, projectId: string): RunSp
 		prompt: `Plan ${PLAN_ID} step ${c.seq}: implement ${c.seedId}`,
 		createdMin: startedMin + 1,
 		startedMin,
-		costUsd: 0.8 + c.seq * 0.35,
 	};
 	if (c.state === "running") return spec;
 	const ended = { ...spec, endedMin: startedMin - 55 };
@@ -304,7 +298,6 @@ function historySpec(i: number, projectId: string): RunSpec & { readonly endedMi
 		startedMin,
 		endedMin: startedMin - (6 + ((i * 7) % 25)),
 		terminal: "succeeded",
-		costUsd: Math.round((0.35 + ((i * 37) % 100) / 38) * 100) / 100,
 		filesChanged: outcome === "nochange" ? 0 : 1 + (i % 6),
 	} as const;
 	if (outcome === "failed") {

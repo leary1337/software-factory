@@ -31,21 +31,15 @@ jq 'select(.req_id == "<request-id>")' warren.log
 
 ## Metrics
 
-`GET /metrics` is bearer-gated and uses Prometheus exposition format. It reports run counts, cost, tokens, event-stream state, and runtime-specific gauges. Kubernetes deployments also expose pod lifecycle metrics.
+`GET /metrics` is bearer-gated and uses Prometheus exposition format. It reports run counts, tokens, event-stream state, and runtime-specific gauges. Kubernetes deployments also expose pod lifecycle metrics.
 
 Use the endpoint for alerting on admission rejection, runtime loss, finalization failure, and growing queue depth. The [Kubernetes runbook](RUNBOOK-K8S.md#6-observability) lists its provider-specific metrics and alert signals.
 
-## Cost and tokens
+## Tokens
 
-Each run can record cost and token totals when its harness adapter supplies usage events. The UI exposes per-run values and analytics. `GET /analytics/cost` aggregates them by project, agent, provider, and model.
-
-A cost cap can come from three levels, in strongest-first order:
-
-1. Dispatch override
-2. Agent frontmatter
-3. Project `maxCostUsd` default
-
-Warren enforces the resolved cap during the run. A malformed agent cap fails open rather than overriding a valid project default silently.
+Each run records input, output and cache token totals when its harness supplies
+usage events. Run details and analytics expose these observations. Warren does
+not price token usage or enforce monetary limits.
 
 ## Run events
 
@@ -81,6 +75,6 @@ Postgres deployments set `WARREN_DB_URL`. Back up that database with the operato
 4. Filter server logs by request or run ID.
 5. Inspect the selected runtime: local process, sibling container, or Kubernetes pod.
 6. Confirm the forge credential can fetch and push the target repository.
-7. Confirm the configured cost and admission limits did not reject or cancel the run.
+7. Confirm the configured admission limits did not reject or cancel the run.
 
 Use [Docker self-hosting](self-host/docker.md) or the [Kubernetes runbook](RUNBOOK-K8S.md) for topology-specific remedies.

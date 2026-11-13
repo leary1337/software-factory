@@ -41,10 +41,6 @@
           "description": "per-run override of agent frontmatter.model"
         },
         {
-          "flags": "--max-cost-usd <usd>",
-          "description": "per-run USD spend cap; wins over the agent's own and the project default"
-        },
-        {
           "flags": "--seed <id>",
           "description": "link the run to a seeds issue (POST /runs seedId)"
         },
@@ -206,10 +202,6 @@
           "description": "per-run override of agent frontmatter.model"
         },
         {
-          "flags": "--max-cost-usd <usd>",
-          "description": "per-child USD spend cap applied to every child dispatch"
-        },
-        {
           "flags": "--no-follow",
           "description": "dispatch and exit without tailing events"
         },
@@ -247,7 +239,7 @@
     },
     {
       "name": "plan status",
-      "description": "render a plan-run's child-state table with per-child cost + duration",
+      "description": "render a plan-run's child-state table with per-child duration",
       "options": [
         {
           "flags": "--output <mode>",
@@ -309,7 +301,7 @@
       "options": [
         {
           "flags": "--summary",
-          "description": "emit a compact projection (id, state, failureReason, prUrl, costUsd, endedAt)"
+          "description": "emit a compact projection (id, state, failureReason, prUrl, endedAt)"
         },
         {
           "flags": "--url <url>",
@@ -331,7 +323,7 @@
         },
         {
           "flags": "--summary",
-          "description": "emit a compact projection (id, state, failureReason, prUrl, costUsd, endedAt)"
+          "description": "emit a compact projection (id, state, failureReason, prUrl, endedAt)"
         },
         {
           "flags": "--url <url>",
@@ -492,7 +484,7 @@
       "name": "plan-run",
       "steps": [
         "warren plan run <plan-id> --project <id> --agent <name>   # serial children, each gated on the previous PR merging",
-        "warren plan status <plan-run-id>   # child-state table with per-child cost + duration",
+        "warren plan status <plan-run-id>   # child-state table with per-child duration",
         "warren plan cancel <plan-run-id>   # cancel the plan-run and its in-flight child"
       ]
     }

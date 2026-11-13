@@ -124,12 +124,6 @@ and `loadWarrenConfig()` surfaces it. Notable knobs:
 - `agent.skipGitHooks` (default `false`) — set `true` to skip arming
   the project's git pre-commit gate on the host clone before each run
   (warren-8f4c).
-- `maxCostUsd` — project-wide default per-run USD spend cap
-  (warren-a63d), enforced mid-run by the event bridge. Weakest source in
-  the cap chain: dispatch override (`POST /runs` `maxCostUsd`,
-  `warren run --max-cost-usd`, or a trigger entry's cap) > agent
-  `frontmatter.maxCostUsd` > this default — applied only when the agent
-  declares no cap (malformed agent values still fail open).
 - `pr.autoMerge` (warren-6c5a, plan pl-92a3) opts a project into warren-armed
   PR auto-merge, armed by the reap PR-open step behind the fail-closed policy.
   Absent means off and silent. Full contract and operator guide:

@@ -5,13 +5,11 @@ export const MAX_REWORKS = 8;
 export interface ReviewLoopBudget {
 	readonly maxReworks: number;
 	readonly maxSteps: number;
-	readonly maxCostUsd: number;
 	readonly maxActiveMs: number;
 }
 export const DEFAULT_REVIEW_BUDGET: ReviewLoopBudget = {
 	maxReworks: MAX_REWORKS,
 	maxSteps: 24,
-	maxCostUsd: 10,
 	maxActiveMs: 7_200_000,
 };
 
@@ -27,7 +25,6 @@ export function loadReviewBudget(
 	return {
 		maxReworks: Math.max(1, Math.floor(value("WARREN_REWORK_MAX_ROUNDS", MAX_REWORKS))),
 		maxSteps: Math.max(1, Math.floor(value("WARREN_REWORK_MAX_STEPS", 24))),
-		maxCostUsd: value("WARREN_REWORK_MAX_COST_USD", 10),
 		maxActiveMs: value("WARREN_REWORK_MAX_ACTIVE_MS", 7_200_000),
 	};
 }
@@ -36,11 +33,8 @@ export function reviewBudgetReason(
 	steps: readonly ReviewStepRecord[],
 	budget: ReviewLoopBudget,
 ): string | null {
-	if (steps.some((step) => step.costUsd === null || step.activeMs === null))
-		return "budget_unknown";
+	if (steps.some((step) => step.activeMs === null)) return "budget_unknown";
 	if (steps.length >= budget.maxSteps) return "step_budget_exhausted";
-	if (steps.reduce((sum, step) => sum + (step.costUsd ?? 0), 0) >= budget.maxCostUsd)
-		return "cost_budget_exhausted";
 	if (steps.reduce((sum, step) => sum + (step.activeMs ?? 0), 0) >= budget.maxActiveMs)
 		return "time_budget_exhausted";
 	return null;

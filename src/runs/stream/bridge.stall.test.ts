@@ -14,15 +14,6 @@ import {
 import { type TurnClock, TurnMonitor, type TurnMonitorOptions } from "./turn-monitor.ts";
 import type { StreamEventView } from "./types.ts";
 
-/**
- * TurnMonitor trips through the real bridge loop (warren-1f85 / warren-74a7,
- * GitHub #1242). Driven with `StreamEventView` fixtures and a fake clock, the
- * same template `budget.test.ts` uses for the cancel-and-break assertions: on
- * a trip the bridge persists the known cost, emits the trip event, cancels
- * through the injected seam, and breaks with a `cancelled` terminal outcome —
- * while the deltas that tripped it stay unpersisted and unpublished.
- */
-
 class FakeClock implements TurnClock {
 	nowMs = 0;
 	now(): number {
@@ -39,7 +30,6 @@ function makeMonitor(clock: TurnClock, overrides: Partial<TurnMonitorOptions> = 
 		stallCheckIntervalMs: 5,
 		degenerateMinDeltas: 3,
 		degenerateMinBytes: null,
-		costCapUsd: null,
 		clock,
 		...overrides,
 	});
@@ -189,43 +179,6 @@ describe("bridgeRunStream — turn monitor trips (#1242)", () => {
 		expect(events.some((e) => e.kind === "turn.degenerate")).toBe(false);
 	});
 
-	test("trips the spend cap mid-turn from partial usage, before any turn_end", async () => {
-		const clock = new FakeClock();
-		const cancels: string[] = [];
-		const result = await bridgeRunStream({
-			runId,
-			sandboxRunId,
-			repos,
-			broker,
-			sandboxId: "bur_aaaaaaaaaaaa",
-			runtimeProvider: makeProvider(),
-			cancelBurrowRun: async (reason) => {
-				cancels.push(reason);
-			},
-			turnMonitor: makeMonitor(clock, { stallMs: null, costCapUsd: 1 }),
-			// The cap is crossed on the second delta's cumulative partial —
-			// no turn_end ever fires, so only the monitor can see it.
-			source: source([
-				piTurnStart(sandboxRunId, 1),
-				piMessageDelta(sandboxRunId, 2, { delta: "thinking...", costTotal: 0.6 }),
-				piMessageDelta(sandboxRunId, 3, { delta: "more", costTotal: 1.5 }),
-			]),
-		});
-
-		expect(result.terminalDetected).toEqual({ outcome: "cancelled" });
-		expect(cancels).toHaveLength(1);
-		expect(cancels[0]).toContain("spend cap exceeded");
-
-		const events = await repos.events.listByRun(runId);
-		const budget = events.find((e) => e.kind === "budget.exceeded");
-		expect(budget).toBeDefined();
-		expect(budget?.payloadJson).toMatchObject({ costUsd: 1.5, capUsd: 1 });
-
-		// The in-turn spend was persisted so the cut run isn't left at null.
-		const run = await repos.runs.require(runId);
-		expect(run.costUsd).toBe(1.5);
-	});
-
 	test("keeps a healthy streaming turn alive across the stall budget reset", async () => {
 		const clock = new FakeClock();
 		const cancels: string[] = [];
@@ -243,10 +196,10 @@ describe("bridgeRunStream — turn monitor trips (#1242)", () => {
 			source: source([
 				piTurnStart(sandboxRunId, 1),
 				piMessageDelta(sandboxRunId, 2, { delta: "hello" }),
-				piTurnEnd(sandboxRunId, 3, { input: 10, output: 5, costTotal: 0.01 }),
+				piTurnEnd(sandboxRunId, 3, { input: 10, output: 5 }),
 				piTurnStart(sandboxRunId, 4),
 				piMessageDelta(sandboxRunId, 5, { delta: "world" }),
-				piTurnEnd(sandboxRunId, 6, { input: 10, output: 5, costTotal: 0.01 }),
+				piTurnEnd(sandboxRunId, 6, { input: 10, output: 5 }),
 			]),
 		});
 

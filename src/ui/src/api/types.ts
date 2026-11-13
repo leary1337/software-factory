@@ -55,7 +55,6 @@ import type {
 	PreviewState,
 	PullRequestLifecycle,
 	ReviewStage,
-	RunCostBasis,
 	RunFailureReason,
 	RunMode,
 	RunState,
@@ -182,18 +181,14 @@ export interface RunRow {
 	model: string | null;
 	/** Salvage-before-destroy (warren-cd3b): rescue branch + git bundle of a finalize_failed run's work. */
 	salvageRef: string | null;
-	salvagePath: string | null;
-	/** Per-run cost in USD (warren-a7dc), the bridge's `get_session_stats` start/end delta. Null for non-pi runtimes. */
-	costUsd: number | null;
-	costBasis: RunCostBasis; // warren-f3c3: `subscription_estimate` = estimate, not a bill
-	maxCostUsd?: number | null; // warren-f8a2: cap overlay (list + detail GET, warren-b19e); absent for spectators
-	runtimeBackend?: string | null; // warren-a0f4: local|docker|k8s frozen at dispatch; operator-only overlay beside maxCostUsd
-	/** Input/output tokens consumed/produced (warren-a7dc); see `costUsd` for nullability. */
+	salvagePath: string | null; // warren-f8a2: cap overlay (list + detail GET, warren-b19e); absent for spectators
+	runtimeBackend?: string | null;
+
 	tokensInput: number | null;
 	tokensOutput: number | null;
-	/** Cache-read tokens (warren-a7dc); see `costUsd` for nullability. */
+
 	tokensCacheRead: number | null;
-	/** Cache-write tokens (warren-a7dc); see `costUsd` for nullability. */
+
 	tokensCacheWrite: number | null;
 	/**
 	 * Per-run preview environment columns (R-19 / docs/design/preview-environments.md). All null on
@@ -293,13 +288,6 @@ export interface CreateRunInput {
 	 * server-side).
 	 */
 	cloneFromRunId?: string;
-	/**
-	 * Optional per-run USD spend cap (warren-a63d): wins over the agent's
-	 * own `frontmatter.maxCostUsd` and the project's `.warren/config.yaml`
-	 * default. Must be a positive finite number; the server rejects zero,
-	 * negatives, and numeric strings.
-	 */
-	maxCostUsd?: number;
 }
 
 export interface SpawnRunResponse {
@@ -307,24 +295,9 @@ export interface SpawnRunResponse {
 	sandbox: SandboxSummary;
 }
 
-/**
- * `GET /runs` envelope (warren-ee50 / pl-b0c0 step 1). `runs` is the
- * paginated window; `total`/`costTotalUsd`/`costPricedCount` describe
- * the full filtered set so the Runs page can show all-time totals
- * even when only a window of rows is on screen. `limit`/`offset` echo
- * back the resolved pagination so the UI can render "Showing X–Y of
- * T" against the same numbers the server applied.
- *
- * `costTotalUsd` is OPTIONAL: it is the instance-wide all-time spend and
- * the public projection drops it (warren-946f), so a spectator's envelope
- * has no such key. Callers must render on presence — coalescing to 0 would
- * print a confident "total: $0.00" (warren-f53e).
- */
 export interface ListRunsResponse {
 	runs: RunRow[];
 	total: number;
-	costTotalUsd?: number;
-	costPricedCount: number;
 	limit: number;
 	offset: number;
 }
@@ -511,12 +484,6 @@ export interface DefaultsConfig {
 	 */
 	runBranchPrefix?: string;
 	qualityGate?: string;
-	/**
-	 * warren-a63d: project-wide default per-run USD spend cap, the weakest
-	 * source in the cap chain (dispatch override > agent frontmatter > this).
-	 * Surfaced read-only on the ProjectDetail config panel.
-	 */
-	maxCostUsd?: number;
 }
 
 export interface WarrenConfigResponse {
@@ -558,8 +525,6 @@ export interface TriggerSummary {
 	role: string;
 	timezone?: string;
 	prompt?: string;
-	/** warren-a63d: the entry's per-run spend cap, surfaced so operators can verify it. */
-	maxCostUsd?: number;
 	lastFiredAt: string | null;
 	nextFireAt: string | null;
 	lastRunId: string | null;
@@ -647,8 +612,6 @@ export interface PlanRunRow {
 	ref: string | null;
 	providerOverride?: string | null;
 	modelOverride?: string | null;
-	/** warren-a63d per-child USD cap; optional: spectator-redacted field. */
-	maxCostUsd?: number | null;
 	dispatcherHandle?: string;
 	trigger: string;
 	state: PlanRunState;
@@ -693,8 +656,6 @@ export interface CreatePlanRunInput {
 	ref?: string;
 	providerOverride?: string;
 	modelOverride?: string;
-	/** Per-child USD spend cap (warren-a63d); same validation as `POST /runs` maxCostUsd. */
-	maxCostUsd?: number;
 	dispatcherHandle?: string;
 }
 

@@ -73,6 +73,5 @@ describe("isRunCallbackRoute", () => {
 		expect(isRunCallbackRoute("/runs")).toBe(false);
 		expect(isRunCallbackRoute("/runs/:id/steer")).toBe(false);
 		expect(isRunCallbackRoute("/projects/:id")).toBe(false);
-		expect(isRunCallbackRoute("/analytics/cost")).toBe(false);
 	});
 });

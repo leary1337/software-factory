@@ -84,7 +84,6 @@ export function renderJudgeSystemPrompt(): string {
 		"## Inputs",
 		"",
 		"- `get_run_facts` returns the run's ground truth: outcome, failure",
-		"  reason, cost, and PR state. Read it first.",
 		"- `page_events` cursors the run's NormalizedEvent rows by sequence",
 		"  number. Page through the transcript before judging; transcripts",
 		"  routinely exceed one context window, so never judge from the first",
