@@ -138,10 +138,8 @@ for (const { c, width } of phoneCases("runs")) {
 		test("aligns the runs card with the filter strip on the page gutter", async ({ page }) => {
 			await openCase(page, c, fixture);
 			const strip = await box(page.getByTestId("runs-mobile-filter-strip"));
-			// The card's column strip ends in "ELAPSED · COST"; the card is two levels up.
-			const card = await box(
-				page.getByText("ELAPSED · COST", { exact: true }).locator("xpath=../.."),
-			);
+			// The card's column strip ends in "ELAPSED"; the card is two levels up.
+			const card = await box(page.getByText("ELAPSED", { exact: true }).locator("xpath=../.."));
 			expect(Math.abs(card.x - strip.x), "left edges agree").toBeLessThanOrEqual(0.5);
 			expect(
 				Math.abs(card.x + card.width - (strip.x + strip.width)),

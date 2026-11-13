@@ -100,18 +100,6 @@ export const SENTINELS = {
 		"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiTEVBS1NFTlRJTkVMSldUUk9MRSJ9.LEAKSENTINELJWTSIGNATURE0001",
 } as const;
 
-/**
- * Field names that must never appear in an anonymous body, derived from the
- * exported complements of each public projection. Every name here is
- * substring-unambiguous: none is a prefix or infix of a field the
- * projections deliberately keep (`costUsd`, `previewState`, …), so a raw
- * body scan is sound.
- *
- * `REDACTED_RUN_TOTALS_FIELDS` (`cost`) and `REDACTED_RUN_GROUP_FIELDS`
- * (`costUsd` / `priced`) are deliberately NOT here — those names DO collide
- * with public ones, so the scenario holds them structurally instead
- * (`assertAnalyticsRollupsAbsent`).
- */
 export const FORBIDDEN_FIELD_NAMES: readonly string[] = [
 	...new Set(
 		[
@@ -129,10 +117,6 @@ export const FORBIDDEN_FIELD_NAMES: readonly string[] = [
 			(name) => name !== "failureReason",
 		),
 	),
-	// Envelope-level, not a row column, so it belongs to no REDACTED_* list:
-	// the instance-wide all-time rollup `GET /runs` drops for a spectator
-	// (warren-946f).
-	"costTotalUsd",
 	// Nested inside the agent `renderedJson` the projection drops whole; named
 	// explicitly because it is the canopy source-path disclosure the
 	// classification calls out by name (warren-4f6c).
@@ -227,7 +211,6 @@ export async function seedPublicInstanceDb(input: SeedPublicInstanceInput): Prom
 			seedId,
 		});
 		await repos.runs.attachStats(run.id, {
-			costUsd: 1.25,
 			tokensInput: 4_096,
 			tokensOutput: 512,
 		});

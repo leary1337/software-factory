@@ -47,7 +47,6 @@ export function renderWarrenConfig(gate: string, defaultBranch: string): string 
 		`defaultBranch: ${defaultBranch}`,
 		"runBranchPrefix: factory",
 		`qualityGate: ${JSON.stringify(gate)}`,
-		"maxCostUsd: 10",
 		"",
 	].join("\n");
 }

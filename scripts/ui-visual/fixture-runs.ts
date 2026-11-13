@@ -45,7 +45,6 @@ export interface RunSpec {
 	readonly endedMin?: number;
 	readonly terminal?: "succeeded" | "failed" | "cancelled";
 	readonly failureReason?: RunFailureReason;
-	readonly costUsd?: number;
 	readonly prNumber?: number;
 	readonly prState?: "open" | "merged" | "closed_unmerged";
 	readonly filesChanged?: number;
@@ -83,16 +82,14 @@ export async function seedRun(repos: Repos, spec: RunSpec): Promise<void> {
 	await repos.runs.markWorkspaceReady(spec.id, new Date(started.getTime() - 20_000));
 	await repos.runs.markRunning(spec.id, started);
 	await repos.runs.setBranch(spec.id, `warren/${spec.id}`);
-	if (spec.costUsd !== undefined) await attachSpecStats(repos, spec.id, spec.costUsd);
+	await attachSpecStats(repos, spec.id);
 	if (spec.terminal === undefined || spec.endedMin === undefined) return;
 	await settleRun(repos, spec, spec.terminal, minutesAgo(spec.endedMin));
 }
 
-/** Cost plus tokens derived from it, so the token panels stay proportional. */
-async function attachSpecStats(repos: Repos, id: string, costUsd: number): Promise<void> {
-	const tokensInput = Math.round(costUsd * 180_000);
+async function attachSpecStats(repos: Repos, id: string): Promise<void> {
+	const tokensInput = 90_000;
 	await repos.runs.attachStats(id, {
-		costUsd,
 		tokensInput,
 		tokensOutput: Math.round(tokensInput / 9),
 		tokensCacheRead: tokensInput * 4,

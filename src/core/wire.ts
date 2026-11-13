@@ -54,8 +54,6 @@ export type RunMode = (typeof RUN_MODES)[number];
 // The actor vocabulary of GET /whoami (warren-3754) lives in
 // ./wire-actor.ts (file-size budget); re-exported for one canonical home.
 export * from "./wire-actor.ts";
-// Cost-basis vocabulary (warren-f3c3) lives in ./wire-cost.ts (file-size budget).
-export * from "./wire-cost.ts";
 export * from "./wire-delivery.ts";
 // The steering-inbox vocabulary (warren-3d0b) lives in ./wire-inbox.ts.
 export * from "./wire-inbox.ts";

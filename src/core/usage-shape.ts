@@ -43,7 +43,6 @@ import type { RuntimeId } from "./wire.ts";
  * exactly.
  */
 export interface UsageReading {
-	readonly costUsd: number | null;
 	readonly tokensInput: number | null;
 	readonly tokensOutput: number | null;
 	readonly tokensCacheRead: number | null;
@@ -66,13 +65,7 @@ export interface UsageShape {
 	/** `payload.type` this runtime's usage rides (e.g. `"turn_end"`). */
 	readonly envelopeType: string;
 	readonly mode: UsageAccumulationMode;
-	/**
-	 * Read the usage fields out of a carrier-matched envelope payload,
-	 * or return `null` when the payload is not real usage. The guard
-	 * matters: a structurally-present but empty usage block must not
-	 * mark a run as usage-shaped, or the accumulators would persist
-	 * all-zeros over a null (unknown) cost.
-	 */
+
 	read(payload: Record<string, unknown>): UsageReading | null;
 }
 
@@ -84,15 +77,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
-/**
- * Pi's per-turn totals ride `turn_end` at
- * `message.usage.{cost.total,input,output,cacheRead,cacheWrite}`.
- * Pi's per-message usage (`message_end`) double-counts across the turn
- * because each assistant message duplicates the conversation totals, so
- * only `turn_end` is read (see burrow
- * `src/runtime/parsers/__golden__/pi-v0.74.0-anthropic-*.jsonl`).
- * Per-turn deltas accumulate by summing.
- */
 const PI_USAGE_SHAPE: UsageShape = {
 	runtime: "pi",
 	envelopeType: "turn_end",
@@ -100,17 +84,16 @@ const PI_USAGE_SHAPE: UsageShape = {
 	read(payload) {
 		const usage = asRecord(asRecord(payload.message)?.usage);
 		if (usage === null) return null;
-		const costTotal = toNumber(asRecord(usage.cost)?.total);
 		const tokensInput = toNumber(usage.input);
 		const tokensOutput = toNumber(usage.output);
 		const tokensCacheRead = toNumber(usage.cacheRead);
 		const tokensCacheWrite = toNumber(usage.cacheWrite);
-		// Require at least the cost total OR an input/output token count
+
 		// before counting the envelope as real usage — otherwise a
 		// malformed turn_end with a structurally-present but empty usage
 		// block would mark the run as pi-shaped and persist all-zeros.
-		if (costTotal === null && tokensInput === null && tokensOutput === null) return null;
-		return { costUsd: costTotal, tokensInput, tokensOutput, tokensCacheRead, tokensCacheWrite };
+		if (tokensInput === null && tokensOutput === null) return null;
+		return { tokensInput, tokensOutput, tokensCacheRead, tokensCacheWrite };
 	},
 };
 
@@ -130,15 +113,14 @@ const CLAUDE_CODE_USAGE_SHAPE: UsageShape = {
 	mode: "assign",
 	read(payload) {
 		const usage = asRecord(payload.usage);
-		const costTotal = toNumber(payload.total_cost_usd);
 		const tokensInput = toNumber(usage?.input_tokens);
 		const tokensOutput = toNumber(usage?.output_tokens);
 		const tokensCacheRead = toNumber(usage?.cache_read_input_tokens);
 		const tokensCacheWrite = toNumber(usage?.cache_creation_input_tokens);
-		// Same real-usage guard as the pi shape: cost OR input/output
+
 		// tokens must be present.
-		if (costTotal === null && tokensInput === null && tokensOutput === null) return null;
-		return { costUsd: costTotal, tokensInput, tokensOutput, tokensCacheRead, tokensCacheWrite };
+		if (tokensInput === null && tokensOutput === null) return null;
+		return { tokensInput, tokensOutput, tokensCacheRead, tokensCacheWrite };
 	},
 };
 

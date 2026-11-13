@@ -35,20 +35,6 @@ export function isBridgeStalled(events: RunEvent[]): boolean {
 	return false;
 }
 
-/**
- * Format `costUsd` for the header badge (warren-a7dc). Sub-dollar costs
- * show three significant decimals so a $0.005 cache-only turn doesn't
- * round to "$0.00"; anything ≥ $1 shows two decimals like a normal
- * currency display.
- */
-export function formatCostUsd(cost: number | null | undefined): string {
-	if (cost == null) return "—";
-	if (cost >= 1) return `$${cost.toFixed(2)}`;
-	if (cost === 0) return "$0.00";
-	const minor = cost.toFixed(3);
-	return `$${minor}`;
-}
-
 export function formatTokens(n: number): string {
 	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
 	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
@@ -86,13 +72,6 @@ export function readString(v: unknown): string | null {
 
 export function readNumber(v: unknown): number | null {
 	return typeof v === "number" ? v : null;
-}
-
-export function readCostTotal(v: unknown): number | null {
-	if (typeof v === "number") return v;
-	if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
-	const total = (v as { total?: unknown }).total;
-	return typeof total === "number" ? total : null;
 }
 
 export function findToolUseName(content: unknown): string | null {

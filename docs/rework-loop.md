@@ -37,18 +37,13 @@ The operator can bound this loop with environment variables:
 |---|---:|---|
 | `WARREN_REWORK_MAX_ROUNDS` | 8 | Rework runs for this task, including previous attempts |
 | `WARREN_REWORK_MAX_STEPS` | 24 | Review, UI review and rework dispatches combined |
-| `WARREN_REWORK_MAX_COST_USD` | 10 | Cumulative reported cost of those steps |
 | `WARREN_REWORK_MAX_ACTIVE_MS` | 7200000 | Sum of their recorded execution durations |
 
-These limits govern admission of the next step. The remaining cost also bounds
-the next run's configured cap. With subscription-backed Codex, cost is an estimate
-reported after the model turn, so a running step can exceed the remaining amount.
-Unknown cost or duration stops admission rather than treating usage as free.
-Other project, plan and runtime limits still apply. Restarting the server does
-not reset usage or the finding history.
+These limits govern admission of the next step. Unknown duration stops admission.
+Limits on execution time and step counts include all recorded review attempts.
 
 A legacy loop that stopped with CHANGES can obtain one fresh review using this
-protocol, within the same budget. It keeps its old attempts and cost. Missing
+protocol, within the same budget. It keeps its old attempts and execution time. Missing
 historical temporary files are not claimed to have been recovered: the fresh
 review must produce portable reproductions. Changing the PR head triggers a new
 review; unchanged exhausted loops remain stopped.

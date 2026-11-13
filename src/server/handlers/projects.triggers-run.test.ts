@@ -119,7 +119,6 @@ describe("POST /projects/:id/triggers/:triggerId/run — manual Run Now (warren-
 	});
 
 	test("fires the freshly-committed trigger definition, not a stale cache snapshot", async () => {
-		// Upstream PR review: the entry's maxCostUsd rides the override tier,
 		// so a stale cached cap would beat freshly-loaded limits. The handler
 		// refreshes (invalidating the config cache) before reading the entry.
 		const { mkdir, writeFile, mkdtemp } = await import("node:fs/promises");
@@ -159,11 +158,6 @@ describe("POST /projects/:id/triggers/:triggerId/run — manual Run Now (warren-
 		expect(res.status).toBe(201);
 		const body = (await res.json()) as { run: { prompt: string } };
 		expect(body.run.prompt).toBe("fresh prompt");
-		const dispatch = calls.find((c) => c.path === "/sandboxes/bur_xxxxxxxxxxxx/runs");
-		const meta = (
-			dispatch?.body as { metadata: { frontmatter: Record<string, unknown> } } | undefined
-		)?.metadata.frontmatter;
-		expect(meta?.maxCostUsd).toBe(9);
 	});
 
 	test("404 when the trigger id is not in .warren/triggers.yaml", async () => {

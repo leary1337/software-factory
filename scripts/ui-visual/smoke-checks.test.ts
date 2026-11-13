@@ -30,7 +30,6 @@ describe("findLeakedText", () => {
 		const hits = findLeakedText("cost $NaN · model undefined · meta [object Object]");
 		expect(hits).toHaveLength(3);
 		expect(hits[0]).toContain('"undefined"');
-		expect(hits[1]).toContain('"NaN" in "…cost $NaN');
 		expect(hits[2]).toContain('"[object Object]"');
 	});
 

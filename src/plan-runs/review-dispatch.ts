@@ -53,15 +53,16 @@ export async function spawnReviewStep(
 	const history = reviewHistoryPrompt(steps, decision.step === "rework");
 	const ticket = await describeTicket(input);
 	const basePrompt = describeReview(decision, reviewedCommit, prUrl, run.baseCommit, ticket);
-	const prompt = basePrompt + history.prompt;
+	const recovery = decision.recoveryReason
+		? `\n\n## Automatic recovery\nThe previous attempt stopped: ${decision.recoveryReason}. Diagnose that failure before repeating the work. Keep the original proofs unchanged and verify actual behavior. Save completed code in commits before long checks. This retry shares the original task budget.`
+		: "";
+	const prompt = basePrompt + recovery + history.prompt;
 
 	try {
 		const spawned = await input.spawn({
 			planRun: input.planRun,
 			child: input.child,
 			prompt,
-			reviewRemainingCostUsd:
-				budget.maxCostUsd - steps.reduce((sum, step) => sum + (step.costUsd ?? 0), 0),
 			...(decision.step !== "rework" ? { reviewFindings: history.prior } : {}),
 			agentName: decision.step === "rework" ? "rework" : "reviewer",
 			existingBranch: run.branch,
@@ -73,6 +74,7 @@ export async function spawnReviewStep(
 					step: decision.step,
 					stepRunId,
 					evidenceRequired: decision.step !== "rework",
+					...(decision.recoveryReason ? { recoveryReason: decision.recoveryReason } : {}),
 					...(reviewedCommit ? { reviewedCommit } : {}),
 				});
 				if (decision.step === "rework")

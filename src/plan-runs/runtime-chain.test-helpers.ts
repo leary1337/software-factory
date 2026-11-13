@@ -264,7 +264,6 @@ function reviewerScript(verdict: string, step: number): string {
 		stream: "system",
 		payload: {
 			type: "result",
-			total_cost_usd: 0.25,
 			result: `VERDICT: ${verdict === "STALLED" ? "CHANGES" : verdict}\nREVIEWED_COMMIT: REVIEW_SHA\nQUALITY_GATE: NOT_RUN\n\nFixture report.`,
 		},
 	});

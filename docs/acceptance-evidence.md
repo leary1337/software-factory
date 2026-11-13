@@ -56,7 +56,9 @@ unverified. Docker acceptance is not supported by this local-runtime feature.
 
 The full gate and acceptance checks share one timeout budget. Gate dependencies
 are available to acceptance commands, but the agent's workspace, credentials and
-caches are not. Checks must wait for their browser/test processes to finish.
+caches are not. Host-provisioned [project inputs](project-inputs.md) remain read-only
+and available through `WARREN_PROJECT_INPUTS`.
+Checks must wait for their browser/test processes to finish.
 The `browser` flag identifies a command the operator has approved as a browser
 test; it does not make arbitrary shell commands into browser tests. Assertions,
 viewport coverage and application-specific meaning remain the project's job.

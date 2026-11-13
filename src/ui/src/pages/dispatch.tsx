@@ -64,10 +64,8 @@ export function DispatchPage() {
 					prompt={s.draft.prompt}
 					providerOverride={s.draft.providerOverride}
 					modelOverride={s.draft.modelOverride}
-					costCap={s.draft.costCap}
 					providerDefaultKind={s.providerDefaultKind}
 					modelDefaultKind={s.modelDefaultKind}
-					costCapError={s.costCapError}
 					submitError={s.submitError}
 					pending={s.pending}
 					onAgent={s.setAgent}
@@ -77,7 +75,6 @@ export function DispatchPage() {
 					onPrompt={s.setPrompt}
 					onProvider={s.setProvider}
 					onModel={s.setModel}
-					onCostCap={s.setCostCap}
 					onCancel={s.cancel}
 					onSubmit={s.submit}
 				/>
@@ -88,7 +85,6 @@ export function DispatchPage() {
 					agent={s.draft.agent}
 					provider={s.draft.providerOverride.trim()}
 					model={s.draft.modelOverride.trim()}
-					costCap={s.draft.costCap}
 					runBranchPrefix={s.defaults?.runBranchPrefix}
 					facts={s.facts}
 					valid={s.valid}

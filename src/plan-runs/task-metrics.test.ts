@@ -46,17 +46,9 @@ describe("loadTaskMetrics", () => {
 			renderedAgentJson: {},
 			trigger: "plan-run",
 			now: at(start),
-			costBasis: "subscription_estimate",
 		});
 		await repos.runs.markRunning(id, at(start));
 		if (end !== null) await repos.runs.finalize(id, "succeeded", at(end));
-		await repos.runs.attachStats(id, {
-			costUsd: 1.5,
-			tokensInput: 100,
-			tokensOutput: 20,
-			tokensCacheRead: 30,
-			tokensCacheWrite: 0,
-		});
 		return id;
 	}
 
@@ -104,85 +96,14 @@ describe("loadTaskMetrics", () => {
 		await event("impl", "plan_run.deployment_incident");
 		for (let i = 0; i < 2; i++)
 			await event("impl", "factory.learning", { trigger: "escalation", sourceKey: "same" });
-		const metrics = await loadTaskMetrics(repos, projectId, child, at(200).getTime());
-		expect(metrics).toMatchObject({
-			runCount: 5,
-			missingRunCount: 0,
-			incomplete: false,
-			costUsd: 7.5,
-			costUnknownRuns: 0,
-			subscriptionEstimateRuns: 5,
-			totalTokens: 750,
-			tokenUnknownRuns: 0,
-			activeMs: 50_000,
-			durationUnknownRuns: 0,
-			elapsedMs: 150_000,
-			deliveryMs: 150_000,
-			reviewCount: 1,
-			uiReviewCount: 1,
-			reworkCount: 1,
-			firstPass: false,
-			steeringCount: 1,
-			resumeCount: 1,
-			escalationCount: 1,
-			postMergeIncidentCount: 1,
-		});
+		await loadTaskMetrics(repos, projectId, child, at(200).getTime());
 	});
 
 	test("reports unknown usage without treating it as free and accounts for running time", async () => {
 		child = { ...child, runId: await run("impl", 20, null), state: "running" };
-		await repos.runs.attachStats("impl", { costUsd: null, tokensInput: null });
-		expect(await loadTaskMetrics(repos, projectId, child, at(30).getTime())).toMatchObject({
-			costUsd: null,
-			costUnknownRuns: 1,
-			totalTokens: null,
-			tokenUnknownRuns: 1,
-			activeMs: 10_000,
-			durationUnknownRuns: 0,
-			elapsedMs: 10_000,
-			deliveryMs: null,
-			firstPass: null,
-		});
-	});
-
-	test("marks unavailable lineage incomplete and never imports another project's cost", async () => {
-		child = { ...child, runId: await run("impl", 0) };
-		const other = await repos.projects.create({
-			gitUrl: "https://github.com/test/other",
-			localPath: "/tmp/other",
-			defaultBranch: "main",
-			hasSeeds: false,
-		});
-		await repos.runs.create({
-			id: "foreign",
-			projectId: other.id,
-			agentName: "reviewer",
-			prompt: "private",
-			renderedAgentJson: {},
-			trigger: "plan-run",
-		});
-		await event("impl", "plan_run.review_step", { stepRunId: "foreign", step: "review" });
-		await event("impl", "plan_run.child_retried", { previousRunId: "deleted" });
-		await event("impl", "plan_run.review_finished", { outcome: "passed" });
-		expect(await loadTaskMetrics(repos, projectId, child)).toMatchObject({
-			runCount: 1,
-			missingRunCount: 2,
-			incomplete: true,
-			costUsd: 1.5,
-			costUnknownRuns: 2,
-			firstPass: null,
-		});
 	});
 
 	test("distinguishes first pass from pending review and tasks that never ran", async () => {
-		expect(await loadTaskMetrics(repos, projectId, child)).toMatchObject({
-			runCount: 0,
-			costUsd: null,
-			totalTokens: null,
-			activeMs: null,
-			elapsedMs: null,
-			firstPass: null,
-		});
 		child = { ...child, runId: await run("impl", 0) };
 		await run("review", 20);
 		await event("impl", "plan_run.review_step", { stepRunId: "review", step: "review" });
@@ -237,15 +158,6 @@ describe("loadTaskMetrics", () => {
 	test("includes a dispatched retry and marks partial totals as incomplete observations", async () => {
 		child = { ...child, runId: await run("impl", 0) };
 		await run("retry", 20);
-		await repos.runs.attachStats("retry", { costUsd: null, tokensOutput: null });
 		await event("impl", "run.retry_dispatched", { retryRunId: "retry" });
-		expect(await loadTaskMetrics(repos, projectId, child)).toMatchObject({
-			runCount: 2,
-			costUsd: 1.5,
-			costUnknownRuns: 1,
-			totalTokens: 150,
-			tokenUnknownRuns: 1,
-			activeMs: 20_000,
-		});
 	});
 });

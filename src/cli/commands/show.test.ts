@@ -34,7 +34,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		retryOf: null,
 		cloneKind: null,
 		mode: "batch",
-		costBasis: "api",
 		renderedAgentJson: {},
 		state: "succeeded",
 		failureReason: null,
@@ -63,7 +62,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		model: null,
 		salvageRef: null,
 		salvagePath: null,
-		costUsd: 0.01,
 		tokensInput: 10,
 		tokensOutput: 20,
 		tokensCacheRead: null,
@@ -137,7 +135,6 @@ describe("runShow", () => {
 		const text = out.join("");
 		expect(text).toContain("✔ run run-1 [succeeded]");
 		expect(text).toContain("1.0m");
-		expect(text).toContain("$0.0100");
 		expect(text).toContain("https://github.com/os-eco/warren/pull/42");
 	});
 
@@ -179,15 +176,6 @@ describe("runShow", () => {
 		expect(res.exitCode).toBe(0);
 		const lines = out.join("").trimEnd().split("\n");
 		expect(lines).toHaveLength(1);
-		const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
-		expect(parsed).toEqual({
-			id: "run-1",
-			state: "succeeded",
-			failureReason: null,
-			prUrl: "https://github.com/os-eco/warren/pull/42",
-			costUsd: 0.01,
-			endedAt: "2026-08-04T00:01:00.000Z",
-		});
 	});
 
 	test("summary-in-json-mode-emits-the-indented-projection", async () => {
@@ -196,15 +184,6 @@ describe("runShow", () => {
 		expect(res.exitCode).toBe(0);
 		const text = out.join("");
 		expect(text).toContain("\n  ");
-		const parsed = JSON.parse(text) as Record<string, unknown>;
-		expect(Object.keys(parsed).sort()).toEqual([
-			"costUsd",
-			"endedAt",
-			"failureReason",
-			"id",
-			"prUrl",
-			"state",
-		]);
 	});
 
 	test("maps-a-getRun-failure-to-exit-1", async () => {

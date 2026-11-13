@@ -84,7 +84,6 @@ const UNAPPROVED_MANIFEST: Record<string, unknown> = {
 		model: "claude-sonnet-4-5",
 	},
 	prompt: "Fix the assigned OpenClaw issue end to end.",
-	budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 	maxConcurrentRuns: 2,
 	expiresAt: "2026-12-31T00:00:00.000Z",
 };
@@ -341,13 +340,11 @@ describe("runCli", () => {
 		const workItems = list(result.workItems);
 		expect(workItems).toHaveLength(1);
 		expect(record(workItems[0]).issueRef).toBe("812");
-		expect(result.budget).toEqual({ capUsdCents: 10000, availableUsdCents: 10000 });
 		expect(result.openAttention).toBe(0);
 		const report = record(result.report);
 		expect(report.campaignId).toBe(id);
 		expect(report.prsOpened).toBe(0);
 		expect(report.prsMerged).toBe(0);
-		expect(report.costPerMergedPrUsdCents).toBeNull();
 		expect(list(report.items)).toHaveLength(1);
 	});
 
@@ -356,10 +353,10 @@ describe("runCli", () => {
 		const id = await approvedCampaignId(fx);
 		const unapprovedAmendment = {
 			schemaVersion: 1,
-			amendmentId: "ame-budget-bump",
+			amendmentId: "ame-concurrency-bump",
+			maxConcurrentRuns: 3,
 			campaignId: "camp-openclaw-eod-v0",
 			baseManifestDigest: MANIFEST_DIGEST,
-			budget: { perRunUsd: 10, dailyUsd: 20, totalUsd: 100 },
 		};
 		const amendment = {
 			...unapprovedAmendment,
@@ -376,7 +373,6 @@ describe("runCli", () => {
 		const result = record(envelope(applied).result);
 		expect(result.campaignId).toBe(id);
 		expect(result.applied).toBe(true);
-		expect(result.amendedFields).toEqual(["budget"]);
 		expect(result.campaignVersion).toBe(2);
 	});
 
@@ -414,7 +410,6 @@ describe("runCli", () => {
 		// Terminal reconciliation, PR-intent rendering, and journal evidence.
 		fx.warren.setRunState(runIdOf(result), {
 			state: "succeeded",
-			costUsd: 1.25,
 			targetBranch: BRANCH,
 		});
 		const tick2 = await fx.run(["tick", "--campaign", id]);

@@ -76,7 +76,7 @@ const WORKFLOWS: PrimeDocument["workflows"] = [
 		name: "plan-run",
 		steps: [
 			"warren plan run <plan-id> --project <id> --agent <name>   # serial children, each gated on the previous PR merging",
-			"warren plan status <plan-run-id>   # child-state table with per-child cost + duration",
+			"warren plan status <plan-run-id>   # child-state table with per-child duration",
 			"warren plan cancel <plan-run-id>   # cancel the plan-run and its in-flight child",
 		],
 	},

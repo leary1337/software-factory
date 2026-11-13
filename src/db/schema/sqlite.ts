@@ -30,7 +30,6 @@ import {
 	index,
 	integer,
 	primaryKey,
-	real,
 	sqliteTable,
 	text,
 	uniqueIndex,
@@ -46,7 +45,6 @@ import {
 	PLAN_RUN_STATES,
 	PREVIEW_STATES,
 	PULL_REQUEST_LIFECYCLES,
-	RUN_COST_BASES,
 	RUN_FAILURE_REASONS,
 	RUN_MODES,
 	RUN_STATES,
@@ -180,11 +178,6 @@ export const runs = sqliteTable(
 		// local). Both null ⇒ no salvage was captured (or none was needed).
 		salvageRef: text("salvage_ref"),
 		salvagePath: text("salvage_path"),
-		// Per-run cost + token accounting (warren-a7dc). All nullable: the pi runtime's
-		// best-effort session stats; cost is the persisted start/end delta.
-		costUsd: real("cost_usd"),
-		// Cost basis (warren-f3c3): `subscription_estimate` = subscription auth — an estimate, not a bill.
-		costBasis: text("cost_basis", { enum: RUN_COST_BASES }).notNull().default("api"),
 		tokensInput: integer("tokens_input"),
 		tokensOutput: integer("tokens_output"),
 		tokensCacheRead: integer("tokens_cache_read"),
@@ -212,7 +205,7 @@ export const runs = sqliteTable(
 		// prior run's pushed branch as the workspace base (instead of the
 		// project default branch). This column records which run this one
 		// continues from, so the UI can render a chain indicator and chain
-		// cost/token totals are derivable by walking the link. Cost/tokens on
+
 		// each run stay independent — they are NOT accumulated with the
 		// parent. Nullable: the overwhelming majority of runs are roots.
 		// Plain text (no FK) for symmetry with the other run back-links and to
@@ -364,10 +357,6 @@ export const planRuns = sqliteTable(
 		ref: text("ref"),
 		providerOverride: text("provider_override"),
 		modelOverride: text("model_override"),
-		// warren-a63d: per-dispatch USD spend cap applied to EACH child run
-		// (forwarded as spawnRun maxCostUsdOverride), persisted like the
-		// provider/model overrides so the coordinator re-reads it per child.
-		maxCostUsd: real("max_cost_usd"),
 		dispatcherHandle: text("dispatcher_handle").notNull().default("operator"),
 		trigger: text("trigger").notNull().default("manual"),
 		// Back-link to the parent run that created this plan-run via
@@ -522,8 +511,6 @@ export const dispatchContext = sqliteTable(
 		model: text("model"),
 		providerSource: text("provider_source"),
 		modelSource: text("model_source"),
-		capSource: text("cap_source"),
-		maxCostUsd: real("max_cost_usd"),
 		runtimeId: text("runtime_id"),
 		runtimeBackend: text("runtime_backend"),
 		promptBytes: integer("prompt_bytes"),

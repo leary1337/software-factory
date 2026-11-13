@@ -2,7 +2,6 @@
 export interface PlanRunBudgetLimits {
 	readonly maxRuns?: number;
 	readonly maxActiveMs?: number;
-	readonly maxCostUsd?: number;
 }
 
 export interface PlanRunBudgetConfig {
@@ -13,8 +12,6 @@ export interface PlanRunBudgetConfig {
 export interface PlanRunBudgetUsage {
 	readonly runs: number;
 	readonly activeMs: number;
-	readonly costUsd: number;
-	readonly unknownCostRuns: number;
 	readonly unknownDurationRuns: number;
 	readonly incomplete: boolean;
 }

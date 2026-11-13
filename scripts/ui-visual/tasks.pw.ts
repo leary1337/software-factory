@@ -18,7 +18,6 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 				});
 				body.children[0].metrics = {
 					...body.children[0].metrics,
-					costUnknownRuns: 1,
 					tokenUnknownRuns: 2,
 					incomplete: false,
 				};
@@ -80,7 +79,7 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await expect(page.getByText("Not verified", { exact: true })).toBeVisible();
 			await page.getByText("Task totals", { exact: true }).click();
 			await expect(
-				page.getByText(/Partial totals. Unknown measurements: cost for 1 runs/),
+				page.getByText(/Partial totals. Unknown measurements: tokens for 2 runs/),
 			).toBeVisible();
 			await page.unrouteAll({ behavior: "wait" });
 		});

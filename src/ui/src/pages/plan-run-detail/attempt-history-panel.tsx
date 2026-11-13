@@ -3,11 +3,11 @@ import { useState } from "react";
 import { planRunsApi } from "@/api/client.ts";
 import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
 import { Button } from "@/components/ui/button.tsx";
-import { AttemptCosts } from "../tasks/attempt-costs.tsx";
+import { AttemptHistory } from "../tasks/attempt-history.tsx";
 import { groupTaskAttempts, taskUrl } from "../tasks/task-attempts.ts";
 
 /** Compare bounded project history without treating an unloaded attempt as zero. */
-export function AttemptCostPanel({
+export function AttemptHistoryPanel({
 	detail,
 	child,
 }: {
@@ -16,7 +16,7 @@ export function AttemptCostPanel({
 }) {
 	const [limit, setLimit] = useState(12);
 	const plans = useQuery({
-		queryKey: ["plan-runs", "attempt-costs", detail.planRun.projectId],
+		queryKey: ["plan-runs", "attempt-history", detail.planRun.projectId],
 		queryFn: ({ signal }) => planRunsApi.list({ project: detail.planRun.projectId }, signal),
 		refetchInterval: 45_000,
 	});
@@ -45,16 +45,16 @@ export function AttemptCostPanel({
 	const loadedCount = 1 + queries.filter((query) => query.data).length;
 	return (
 		<section
-			aria-label="Attempt costs"
+			aria-label="Earlier attempts"
 			className="space-y-3 rounded-lg border border-(--color-border) bg-(--color-surface) p-4"
 		>
-			<h2 className="font-semibold text-base">Costs across attempts</h2>
+			<h2 className="font-semibold text-base">Earlier attempts</h2>
 			{plans.isLoading || queries.some((query) => query.isLoading) ? (
 				<p className="text-(--color-text-2) text-sm">Loading earlier attempts…</p>
 			) : null}
 			{failed ? (
 				<div className="space-y-2 text-(--color-warning) text-sm">
-					<p>Some attempts are unavailable or out of date. The loaded subtotal may omit costs.</p>
+					<p>Some attempts are unavailable or out of date.</p>
 					<Button
 						variant="outline"
 						onClick={() => {
@@ -62,19 +62,19 @@ export function AttemptCostPanel({
 							for (const query of queries) void query.refetch();
 						}}
 					>
-						Retry attempt costs
+						Retry earlier attempts
 					</Button>
 				</div>
 			) : null}
-			<AttemptCosts attempts={task?.attempts ?? [selected]} selected={selected} />
+			<AttemptHistory attempts={task?.attempts ?? [selected]} selected={selected} />
 			{ordered.length > limit ? (
 				<Button variant="outline" onClick={() => setLimit((value) => value + 12)}>
 					Load more attempts
 				</Button>
 			) : null}
 			<p className="text-(--color-text-2) text-xs">
-				Based on {loadedCount} loaded plan records, including this attempt. Each plan total includes
-				its own tasks; this comparison includes only this task.
+				Based on {loadedCount} loaded plan records, including this attempt. Only attempts for this
+				task are shown.
 			</p>
 		</section>
 	);

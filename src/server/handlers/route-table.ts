@@ -57,7 +57,6 @@ import {
 	getRunFinalizeIntentHandler,
 	getRunHandler,
 	listBehaviorAnalyticsHandler,
-	listCostAnalyticsHandler,
 	listDispatchAnalyticsHandler,
 	listRunAnalyticsHandler,
 	listRunsHandler,
@@ -88,46 +87,6 @@ interface RouteEntry {
 	readonly build: (deps: ServerDeps) => RouteHandler;
 }
 
-/**
- * Every route and the capability it requires (warren-b875).
- *
- * The classification, in one place so the whole surface can be read at once:
- *
- * - `anonymous` — no auth gate at all. `/healthz` (liveness probes carry no
- *   token) and `/version` (the login screen reads it before the user has
- *   one). `isAuthExempt` is DERIVED from these two entries, so the exemption
- *   list can't drift from the policy table.
- * - `readPublic` — the demo surface a `WARREN_AUTH=public` spectator sees: the
- *   run / project / agent / plan-run listings and details, the run event stream,
- *   `/whoami`, `/instance` (a reduced static facts projection, warren-2eec),
- *   `/analytics/runs`, the reduced `GET /ops/overview` snapshot (USD sums
- *   stripped, warren-d850 + warren-7194), and the cross-run `GET /events` query (per-row
- *   `projectEvent` reduction, warren-5eec). Each is served through a public
- *   projection (pl-b82d steps 14-16) before an instance is actually exposed;
- *   the policy is what makes the projection reachable, not what makes it safe.
- * - `readOperator` — reads that are NOT for spectators. `/readyz` and
- *   `/metrics` are operator diagnostics (the latter deliberately not
- *   auth-exempt, warren-682a). `/analytics/cost` is the instance-wide USD
- *   rollup (per-run cost on a run detail is a deliberate exception).
- *   `/analytics/behavior`, `/analytics/dispatch` (dispatch-context log),
- *   the per-project seeds read, `/projects/:id/triggers` (trigger prompt
- *   text), `/preview/config` (discloses `WARREN_PREVIEW_HOST`), and the
- *   judge export proxy (warren-1b40) all surface operator internals.
- *   The ready-plans read (warren-b754) and the narrowed
- *   `/projects/:id/warren-config` envelope (redacted defaults, no
- *   triggers — warren-b754) are `readPublic` instead. `GET /runs/:id/inbox` is here for a stronger
- *   reason than disclosure: it MUTATES on read (`src/runs/inbox.ts` claims
- *   unread rows and flips them to delivered), so an anonymous poll would
- *   silently drain the operator's steering queue.
- * - `dispatch` — starts or steers agent work: the run and plan-run
- *   lifecycle, the trigger fire, the pod's finalize callback, and the
- *   `/alerts/heal` intake (a webhook that dispatches a healer run).
- * - `admin` — instance-level mutation: registering / deleting / refreshing
- *   projects and the agent registry.
- *
- * Default-deny is the rule: a route absent from the public list above is
- * `readOperator` or narrower, and there is nowhere to declare "open".
- */
 const ROUTE_TABLE: readonly RouteEntry[] = [
 	{ method: "GET", pattern: "/healthz", policy: "anonymous", build: () => healthzHandler() },
 	{ method: "GET", pattern: "/readyz", policy: "readOperator", build: readyzHandler },
@@ -253,15 +212,9 @@ const ROUTE_TABLE: readonly RouteEntry[] = [
 		build: configMigrateProjectHandler,
 	},
 	{ method: "DELETE", pattern: "/projects/:id", policy: "admin", build: deleteProjectHandler },
-	{
-		method: "GET",
-		pattern: "/analytics/cost",
-		policy: "readOperator",
-		build: listCostAnalyticsHandler,
-	},
-	// warren-97ae: spectators get the reduced projection — counts, rates and timings survive; USD
+
 	// aggregates stay redacted, including the per-agent/per-model/per-provider buckets, because
-	// ratio × merged count reconstructs spend (instance-wide cost/merged-PR ratio excepted).
+
 	{
 		method: "GET",
 		pattern: "/analytics/runs",

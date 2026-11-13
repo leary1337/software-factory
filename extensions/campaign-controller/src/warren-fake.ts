@@ -32,14 +32,12 @@ export interface FakeRunRow {
 	prompt: string;
 	provider: string | null;
 	model: string | null;
-	maxCostUsd: number | null;
 	state: string;
 	failureReason: string | null;
 	ref: string | null;
 	targetBranch: string | null;
 	/** Composed workspace branch frozen at dispatch (warren-5255). */
 	branch: string | null;
-	costUsd: number | null;
 }
 
 export interface FakeWarrenOptions {
@@ -82,7 +80,7 @@ function recordRequest(
 /** Required dispatch body fields, validated the way warren's handler does. */
 function readDispatchFields(
 	body: unknown,
-): Pick<FakeRunRow, "agentName" | "projectId" | "prompt" | "provider" | "model" | "maxCostUsd"> {
+): Pick<FakeRunRow, "agentName" | "projectId" | "prompt" | "provider" | "model"> {
 	if (typeof body !== "object" || body === null) {
 		throw new Error("fake warren: dispatch body must be an object");
 	}
@@ -100,7 +98,6 @@ function readDispatchFields(
 		prompt: requireString("prompt"),
 		provider: typeof b.providerOverride === "string" ? b.providerOverride : null,
 		model: typeof b.modelOverride === "string" ? b.modelOverride : null,
-		maxCostUsd: typeof b.maxCostUsd === "number" ? b.maxCostUsd : null,
 	};
 }
 
@@ -216,12 +213,9 @@ export class FakeWarrenServer {
 		return this.runs.size;
 	}
 
-	/** Advance a run's lifecycle; also stamps cost on terminal states. */
 	setRunState(
 		id: string,
-		patch: Partial<
-			Pick<FakeRunRow, "state" | "failureReason" | "costUsd" | "ref" | "targetBranch" | "branch">
-		>,
+		patch: Partial<Pick<FakeRunRow, "state" | "failureReason" | "ref" | "targetBranch" | "branch">>,
 	): void {
 		const run = this.runs.get(id);
 		if (run === undefined) {
@@ -275,7 +269,6 @@ export class FakeWarrenServer {
 			ref: null,
 			targetBranch: null,
 			branch: null,
-			costUsd: null,
 			...fields,
 		};
 		this.runs.set(id, run);

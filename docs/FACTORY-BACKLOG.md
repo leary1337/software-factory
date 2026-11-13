@@ -3,6 +3,41 @@
 Исходный аудит: 10 ноября 2026 года, коммит `631a8d9c6ae0025df83f5f914bdd5ddf1dcc6129`.
 Основание: [план фабрики](PLAN.md), исходная архитектура и проверка реализации.
 
+## Удаление денежного учёта
+
+Удалены стоимость запусков, денежные лимиты, оценки по API-тарифам,
+денежная аналитика и отображение расходов. Миграции убирают денежные колонки
+SQLite и Postgres, сохраняя запуски, события и токены. Review, повторные
+запуски и расширения больше не зависят от цены. Лимиты времени, числа
+попыток и конкурентности сохраняются. История попыток остаётся доступной.
+Старые денежные настройки проектов игнорируются при загрузке. Campaign-controller
+требует повторного одобрения manifest без `budget`; его digest меняется.
+
+Проверены миграция заполненной SQLite, сохранение токенов без денежного
+учёта и модель Codex без прайс-листа. Проверки браузера прошли на телефоне
+и компьютере в обеих темах; эталоны изображений не пересоздавались.
+
+## Контраст уведомлений в панели задачи (warren-f110)
+
+В блоке «Требует тебя» текст сливался с фоном: Alert использовал цвет текста
+для сплошной статусной заливки поверх полупрозрачного фона. Контраст составлял
+около 1,1:1 в обеих темах. Теперь все варианты Alert используют основной цвет
+текста темы, сохраняя статусный оттенок фона и рамки.
+
+Падающий repro сохранён в commit `da7cc557`. Проверка `repros/warren-f110.pw.ts`
+открывает панель задачи с остановленным ревью на телефоне и компьютере в обеих
+темах и проверяет контраст текста через axe. Обновление собранных файлов UI
+не требует перезапуска сервера или выполняющихся задач.
+
+## Python multiprocessing в изоляции macOS (warren-f109)
+
+Quality gate хоккейного проекта падал с `SemLock: Operation not permitted`:
+Seatbelt разрешал shared memory, но запрещал POSIX-семафоры. Настоящий
+`ProcessPoolExecutor` со spawn воспроизводил отказ до исправления. Разрешение
+`ipc-posix-sem` ограничено `semaphore-owner same-sandbox`: дочерние процессы
+могут открыть семафоры родителя, а семафоры внешнего процесса остаются закрыты.
+Оба поведения проверяются нативными интеграционными тестами macOS.
+
 ## Восстановление ревью после отказа запуска (warren-f108)
 
 В плане хоккейного проекта ревью не создало run: в основной ветке отсутствовала
@@ -270,7 +305,7 @@ checkout/HOME: установка зависимостей, сборка, TypeSc
 |---|---|---|
 | Локальный runtime и изолированный HOME | `src/runtime/local/engine.ts`, `drive.ts`, `profile.ts`; тесты engine, drive-home, provider | Реализовано; macOS-песочница и cleanup покрыты тестами. Общее ограничение добавлено в F05; сквозная проверка остановки остаётся в F06. |
 | Codex и файловая авторизация ChatGPT | `src/runtime/adapters/codex.ts`, `codex-credentials.ts`, `parsers/codex.ts` и их тесты | Есть передача и очистка credentials, сохранение обновлённых токенов, блокировка одновременного использования одного auth-файла внутри процесса. Живой вход в этом аудите не проверялся. |
-| Ограниченная сеть и таймаут | `src/runtime/local/drive-prepare.ts`, `src/sandbox/proxy-server.ts`, `drive-home.test.ts` | Есть proxy allowlist и таймаут Codex 20 минут. `maxCostUsd` проверяется по usage в конце хода, а не является жёстким лимитом во время работы. |
+| Ограниченная сеть и таймаут | `src/runtime/local/drive-prepare.ts`, `src/sandbox/proxy-server.ts`, `drive-home.test.ts` | Есть proxy allowlist и таймаут Codex 20 минут. Денежный учёт и лимиты удалены; статистика токенов сохраняется. |
 | Доставка скиллов | `src/runtime/local/skill-pack.ts`, `skill-pack.test.ts`, `factory/skill-pack/LOCK.json` | Закреплённый пакет копируется в HOME; Codex получает `.agents/skills` и `.agents/pstack`. Рабочие скиллы есть, обещанные скиллы постановки задач отсутствуют: F07. |
 | Implementer, reviewer, rework | `src/registry/builtins/factory-roles.ts`, `src/plan-runs/review.ts`, `review.test.ts` | Отдельный reviewer получает тикет и базу diff без переписки implementer; не больше двух rework, та же ветка. Шаг включён только для плана с `agentName === "implementer"`, не для любого одиночного запуска. |
 | Переход к следующему тикету после merge | `src/plan-runs/in-flight.ts`, coordinator-тесты, `close-child-seed.test.ts` | Есть ожидание merge и закрытие тикета. Автослияние требует `WARREN_PLAN_RUN_MERGE_ON_PASS=1`; F01–F04 исправлены; сквозная проверка — F06. |
@@ -680,3 +715,95 @@ acceptance dispatch → review → rework → merge. Установка npm то
 
 В самом форке `.seeds/` и `.mulch/` удалены при его создании. Этот аудит
 не инициализирует их заново и не создаёт задачи во внешних сервисах.
+
+## Автослияние с проверкой Warren без GitHub Pro (warren-f110)
+
+Владелец разрешил автослияние после PASS и всех проверок без платной защиты
+приватной ветки. Новый явный `pr.autoMerge.verification: warren` читает политику
+из базовой ветки; требует `method: merge` и непустой `requiredChecks`. Прежний
+режим forge остаётся по умолчанию. Смена политики внутри PR не разрешена.
+
+Публикуется история именно проверенного head, только если она включает текущую
+базу. Изолированный bare Git повторно сверяет обе ветки, проверяет ancestry и
+выполняет fast-forward с явным compare-and-swap базового SHA. Перезапись чужих
+изменений запрещена; после публикации требуется подтверждение merged от forge.
+При устаревшей базе GitHub обновляет PR, затем новый head проходит новое ревью
+и независимый gate. Draft, защищённые пути, изменённый quality gate, неизвестные
+или красные проверки слияние не разрешают.
+
+Проверяются все страницы check runs и latest commit statuses на конкретном SHA.
+Именованные обязательные проверки требуют success; прочие завершённые skipped/
+neutral допустимы, failed/cancelled/unknown — нет. Ожидание CI/обновления ветки/
+подтверждения merge не расходует три попытки транспортных ошибок, но ограничено
+180 опросами с сохранением истории при рестарте. Этот режим не защищает прямые
+push, выполненные вне Warren, и не является серверной защитой GitHub.
+
+Проверки: красные repro для отказа без Pro и преждевременного исчерпания попыток;
+настоящие Git-тесты успешной публикации, конкурентной записи в main, нового head
+и потери подтверждения; API-тесты пагинации, статусов, недостающего/красного CI;
+сохранение прежней политики forge и ограничений защищённых файлов.
+
+Живой transport pilot: [factory-sandbox PR #22](https://github.com/leary1337/factory-sandbox/pull/22).
+`createReviewedMerge` прочитал реальный CI и политику отдельной base-ветки,
+опубликовал `ae1a12ea75366a02609125abfa5495688edc70d9` через Git и получил merged
+на следующем опросе. GitHub подтвердил merge 12.11.2026 в 16:48:09 UTC; main
+sandbox не менялся. Это проверка транспорта, а не новый unattended agent-run.
+
+## Автономная работа с реальными входами (warren-f111)
+
+Причина повторных остановок хоккейного плана: у каждого нового агента отсутствовали
+данные для операционной приёмки, а изменения scripts требовали ручного слияния.
+Воспроизведение: шаг 03 остановился с `missing_failing_reproduction`, поскольку
+реальный snapshot был недоступен из sandbox.
+
+Добавлены host-owned inputs по project id, read-only для агента и независимых
+проверок. Ключи восстановления, SSH и Telegram не передаются агентам.
+Отдельная проверка macOS подтверждает чтение и отказ записи даже под общим tmp.
+
+Добавлен opt-in `reviewedPaths` из базовой ветки только для reviewed-plan delivery.
+PASS, независимый gate, required CI checks и точный SHA остаются обязательными.
+Explicit protectedPaths, скрипты проверок и конфигурация политики не переопределяются.
+
+Два регрессионных теста сначала падали: делегированный scripts PR оставался
+заблокированным, а gate терял разрешённый каталог данных. После исправления они
+проходят. Тесты также проверяют отсутствие делегирования для standalone runs,
+защиту policy/config, изоляцию project ids и отказ symlink/traversal.
+
+
+### warren-f112 — Retry verified delivery without repeating successful review
+
+Status: completed. Hockey step03 had independent PASS, a real two-restore replay
+and green CI, but the configured forge token lacked Checks/status read access.
+The delivery failure stopped the plan; retry previously discarded a valid review
+and repeated the expensive verifier. Recovery now starts a new delivery attempt
+while retaining the pinned review and runtime gate. Live head, base policy and CI
+are verified again. Changed heads and absent gate witnesses still rerun review.
+
+Reproduction: two HTTP recovery regressions failed before the change. Tests cover
+unchanged/changed heads, missing witness, concurrent duplicate requests and no
+premature advancement of the next task. Project timeout and credential scope are
+documented in `docs/project-inputs.md`.
+
+### warren-f113 — Автоматическое восстановление review/rework
+
+Исправлено: portable reproduction мог создавать временную БД рядом с исходником,
+но sandbox запрещал запись во весь каталог. PermissionError ошибочно становился
+«неисправленным дефектом» и останавливал следующий тикет с no_progress.
+Теперь immutable только исходники; каталог закреплён от переименования, scratch
+доступен для записи. Linux защищает оба пути после родительских bind mounts.
+Реальный macOS regression сначала воспроизвёл EPERM, затем прошёл с проверками
+запрета изменения, chmod и подмены исходников/каталога.
+
+Координатор даёт до двух автоматических повторов технического/протокольного
+сбоя ревью и одну дополнительную попытку rework при отсутствии прогресса.
+Причина повторов сохраняется в review_step; перезапуск не сбрасывает счётчики.
+Общий бюджет времени, стоимости, шагов и rework остаётся прежним. Все проверки
+повторяются; PASS не получается из ошибки, изменения proof или исчерпания лимита.
+Артефакты сохраняются даже при падении checker до записи итоговых результатов.
+Если reviewer сообщил CHANGES, но manifest не удалось прочитать, текст замечаний
+тоже сохраняется и передаётся следующему reviewer для создания воспроизведений.
+Промежуточный неуспешный PASS не стирает такой отчёт и не разрешает слияние.
+Rework проверяет общую причину в соответствующих путях затронутого модуля: новые
+случаи того же нарушения не должны исправляться по одному на каждый холодный review.
+Регрессии: review-recovery.test.ts, review-progress.test.ts,
+quality-gate-sandbox.test.ts и bwrap.test.ts.

@@ -7,7 +7,7 @@ This page enumerates every HTTP route registered by warren's `Bun.serve` router.
 
 To refresh: `bun run gen:docs`. To check (CI mode): `bun run gen:docs:check`.
 
-Total routes: **58**.
+Total routes: **57**.
 
 ## /agents
 
@@ -26,8 +26,7 @@ Total routes: **58**.
 
 | Method | Pattern | Handler | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/analytics/cost` | `listCostAnalyticsHandler` |  |
-| `GET` | `/analytics/runs` | `listRunAnalyticsHandler` | warren-97ae: spectators get the reduced projection — counts, rates and timings survive; USD aggregates stay redacted, including the per-agent/per-model/per-provider buckets, because ratio × merged count reconstructs spend (instance-wide cost/merged-PR ratio excepted). |
+| `GET` | `/analytics/runs` | `listRunAnalyticsHandler` |  |
 | `GET` | `/analytics/behavior` | `listBehaviorAnalyticsHandler` |  |
 | `GET` | `/analytics/dispatch` | `listDispatchAnalyticsHandler` |  |
 

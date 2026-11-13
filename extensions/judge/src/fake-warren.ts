@@ -128,7 +128,6 @@ export class FakeWarren {
 				state: run.state,
 				startedAt: run.startedAt,
 				failureReason: run.detail?.failureReason ?? null,
-				costUsd: run.detail?.costUsd ?? null,
 				prUrl: run.detail?.prUrl ?? null,
 				prState: run.detail?.prState ?? null,
 				prMergedAt: run.detail?.prMergedAt ?? null,

@@ -1,12 +1,4 @@
 import type { RunRow } from "@/api/types.ts";
-import { formatCostUsd } from "../run-detail-format.ts";
-
-/**
- * Formatting helpers for the Direction C Runs inventory
- * (warren-9e87 / pl-7e38 step 3). Kept beside the table so the 500-line
- * page budget holds; `formatCostUsd` stays single-sourced in
- * run-detail-format.ts (warren-9679).
- */
 
 /** The run's effective start: `startedAt`, else queued `createdAt` (epoch ms). */
 export function startedAtOf(row: RunRow): string | null {
@@ -81,15 +73,4 @@ export function shortSha(sha: string | null | undefined): string {
  */
 export function truncateRuntimeHandle(handle: string): string {
 	return handle.length > 10 ? `${handle.slice(0, 10)}…` : handle;
-}
-
-/**
- * Run cost as "$0.412"; "—" when unmeasured (never a fabricated $0.00).
- * A subscription-authenticated run (warren-f3c3) renders as an estimate:
- * "~$0.412 est." — the API-priced number is not a bill.
- */
-export function runCostLabel(row: RunRow): string {
-	if (row.costUsd === null) return "—";
-	if (row.costBasis === "subscription_estimate") return `~${formatCostUsd(row.costUsd)} est.`;
-	return formatCostUsd(row.costUsd);
 }

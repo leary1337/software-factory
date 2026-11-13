@@ -61,19 +61,6 @@ export interface RunAnalyticsTotals {
 	 */
 	queueWaitMs: RunStatSummary;
 	contextTokens: RunStatSummary;
-	/**
-	 * OPTIONAL on the wire: the windowed USD rollup is redacted for a
-	 * `readPublic`-only caller (`REDACTED_RUN_TOTALS_FIELDS` in
-	 * `src/server/handlers/runs/analytics.ts`), so a spectator's envelope has
-	 * no such key. Callers must render on presence — dereferencing without a
-	 * guard crashed `/run-analytics` for anonymous visitors (warren-e274).
-	 */
-	cost?: { total: number; avg: number | null; priced: number };
-	/**
-	 * OPTIONAL on the wire: per-run cost distribution (warren-ea4e) is
-	 * redacted for a `readPublic`-only caller alongside `cost` above.
-	 */
-	costUsd?: RunStatSummary;
 }
 
 export interface RunDayBucket {
@@ -99,15 +86,6 @@ export interface RunGroupBucket {
 	contextTokensTotal: number;
 	avgContextTokens: number | null;
 	tokens: TokenBreakdown;
-	/**
-	 * OPTIONAL on the wire: per-group USD spend is redacted for a
-	 * `readPublic`-only caller (`REDACTED_RUN_GROUP_FIELDS` in
-	 * `src/server/handlers/runs/analytics.ts`); summing per-group cost would
-	 * reconstruct the aggregate the totals projection just dropped. Callers
-	 * must render on presence (warren-e274).
-	 */
-	costUsd?: number;
-	priced?: number;
 	avgDurationMs: number | null;
 }
 
@@ -132,14 +110,9 @@ export interface RunAnalyticsResponse {
 	byProvider: RunGroupBucket[];
 	byFailureReason: RunFailureBucket[];
 	topSeedsByContext: SeedContextBucket[];
-	/**
-	 * OPTIONAL on the wire: count of `budget.exceeded` events
-	 * (warren-ea4e), redacted for a `readPublic`-only caller.
-	 */
-	capHits?: number;
 	/** Token analytics section added by warren-1244 / pl-d1a2 step 2. */
 	tokens: RunAnalyticsTokensSection;
-	/** Outcome-joined rollup (warren-be04); USD fields optional — spectator-redacted. */
+
 	outcomes: RunOutcomes;
 	/** Delivery-timing rollup (warren-bc9c) — public like queueWaitMs. */
 	delivery: RunDeliveryMetrics;
@@ -211,10 +184,8 @@ export type InsightKind =
 	| "worst-success-agent"
 	| "most-failed-command"
 	| "most-retried-command"
-	| "model-cost-outlier"
 	| "steering-anomaly"
 	| "steering-outcome-delta"
-	| "cost-per-merged-pr"
 	| "context-waste-proxy"
 	| "hardest-directory";
 
@@ -236,7 +207,7 @@ export interface Insight {
 }
 
 /* Outcome-joined rollups (warren-be04 / pl-103e step 12). Mirrors          */
-/* src/runs/analytics/outcome-analytics.ts. Cost fields are optional: they   */
+
 /* are spectator-redacted from the /analytics/runs public projection.        */
 
 export interface OutcomeTally {
@@ -256,29 +227,6 @@ export interface SteeringOutcomeComparison {
 	confidence: InsightConfidence;
 }
 
-export interface CostPerMergedPrBucket {
-	key: string;
-	costUsd?: number;
-	priced?: number;
-	prStateKnown: number;
-	prsMerged: number;
-	costPerMergedPrUsd?: number | null;
-}
-
-export interface CostPerMergedPr {
-	overall: {
-		costUsd?: number;
-		priced?: number;
-		prStateKnown: number;
-		prsMerged: number;
-		costPerMergedPrUsd?: number | null;
-	};
-	byAgent: CostPerMergedPrBucket[];
-	byModel: CostPerMergedPrBucket[];
-	byProvider: CostPerMergedPrBucket[];
-	confidence: InsightConfidence;
-}
-
 /** Autonomy rollup (warren-bc9c): merged runs needing no human in the loop. */
 export interface AutonomyRollup {
 	/** rows whose `prState` is `merged` — the rate's denominator. */
@@ -291,7 +239,6 @@ export interface AutonomyRollup {
 
 export interface RunOutcomes {
 	steering: SteeringOutcomeComparison;
-	costPerMergedPr: CostPerMergedPr;
 	/** Autonomy rollup (warren-bc9c) — public, counts + a rate. */
 	autonomy: AutonomyRollup;
 }

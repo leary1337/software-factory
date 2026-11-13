@@ -1,35 +1,5 @@
-/**
- * Outcome-joined analytics rollups (warren-be04 / pl-103e step 12).
- *
- * Pure, dialect-agnostic companion to `run-metrics.ts` and `insights.ts`.
- * Where the run-metrics rollup answers "what happened", this module joins
- * outcomes — the merge watcher's `prState` column and the steering event
- * trace — to answer "what landed", in two shapes:
- *
- *   - {@link SteeringOutcomeComparison} — steered versus unsteered run
- *     cohorts, each with success and merged-PR rates over explicit
- *     denominators. The steering signal comes from the `steer.sent`
- *     events warren already records (`EventsRepo.listSteeringEventsForRuns`).
- *   - {@link CostPerMergedPr} — total priced cost divided by merged-PR
- *     count, overall and per agent / model / provider bucket, from the
- *     `prState` + `costUsd` columns.
- *
- * The two callout kinds in `insights.ts` (`steering-outcome-delta`,
- * `cost-per-merged-pr`) read this bundle; the same bundle ships structured
- * on `GET /analytics/runs` as the `outcomes` section so the Phase-2 UI
- * (warren-25b7) renders tables, not prose.
- *
- * Denominator discipline (the plan's invariant): a run whose `prState` the
- * merge watcher has never resolved is UNKNOWN. It is excluded from every
- * merge-rate and cost-per-merged-PR denominator and never counted as a
- * failure to land. Every rate and ratio therefore ships next to the count
- * that produced it (`prStateKnown`, `prsMerged`, `priced`), and every
- * comparison carries an {@link InsightConfidence} qualifier derived from
- * the smallest denominator behind it.
- */
-
 import type { InsightConfidence } from "../../core/wire.ts";
-import type { RunGroupBucket, RunMetrics, RunMetricsRow } from "./run-metrics.ts";
+import type { RunMetrics, RunMetricsRow } from "./run-metrics.ts";
 
 /**
  * Event kind emitted by `steerRun` when a steering message is forwarded to
@@ -82,40 +52,9 @@ export interface SteeringOutcomeComparison {
 	readonly confidence: InsightConfidence;
 }
 
-/** One bucket's cost-per-merged-PR rollup. */
-export interface CostPerMergedPrBucket {
-	readonly key: string;
-	/** total priced cost across the bucket's runs. */
-	readonly costUsd: number;
-	/** rows whose `costUsd` was non-null — the cost denominator. */
-	readonly priced: number;
-	/** rows with a resolved `prState` — the merge denominator. */
-	readonly prStateKnown: number;
-	readonly prsMerged: number;
-	/** costUsd / prsMerged, or null when nothing merged (ratio undefined). */
-	readonly costPerMergedPrUsd: number | null;
-}
-
-/** Total cost per merged PR, overall and per agent/model/provider bucket. */
-export interface CostPerMergedPr {
-	readonly overall: {
-		readonly costUsd: number;
-		readonly priced: number;
-		readonly prStateKnown: number;
-		readonly prsMerged: number;
-		readonly costPerMergedPrUsd: number | null;
-	};
-	readonly byAgent: readonly CostPerMergedPrBucket[];
-	readonly byModel: readonly CostPerMergedPrBucket[];
-	readonly byProvider: readonly CostPerMergedPrBucket[];
-	/** Confidence in the overall ratio, derived from `prsMerged`. */
-	readonly confidence: InsightConfidence;
-}
-
 /** The structured `outcomes` section on `GET /analytics/runs` + `/analytics/behavior`. */
 export interface RunOutcomes {
 	readonly steering: SteeringOutcomeComparison;
-	readonly costPerMergedPr: CostPerMergedPr;
 	/**
 	 * Autonomy rollup (warren-bc9c): how many of the merged runs needed no
 	 * human in the loop — no steering, no infra-retry, no continuation.
@@ -202,54 +141,6 @@ export function buildSteeringOutcomeComparison(
 	};
 }
 
-function bucketOf(g: RunGroupBucket): CostPerMergedPrBucket {
-	return {
-		key: g.key,
-		costUsd: g.costUsd,
-		priced: g.priced,
-		prStateKnown: g.prStateKnown,
-		prsMerged: g.prsMerged,
-		costPerMergedPrUsd: g.prsMerged === 0 ? null : g.costUsd / g.prsMerged,
-	};
-}
-
-/** Sort by ratio descending, unresolved buckets last, key ascending on ties. */
-function compareCostBuckets(a: CostPerMergedPrBucket, b: CostPerMergedPrBucket): number {
-	if (a.costPerMergedPrUsd === null) return b.costPerMergedPrUsd === null ? compareKeys(a, b) : 1;
-	if (b.costPerMergedPrUsd === null) return -1;
-	if (b.costPerMergedPrUsd !== a.costPerMergedPrUsd) {
-		return b.costPerMergedPrUsd - a.costPerMergedPrUsd;
-	}
-	return compareKeys(a, b);
-}
-
-function compareKeys(a: { key: string }, b: { key: string }): number {
-	return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
-}
-
-/**
- * Total cost per merged PR, overall and per agent / model / provider bucket,
- * from the already-computed {@link RunMetrics}. Buckets with zero merged PRs
- * carry a null ratio — the cost is real but the denominator is zero, so the
- * number is undefined rather than infinite. O(groups).
- */
-export function buildCostPerMergedPr(metrics: RunMetrics): CostPerMergedPr {
-	const totals = metrics.totals;
-	return {
-		overall: {
-			costUsd: totals.cost.total,
-			priced: totals.cost.priced,
-			prStateKnown: totals.prStateKnown,
-			prsMerged: totals.prsMerged,
-			costPerMergedPrUsd: totals.prsMerged === 0 ? null : totals.cost.total / totals.prsMerged,
-		},
-		byAgent: metrics.byAgent.map(bucketOf).sort(compareCostBuckets),
-		byModel: metrics.byModel.map(bucketOf).sort(compareCostBuckets),
-		byProvider: metrics.byProvider.map(bucketOf).sort(compareCostBuckets),
-		confidence: confidenceForSample(totals.prsMerged),
-	};
-}
-
 /**
  * Autonomy rollup (warren-bc9c): of the runs that merged, how many were
  * never steered (`steer.sent` trace) and were first attempts — no
@@ -282,11 +173,10 @@ function buildAutonomy(
 export function buildRunOutcomes(
 	rows: readonly RunMetricsRow[],
 	steeringEvents: readonly SteeringOutcomeEventRow[],
-	metrics: RunMetrics,
+	_metrics: RunMetrics,
 ): RunOutcomes {
 	return {
 		steering: buildSteeringOutcomeComparison(rows, steeringEvents),
-		costPerMergedPr: buildCostPerMergedPr(metrics),
 		autonomy: buildAutonomy(rows, steeringEvents),
 	};
 }

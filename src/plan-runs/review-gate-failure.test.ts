@@ -87,13 +87,22 @@ describe("failed gate review", () => {
 		"spoofed",
 		"new-gate",
 	] as const) {
-		test(`keeps ${scenario} reviews blocked`, async () => {
+		test(`never accepts ${scenario} reviews and bounds automatic retries`, async () => {
 			const events = invalidEvents(scenario);
 			const steps = await loadSteps(
 				repos(scenario === "cancelled" ? "cancelled" : "failed", events),
 				"implementation",
 			);
-			expect(decideReviewStep(steps)).toMatchObject({ kind: "finished", outcome: "broken" });
+			if (scenario === "cancelled") {
+				expect(decideReviewStep(steps)).toMatchObject({ kind: "finished", outcome: "broken" });
+				return;
+			}
+			expect(decideReviewStep(steps)).toMatchObject({ kind: "spawn", step: "review" });
+			const retries = steps.map((step) => ({ ...step, recoveryReason: "crashed" }));
+			expect(decideReviewStep([...steps, ...retries, ...retries])).toMatchObject({
+				kind: "finished",
+				outcome: "broken",
+			});
 		});
 	}
 });

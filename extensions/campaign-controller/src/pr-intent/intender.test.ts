@@ -123,7 +123,6 @@ function signedManifest(): Record<string, unknown> {
 			model: "claude-sonnet-4-5",
 		},
 		prompt: "Fix the assigned OpenClaw issue end to end.",
-		budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 		maxConcurrentRuns: 2,
 		expiresAt: "2026-12-31T00:00:00.000Z",
 	};
@@ -152,7 +151,6 @@ const REQUEST: WarrenDispatchRequestSpec = {
 	prompt: "Fix issue 812 end to end.",
 	provider: "anthropic",
 	model: "claude-sonnet-4-5",
-	maxCostUsd: 5,
 };
 
 function intentInput(overrides: Partial<PrIntentInput> = {}): PrIntentInput {
@@ -233,12 +231,10 @@ async function harness(options: {
 		campaignId: imported.campaign.id,
 		workItemId: admission.workItem.id,
 		request: REQUEST,
-		reservationId: admission.reservation.id,
 	});
 	const runId = outcome.runId as string;
 	warren.setRunState(runId, {
 		state: "succeeded",
-		costUsd: 1.25,
 		targetBranch: BRANCH,
 		...(options.runPatch ?? {}),
 	});

@@ -155,12 +155,10 @@ export {
 } from "./github-grammar.ts";
 export {
 	type ApprovalEnvelope,
-	type CampaignBudget,
 	type CampaignManifest,
 	type IssueId,
 	MANIFEST_SCHEMA_VERSION,
 	MAX_CAMPAIGN_ISSUES,
-	MAX_CAP_USD,
 	type ManifestValidationOptions,
 	type ValidatedCampaignManifest,
 	validateCampaignManifest,
@@ -270,7 +268,6 @@ export {
 	type WorkType,
 } from "./repository-policy.ts";
 export { ActionStore, type SettleActionInput } from "./store/actions.ts";
-export { BudgetStore } from "./store/budget.ts";
 export { CampaignStore } from "./store/campaigns.ts";
 export { EventStore } from "./store/events.ts";
 export { LeaseStore } from "./store/leases.ts";
@@ -291,8 +288,6 @@ export {
 	type GithubEventRow,
 	type LeaseRow,
 	type PrIdentityRow,
-	type ReservationRow,
-	type ReservationState,
 	type RunLinkRow,
 	TERMINAL_ACTION_STATES,
 	type WorkItemRow,
