@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
 import type { CancelPlanRunResponse, PlanRunDetailResponse } from "@/api/types.ts";
 import { isTerminalPlanRunState } from "@/api/types.ts";
+import { useWorkspaceReturn } from "@/components/console/workspace-navigation.tsx";
 import { OperatorOnly } from "@/components/operator-only.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -14,6 +15,7 @@ import { ChildWalkPanel } from "./plan-run-detail/child-walk.tsx";
 import { DetailRail } from "./plan-run-detail/detail-rail.tsx";
 import { TaskDetail } from "./plan-run-detail/task-detail.tsx";
 import { PlanStateLabel } from "./plan-runs/plan-state-label.tsx";
+import { PlanCostPanel } from "./tasks/cost-panel.tsx";
 import { PlanProgress } from "./tasks/plan-progress.tsx";
 
 /**
@@ -38,6 +40,7 @@ export function PlanRunDetailPage() {
 	const { id = "" } = useParams<{ id: string }>();
 	const qc = useQueryClient();
 	const [search] = useSearchParams();
+	const backToPlans = useWorkspaceReturn("/plan-runs");
 
 	const detail = useQuery({
 		queryKey: ["plan-runs", id],
@@ -102,6 +105,9 @@ export function PlanRunDetailPage() {
 
 	return (
 		<div className="flex min-h-full flex-col px-3.5 py-6 md:px-6">
+			<Link {...backToPlans} className="mb-4 text-(--color-primary) text-sm">
+				← Back to plans
+			</Link>
 			<header className="flex shrink-0 flex-wrap items-center gap-3 pb-5">
 				<div className="min-w-0 basis-full space-y-2 md:flex-1">
 					<h1 className="wrap-anywhere font-semibold text-xl">
@@ -109,7 +115,7 @@ export function PlanRunDetailPage() {
 					</h1>
 					<p className="wrap-anywhere text-(--color-text-2) text-sm">{projectLabel}</p>
 				</div>
-				<PlanStateLabel state={planRun.state} />
+				<PlanStateLabel state={planRun.state} tasks={children} />
 				{canCancel ? (
 					<OperatorOnly>
 						<div className="flex flex-col items-end gap-1">
@@ -119,7 +125,7 @@ export function PlanRunDetailPage() {
 								onClick={() => cancel.mutate()}
 								disabled={cancel.isPending}
 							>
-								<CircleStop className="h-2 w-2 text-(--color-danger)" aria-hidden />
+								<CircleStop className="h-4 w-4 text-(--color-danger)" aria-hidden />
 								{cancel.isPending ? "Cancelling…" : "Cancel plan run"}
 							</Button>
 							<CancelStatus mutation={cancel} />
@@ -141,6 +147,7 @@ export function PlanRunDetailPage() {
 
 			{refreshWarning}
 			<PlanProgress plan={planRun} tasks={children} />
+			<PlanCostPanel>{children}</PlanCostPanel>
 
 			{/* items-start: the child walk sizes to its rows rather than
 			    stretching to the rail's height (warren-dac1). */}

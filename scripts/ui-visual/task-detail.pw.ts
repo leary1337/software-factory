@@ -36,7 +36,21 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 		});
 		await page.route("**/runs/rework-one", (route) =>
 			route.fulfill({
-				json: { run: { id: "rework-one", state: "running", startedAt: fixture.frozenNow } },
+				json: {
+					run: { id: "rework-one", state: "running", startedAt: fixture.frozenNow, endedAt: null },
+				},
+			}),
+		);
+		await page.route("**/runs/review-one", (route) =>
+			route.fulfill({
+				json: {
+					run: {
+						id: "review-one",
+						state: "succeeded",
+						startedAt: new Date(fixture.frozenNowMs - 120_000).toISOString(),
+						endedAt: fixture.frozenNow,
+					},
+				},
 			}),
 		);
 		await openCase(page, c, fixture);
@@ -53,10 +67,12 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 		await expect(
 			page.getByText("Rework is addressing the review findings.", { exact: true }),
 		).toBeVisible();
-		await expect(page.getByRole("heading", { name: "Checks not run", exact: true })).toBeVisible();
+		await expect(page.getByText("Checks not run", { exact: true })).toBeVisible();
 		await expect(
 			page.getByText("Install missing test dependencies.", { exact: true }),
 		).toBeVisible();
+		await page.getByText("Report for Review 1", { exact: true }).press("Enter");
+		await expect(page.getByRole("heading", { name: "Checks not run", exact: true })).toBeVisible();
 		await expect(page.getByRole("link", { name: "Implementation" })).toBeVisible();
 		await expect(page.getByRole("link", { name: "Review 1" })).toHaveAttribute(
 			"href",

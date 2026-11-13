@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
 import type { PlanRunRow, PlanRunStateFilter } from "@/api/types.ts";
@@ -8,8 +8,9 @@ import { OperatorOnly, useOperatorHint } from "@/components/operator-only.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { SelectInput } from "@/components/ui/select-input.tsx";
-import type { SortState } from "@/components/ui/sortable-table-head.tsx";
-import { type Comparator, compareStrings, useClientSort } from "@/hooks/use-client-sort.ts";
+import { nextSortState, type SortState } from "@/components/ui/sortable-table-head.tsx";
+import { applySort, type Comparator, compareStrings } from "@/hooks/use-client-sort.ts";
+import { useListParams } from "@/hooks/use-list-params.ts";
 import { useNow } from "@/hooks/use-now.ts";
 import { formatError } from "@/lib/format-error.ts";
 import { WalkRow } from "./plan-runs/walk-row.tsx";
@@ -28,18 +29,20 @@ type PlanRunSortKey = "state" | "id" | "planId" | "startedAt";
 
 const STATE_OPTIONS: { label: string; value: "all" | PlanRunStateFilter }[] = [
 	{ label: "State: all", value: "all" },
-	{ label: "State: active", value: "active" },
+	{ label: "State: unfinished", value: "active" },
 	{ label: "State: queued", value: "queued" },
-	{ label: "State: running", value: "running" },
-	{ label: "State: succeeded", value: "succeeded" },
-	{ label: "State: failed", value: "failed" },
+	{ label: "State: in progress", value: "running" },
+	{ label: "State: completed", value: "succeeded" },
+	{ label: "State: stopped", value: "failed" },
 	{ label: "State: cancelled", value: "cancelled" },
 ];
 
 export function PlanRunsPage() {
-	const [stateFilter, setStateFilter] = useState<"all" | PlanRunStateFilter>("all");
-	const [projectFilter, setProjectFilter] = useState<string>("");
-	const [search, setSearch] = useState("");
+	const { params, update } = useListParams();
+	const stateFilter =
+		STATE_OPTIONS.find((option) => option.value === params.get("state"))?.value ?? "all";
+	const projectFilter = params.get("project") ?? "";
+	const search = params.get("q") ?? "";
 
 	const planRuns = useQuery({
 		queryKey: ["plan-runs", projectFilter, stateFilter],
@@ -84,11 +87,16 @@ export function PlanRunsPage() {
 		}),
 		[],
 	);
-	const { sorted, sort, onSort } = useClientSort(rows, comparators, {
-		initialKey: "startedAt",
-		initialDirection: "desc",
-		defaultDirections: { startedAt: "desc" },
-	});
+	const sortKey = params.get("sort");
+	const sort: SortState<PlanRunSortKey> = {
+		key: sortKey === "state" || sortKey === "planId" ? sortKey : "startedAt",
+		direction: params.get("direction") === "asc" ? "asc" : "desc",
+	};
+	const sorted = applySort(rows, comparators, sort);
+	const onSort = (key: PlanRunSortKey) => {
+		const next = nextSortState(sort, key, key === "startedAt" ? "desc" : "asc");
+		update({ sort: next.key, direction: next.direction });
+	};
 
 	const hasFilters = stateFilter !== "all" || projectFilter.length > 0 || search.length > 0;
 	const emptyHint = useOperatorHint("Dispatch one from the Dispatch plan page.");
@@ -119,7 +127,7 @@ export function PlanRunsPage() {
 				<FilterSelect
 					name="State filter"
 					value={stateFilter}
-					onChange={(v) => setStateFilter(v as "all" | PlanRunStateFilter)}
+					onChange={(value) => update({ state: value === "all" ? null : value })}
 					active={stateFilter !== "all"}
 				>
 					{STATE_OPTIONS.map((o) => (
@@ -131,7 +139,7 @@ export function PlanRunsPage() {
 				<FilterSelect
 					name="Project filter"
 					value={projectFilter}
-					onChange={setProjectFilter}
+					onChange={(value) => update({ project: value })}
 					active={projectFilter !== ""}
 				>
 					<option value="">All projects</option>
@@ -145,11 +153,7 @@ export function PlanRunsPage() {
 					<Button
 						variant="ghost"
 						type="button"
-						onClick={() => {
-							setStateFilter("all");
-							setProjectFilter("");
-							setSearch("");
-						}}
+						onClick={() => update({ state: null, project: null, q: null })}
 					>
 						Clear
 					</Button>
@@ -159,7 +163,7 @@ export function PlanRunsPage() {
 					aria-label="Search plans"
 					type="search"
 					value={search}
-					onChange={(e) => setSearch(e.target.value)}
+					onChange={(event) => update({ q: event.target.value })}
 					placeholder="Search by plan name or ID"
 					className="min-w-0 flex-1 basis-56"
 				/>

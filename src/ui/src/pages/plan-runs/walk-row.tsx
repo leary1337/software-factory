@@ -46,7 +46,7 @@ export function WalkRow({
 				</p>
 			</div>
 			<div className="lg:col-span-2">
-				<PlanStateLabel state={currentPlan.state} />
+				<PlanStateLabel state={currentPlan.state} tasks={detail.data?.children} />
 			</div>
 			<div className="min-w-0 space-y-2 lg:col-span-3">
 				<p className="text-(--color-text-2) text-xs">Progress</p>

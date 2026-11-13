@@ -76,6 +76,11 @@ async function installHistory(page: Page) {
 	await page.route(`**/plan-runs/${fixture.ids.planRun.id}`, (route) =>
 		route.fulfill({ json: detail }),
 	);
+	await page.route(/\/runs\/(?:review|rework)-\d+$/, (route) =>
+		route.fulfill({
+			json: { run: { ...run, id: new URL(route.request().url()).pathname.split("/").at(-1) } },
+		}),
+	);
 	return detail;
 }
 

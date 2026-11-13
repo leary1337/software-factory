@@ -146,11 +146,9 @@ export function LoginPage() {
 				{/* Mark + wordmark + instance line. */}
 				<div className="flex flex-col items-center gap-2.5 px-7 pt-8 pb-5">
 					<LoginMark />
-					<div className="font-semibold text-[16px] leading-5 tracking-[-0.025em]">warren</div>
+					<h1 className="text-xl leading-6">warren</h1>
 					{instanceLine !== null ? (
-						<div className="font-mono text-(--color-text-3) text-[10px] leading-3">
-							{instanceLine}
-						</div>
+						<div className="font-mono text-(--color-text-3) text-xs leading-4">{instanceLine}</div>
 					) : null}
 				</div>
 
@@ -159,7 +157,7 @@ export function LoginPage() {
 					<div className="flex flex-col gap-1.5">
 						<label
 							htmlFor="token"
-							className="font-semibold text-(--color-text-3) text-[9px] leading-3 tracking-[0.05em]"
+							className="font-semibold text-(--color-text-3) text-xs leading-4 tracking-[0.05em]"
 						>
 							API TOKEN
 						</label>
@@ -173,21 +171,21 @@ export function LoginPage() {
 								setToken(e.target.value);
 							}}
 							placeholder="wrn_…"
-							className="h-[34px] rounded-[var(--radius-sm)] border border-(--color-border-strong) bg-(--color-bg) px-2.5 font-mono text-(--color-text-2) text-[11px] leading-[14px] outline-none placeholder:text-(--color-text-3) focus:border-(--color-primary)"
+							className="h-[34px] rounded-[var(--radius-sm)] border border-(--color-border-strong) bg-(--color-bg) px-2.5 font-mono text-(--color-text-2) text-xs leading-4 outline-none placeholder:text-(--color-text-3) focus:border-(--color-primary)"
 						/>
-						<p className="text-(--color-text-3) text-[10px] leading-[14px]">
-							Verified against <code>/whoami</code>. Stored in this browser only.
+						<p className="text-(--color-text-3) text-xs leading-4">
+							Token хранится только в этом браузере.
 						</p>
 					</div>
 					{error !== null ? (
-						<p role="alert" className="text-(--color-danger) text-[10px] leading-[14px]">
+						<p role="alert" className="text-(--color-danger) text-xs leading-4">
 							{error}
 						</p>
 					) : null}
 					<button
 						type="submit"
 						disabled={pending}
-						className="h-[34px] shrink-0 rounded-[var(--radius-sm)] bg-(--color-primary) font-medium text-(--color-primary-ink) text-[11px] leading-[14px] disabled:opacity-60"
+						className="h-[34px] shrink-0 rounded-[var(--radius-sm)] bg-(--color-primary) font-medium text-(--color-primary-ink) text-xs leading-4 disabled:bg-(--color-surface-hover) disabled:text-(--color-text-2) disabled:opacity-100"
 					>
 						{pending ? "Verifying…" : "Sign in"}
 					</button>
@@ -198,24 +196,22 @@ export function LoginPage() {
 					<div className="flex h-11 shrink-0 items-center justify-center gap-1.5 border-(--color-border) border-t">
 						{admitted ? (
 							<>
-								<span className="text-(--color-text-3) text-[10px] leading-3">
-									Already signed in —
-								</span>
+								<span className="text-(--color-text-3) text-xs leading-4">Already signed in —</span>
 								<Link
 									to="/operations"
-									className="font-medium text-(--color-primary) text-[10px] leading-3 hover:underline"
+									className="font-medium text-(--color-primary) text-xs leading-4 hover:underline"
 								>
 									return to the console →
 								</Link>
 							</>
 						) : (
 							<>
-								<span className="text-(--color-text-3) text-[10px] leading-3">
+								<span className="text-(--color-text-3) text-xs leading-4">
 									This instance allows read-only spectators —
 								</span>
 								<Link
 									to="/operations"
-									className="font-medium text-(--color-primary) text-[10px] leading-3 hover:underline"
+									className="font-medium text-(--color-primary) text-xs leading-4 hover:underline"
 								>
 									continue without a token →
 								</Link>
@@ -227,7 +223,7 @@ export function LoginPage() {
 
 			{/* Version / auth strip under the card (mono 9px, artboard copy). */}
 			<div className="pt-[18px]">
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3 tracking-[0.05em]">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.05em]">
 					WARREN{" "}
 					{facts.data !== undefined && authLine !== null ? (
 						<>
@@ -236,7 +232,7 @@ export function LoginPage() {
 							<span data-visual-mask="">v{facts.data.version}</span> · {authLine}{" "}
 						</>
 					) : null}
-					· A STALE TOKEN RETURNS 401, NEVER THE PUBLIC VIEW
+					· Войди с действующим API token
 				</span>
 			</div>
 		</div>

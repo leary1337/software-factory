@@ -62,7 +62,7 @@ export function ProjectDetailPage() {
 	return (
 		<div className="flex min-h-full flex-col px-3.5 pt-[22px] pb-12 md:px-6">
 			<div className="pb-2.5">
-				<span className="font-mono text-(--color-text-3) text-[10px] leading-3">
+				<span className="font-mono text-(--color-text-3) text-xs leading-4">
 					PROJECTS / {project.data ? repoName(project.data).toUpperCase() : "…"}
 				</span>
 			</div>
@@ -133,13 +133,13 @@ function HeaderRow({ project, loading }: { project?: ProjectRow; loading: boolea
 				{repoName(project)}
 			</h1>
 			{project.hasSeeds ? (
-				<span className="inline-flex h-5 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-primary) text-[9px] leading-3">
+				<span className="inline-flex h-5 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-primary) text-xs leading-4">
 					.seeds
 				</span>
 			) : null}
 			{/* Below sm the URL takes its own row and truncates, so the two
 			    actions below it stay together (warren-3de0). */}
-			<span className="w-full min-w-0 truncate font-mono text-(--color-text-3) text-[10px] leading-3 sm:w-auto">
+			<span className="w-full min-w-0 truncate font-mono text-(--color-text-3) text-xs leading-4 sm:w-auto">
 				{project.gitUrl}
 			</span>
 			<div className="min-w-0 flex-1" />
@@ -151,7 +151,7 @@ function HeaderRow({ project, loading }: { project?: ProjectRow; loading: boolea
 					<Button
 						variant="outline"
 						size="sm"
-						className="h-[31px] text-[11px]"
+						className="h-[31px] text-xs"
 						onClick={() => refresh.mutate(project.id)}
 						disabled={refresh.isPending}
 						title="git fetch + reset --hard origin/<branch>"
@@ -161,7 +161,7 @@ function HeaderRow({ project, loading }: { project?: ProjectRow; loading: boolea
 					<Button
 						variant="outline"
 						size="sm"
-						className="h-[31px] text-(--color-danger) text-[11px]"
+						className="h-[31px] text-(--color-danger) text-xs"
 						onClick={() => setConfirmDelete(true)}
 					>
 						<Trash2 className="h-3 w-3" />

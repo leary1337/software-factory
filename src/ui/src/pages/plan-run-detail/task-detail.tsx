@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { PlanRunChildRow, PlanRunDetailResponse } from "@/api/types.ts";
+import { useWorkspaceReturn } from "@/components/console/workspace-navigation.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
 import { TaskCostPanel } from "../tasks/cost-panel.tsx";
 import { TaskActivity } from "../tasks/task-activity.tsx";
@@ -7,6 +8,8 @@ import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
+import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
+import { AttemptCostPanel } from "./attempt-cost-panel.tsx";
 import { DeploymentIncident } from "./deployment-incident.tsx";
 import { TaskHistory } from "./task-history.tsx";
 
@@ -19,15 +22,14 @@ export function TaskDetail({
 }) {
 	const run = detail.runs.find((entry) => entry.id === child.runId);
 	const status = taskStatus(child, detail.planRun);
+	const backToPlan = useWorkspaceReturn(`/plan-runs/${encodeURIComponent(detail.planRun.id)}`);
+	const backToTasks = useWorkspaceReturn("/tasks");
 	return (
 		<div className="flex min-h-full flex-col gap-4 px-3.5 py-6 md:px-6">
-			<Link
-				to={`/plan-runs/${encodeURIComponent(detail.planRun.id)}`}
-				className="text-(--color-primary) text-sm hover:underline"
-			>
+			<Link {...backToPlan} className="text-(--color-primary) text-sm hover:underline">
 				← Back to plan
 			</Link>
-			<Link to="/tasks" className="text-(--color-primary) text-sm">
+			<Link {...backToTasks} className="text-(--color-primary) text-sm">
 				All tasks
 			</Link>
 			<header className="flex flex-wrap items-center gap-3">
@@ -48,29 +50,29 @@ export function TaskDetail({
 					</a>
 				) : null}
 			</header>
-			<TaskProgress child={child} />
+			<TaskProgress child={child} plan={detail.planRun} />
 			<Alert
 				className="text-(--color-fg)"
 				title={status.group === "attention" ? "Action required" : "Current status"}
 				variant={status.group === "attention" ? "warning" : "info"}
 			>
-				{status.action}
+				<TaskStatusMessage status={status} />
 			</Alert>
 			<p className="text-(--color-text-2) text-sm">
 				Task {child.seq} of {detail.children.length}
 			</p>
 			{status.group === "active" ? <TaskActivity child={child} /> : null}
-			<TaskMergeStatus child={child} />
 			<TaskBudgetPanel child={child} />
 			{child.failureReason === "deployment_incident" ? (
 				<DeploymentIncident planRunId={detail.planRun.id} runId={child.runId} />
-			) : child.failureReason ? (
-				<Alert className="text-(--color-fg)" title="Task stopped" variant="danger">
-					{child.failureReason}
-				</Alert>
 			) : null}
 			<TaskCostPanel child={child} run={run} />
-			<TaskHistory key={`${child.planRunId}:${child.seq}`} child={child} run={run} />
+			<AttemptCostPanel
+				key={`attempts:${child.planRunId}:${child.seq}`}
+				detail={detail}
+				child={child}
+			/>
+			<TaskHistory key={`history:${child.planRunId}:${child.seq}`} child={child} run={run} />
 			{child.metrics ? (
 				<details className="rounded border border-(--color-border) p-4">
 					<summary className="cursor-pointer font-medium text-sm">Task totals</summary>
@@ -86,30 +88,5 @@ export function TaskDetail({
 				</details>
 			) : null}
 		</div>
-	);
-}
-
-function TaskMergeStatus({ child }: { child: PlanRunChildRow }) {
-	if (child.prMergedAt || child.failureReason === "deployment_incident") return null;
-	return (
-		<>
-			{child.reviewMerge && child.reviewMerge.kind !== "merged" ? (
-				<Alert
-					title="Merge status"
-					variant={child.reviewMerge.kind === "blocked" ? "warning" : "info"}
-					className="text-(--color-fg)"
-				>
-					<p>{child.reviewMerge.detail}</p>
-					<p className="mt-2 font-medium">{child.reviewMerge.nextAction}</p>
-					{child.reviewMerge.paths?.length ? (
-						<ul className="mt-2 list-inside list-disc break-all">
-							{child.reviewMerge.paths.map((path) => (
-								<li key={path}>{path}</li>
-							))}
-						</ul>
-					) : null}
-				</Alert>
-			) : null}
-		</>
 	);
 }

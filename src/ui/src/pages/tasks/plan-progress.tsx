@@ -7,6 +7,7 @@ export function PlanProgress({ plan, tasks }: { plan: PlanRunRow; tasks: PlanRun
 	const current = [...tasks]
 		.sort((a, b) => a.seq - b.seq)
 		.find((child) => child.state !== "merged" && child.state !== "skipped");
+	const status = current ? taskStatus(current, plan) : null;
 	return (
 		<section
 			aria-label="Plan progress"
@@ -24,11 +25,14 @@ export function PlanProgress({ plan, tasks }: { plan: PlanRunRow; tasks: PlanRun
 					>
 						{current.title ?? `Task ${current.seq}`}
 					</Link>
-					<span>{taskStatus(current, plan).label}</span>
+					<span>{status?.label}</span>
 				</div>
 			) : (
 				<p className="text-sm">No remaining tasks in this attempt.</p>
 			)}
+			{status?.detail ? (
+				<p className="wrap-anywhere text-(--color-warning) text-sm">{status.detail}</p>
+			) : null}
 			<p className="text-(--color-text-2) text-sm">{planProgressText(tasks, plan.state)}</p>
 			{tasks.some((child) => child.state === "skipped") ? (
 				<p className="text-(--color-text-2) text-xs">
