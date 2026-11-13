@@ -18,8 +18,9 @@ test.skipIf(process.platform !== "darwin")(
 				"cancelled",
 			]);
 			const reviewer = runs.find((run) => run.agentName === "reviewer");
-			expect(reviewer).toMatchObject({ state: "failed", failureReason: "crashed" });
+			expect(reviewer).toMatchObject({ state: "failed", failureReason: "crashed", costUsd: 0.25 });
 			const events = await h.repos.events.listByRun(reviewer?.id ?? "");
+			expect(events.some((event) => event.kind === "review_check.evidence")).toBe(true);
 			expect(events.some((event) => event.kind === "review.check_failed")).toBe(true);
 			expect(
 				events.some(

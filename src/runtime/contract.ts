@@ -1,10 +1,9 @@
 /**
- * The `RuntimeProvider` contract — the seam that decouples warren's domain from
- * its execution backend. Spec: `docs/design/runtime-provider-contract.md`.
- * Types-only; domain intent never exposes provider implementation details.
+ * Backend-neutral runtime contract. Spec: `docs/design/runtime-provider-contract.md`.
+ * Native ids, socket/host paths, and `SandboxProfile` stay inside the provider.
  */
-
 import type { AcceptanceCriterion, AcceptancePolicy } from "../core/acceptance-evidence.ts";
+import type { ReviewFinding } from "../core/review-findings.ts";
 import type {
 	AcceptedRuntimeId,
 	EventOrigin,
@@ -17,11 +16,7 @@ import type { GitSpawnCredential } from "../workspace/git/credential-env.ts";
 import type { ArtifactDelta } from "./finalize-deltas.ts";
 import type { FinalizeStage } from "./finalize-stages.ts";
 
-/**
- * Opaque handle — the only run reference that crosses the seam. Providers map
- * `runId` → native ids internally; the domain treats `sandboxId`/`providerRunId`
- * as opaque.
- */
+/** Opaque run handle. Providers map `runId` to native ids internally. */
 export interface RunHandle {
 	/** warren domain id — the identity, generated pre-dispatch */
 	runId: string;
@@ -68,6 +63,7 @@ export interface RunSpec {
 	metadata?: Record<string, unknown>;
 	mode: "batch" | "conversation";
 	qualityGate?: {
+		reviewFindings?: readonly ReviewFinding[];
 		command: string;
 		commit: string;
 		acceptance?: AcceptancePolicy & { criteria: readonly AcceptanceCriterion[] };

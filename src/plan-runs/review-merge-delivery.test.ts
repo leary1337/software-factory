@@ -46,6 +46,26 @@ function harness(merge: () => Promise<ReviewMergeResult>) {
 }
 
 describe("review merge delivery", () => {
+	test("publishes a fresh review after an earlier delivery without duplicating retries", async () => {
+		const h = harness(async () => ({ kind: "merged" }));
+		const published = new Map<string, string>();
+		const input = {
+			...h.input,
+			mergePassedPr: undefined,
+			commentOnPr: async (_url: string, body: string, key: string) => {
+				if (!published.has(key)) published.set(key, body);
+			},
+		};
+		h.events.push({ kind: "plan_run.review_step", payloadJson: { stepRunId: "first-review" } });
+		await finishReview(input, h.run, "pr", "passed", REPORT);
+		h.events.push({ kind: "plan_run.review_step", payloadJson: { stepRunId: "next-review" } });
+		const nextReport = REPORT.replace(COMMIT, "b".repeat(40));
+		await finishReview(input, h.run, "pr", "passed", nextReport);
+		await finishReview(input, h.run, "pr", "passed", nextReport);
+		expect(published.size).toBe(2);
+		expect([...published.values()].at(-1)).toContain(nextReport);
+	});
+
 	test("persists policy refusals once with affected paths and the operator action", async () => {
 		const h = harness(async () => BLOCKED);
 		await h.tick();

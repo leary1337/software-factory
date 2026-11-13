@@ -9,14 +9,15 @@ import { runtimeChain } from "./runtime-chain.test-helpers.ts";
 for (const verdicts of [
 	["PASS"],
 	["CHANGES", "PASS"],
-	["CHANGES", "CHANGES", "CHANGES"],
+	["CHANGES", "CHANGES", "CHANGES", "PASS"],
+	["STALLED", "PASS"],
 	["CRASH"],
 ]) {
 	test.skipIf(process.platform !== "darwin")(
 		`runs the real sandbox factory chain: ${verdicts.join(" → ")}`,
 		async () => {
-			const expectedReworks = verdicts.filter((v) => v === "CHANGES").length;
-			const succeeds = verdicts.at(-1) === "PASS";
+			const expectedReworks = verdicts.filter((v) => v === "CHANGES" || v === "STALLED").length;
+			const succeeds = verdicts.at(-1) === "PASS" && !verdicts.includes("STALLED");
 			const h = await runtimeChain([...verdicts]);
 			try {
 				for (let i = 0; i < 25; i++) {
@@ -40,7 +41,7 @@ for (const verdicts of [
 					roles: h.roles,
 					failures: runs.filter((r) => r.state === "failed").map((r) => r.failureReason),
 				}).toMatchObject({ state: succeeds ? "succeeded" : "running" });
-				expect(h.roles.filter((r) => r === "rework")).toHaveLength(Math.min(expectedReworks, 2));
+				expect(h.roles.filter((r) => r === "rework")).toHaveLength(expectedReworks);
 				expect(h.forge.merges).toBe(succeeds ? 2 : 0);
 				if (!succeeds) {
 					const parent = runs.find((r) => r.agentName === "implementer");

@@ -41,7 +41,8 @@ async function deliverComment(
 	prUrl: string,
 	delivery: ReviewDelivery,
 ): Promise<ReviewDelivery> {
-	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
+	const history = await input.repos.events.listByRun(run.id);
+	const events = currentReviewEvents(history);
 	if (!input.commentOnPr || events.some((event) => event.kind === "plan_run.review_commented"))
 		return delivery;
 	if (
@@ -56,11 +57,15 @@ async function deliverComment(
 	const mergeLine = events.some((event) => event.kind === "plan_run.review_merged")
 		? ", PR слит автоматически"
 		: "";
+	const step = [...history].reverse().find((event) => event.kind === "plan_run.review_step");
+	const reviewId = (step?.payloadJson as { stepRunId?: unknown } | undefined)?.stepRunId;
+	// Deduplicate retries of this report, not later reviews of the same implementation.
+	const key = `factory-review-${run.id}${typeof reviewId === "string" ? `-${reviewId}` : ""}`;
 	await input.emit(run.id, "plan_run.review_comment_attempt", {});
 	await input.commentOnPr(
 		prUrl,
 		`## ${HEADINGS[delivery.outcome]}${mergeLine}\n\n${delivery.report}`,
-		`factory-review-${run.id}`,
+		key,
 	);
 	await input.emit(run.id, "plan_run.review_commented", {});
 	return delivery;

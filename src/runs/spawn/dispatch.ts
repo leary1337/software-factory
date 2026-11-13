@@ -156,6 +156,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// values still failing open) lives in resolveCapOverride — cost-cap.ts
 	// owns the semantics, this site only feeds it the three sources.
 	const capOverride = resolveCapOverride({
+		ceilingUsd: input.reviewRemainingCostUsd,
 		...(input.maxCostUsdOverride !== undefined ? { overrideUsd: input.maxCostUsdOverride } : {}),
 		frontmatter: baseAgent.frontmatter,
 		...(projectDefaults?.maxCostUsd !== undefined

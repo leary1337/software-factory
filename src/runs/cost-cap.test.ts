@@ -8,6 +8,16 @@ import {
 } from "./cost-cap.ts";
 
 describe("resolveCapOverride", () => {
+	test("tightens the resolved cap without raising an agent or project limit", () => {
+		expect(resolveCapOverride({ frontmatter: { maxCostUsd: 1 }, ceilingUsd: 7 })).toBe(1);
+		expect(resolveCapOverride({ frontmatter: {}, projectDefaultUsd: 0.5, ceilingUsd: 7 })).toBe(
+			0.5,
+		);
+		expect(resolveCapOverride({ frontmatter: {}, overrideUsd: 2, ceilingUsd: 1 })).toBe(1);
+		expect(resolveCapOverride({ frontmatter: {}, ceilingUsd: 7 })).toBe(7);
+		expect(resolveCapOverride({ frontmatter: { maxCostUsd: "bad" }, ceilingUsd: 7 })).toBe(7);
+	});
+
 	test("prefers the explicit dispatch override over every other source", () => {
 		expect(
 			resolveCapOverride({

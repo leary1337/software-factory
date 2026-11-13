@@ -100,6 +100,8 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		agentName = planRun.agentName,
 		existingBranch,
 		baseCommit,
+		reviewFindings,
+		reviewRemainingCostUsd,
 		onRunCreated,
 	}) => {
 		const project = await input.repos.projects.require(planRun.projectId);
@@ -118,6 +120,8 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 			prompt,
 			trigger: "plan-run",
 			baseCommit,
+			reviewFindings,
+			reviewRemainingCostUsd,
 			onRunRowCreated: async (runId) => {
 				if (budget) {
 					const now = (input.now ?? (() => new Date()))();

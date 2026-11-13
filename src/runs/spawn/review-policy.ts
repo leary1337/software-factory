@@ -13,6 +13,7 @@ export async function readReviewGate(
 	return {
 		command: defaults.qualityGate,
 		commit: input.baseCommit ?? "",
+		...(input.reviewFindings !== undefined ? { reviewFindings: input.reviewFindings } : {}),
 		acceptance: {
 			checks: [],
 			enforce: false,

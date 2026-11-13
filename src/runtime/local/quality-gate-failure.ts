@@ -3,6 +3,38 @@ import type { ReviewGateResult } from "../../core/wire.ts";
 import type { AdapterRuntimeEvent } from "../adapters/index.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 
+/** Keep reported usage when verification replaces the model's success with failure. */
+export function preserveFailedReviewUsage(
+	store: LocalRunStore,
+	record: LocalRunRecord,
+	deferred: readonly AdapterRuntimeEvent[],
+	error: unknown,
+): void {
+	if (record.cancelRequested) return;
+	const result = [...deferred]
+		.reverse()
+		.find(
+			(event) =>
+				typeof event.payload === "object" &&
+				event.payload !== null &&
+				"type" in event.payload &&
+				event.payload.type === "result",
+		);
+	if (!result || typeof result.payload !== "object" || result.payload === null) return;
+	if (!("total_cost_usd" in result.payload) && !("usage" in result.payload)) return;
+	store.appendEvent(record, {
+		kind: "state_change",
+		stream: "system",
+		payload: {
+			...result.payload,
+			is_error: true,
+			error: error instanceof Error ? error.message : String(error),
+			synthesized: true,
+			source_type: "verification_failed",
+		},
+	});
+}
+
 export class QualityGateFailure extends Error {
 	constructor(
 		readonly commit: string,
