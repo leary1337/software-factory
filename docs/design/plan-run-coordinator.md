@@ -59,6 +59,13 @@ and only spawns the next child when that slot transitions to `merged`
 or `skipped`. There is never more than one in-flight child per
 PlanRun.
 
+**Review step.** For an `implementer` plan, Warren reviews the open PR
+and dispatches any rework on the child's branch. It records each attempt in
+`plan_run.review_step` events so recovery can resume the same PR.
+After the reviewer exits, Warren runs the
+[independent quality gate](../factory-merge-safety.md#independent-gate-execution)
+against the pinned commit before automated delivery can proceed.
+
 **Coordinator state machine.** `advancePlanRun` in
 `src/plan-runs/coordinator.ts` is a pure function over a stub-injected
 deps bag (repos, `showPlan`, `showSeed`, `checkPrMerged`, `spawn`,
