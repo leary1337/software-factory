@@ -50,7 +50,7 @@ export function context(overrides: Partial<ReportContext> = {}): ReportContext {
 		uiVisualUrl: "https://example.test/runs/99",
 		reviewUrl: "https://example.test/runs/100",
 		model: "claude-opus-5-5",
-		usage: { costUsd: 1.234, turns: 17 },
+		usage: { turns: 17 },
 		evaluator: "success",
 		runId: "99",
 		...overrides,

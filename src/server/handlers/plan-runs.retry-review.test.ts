@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { openDatabase, type WarrenDb } from "../../db/client.ts";
 import { createRepos, type Repos } from "../../db/repos/index.ts";
-import type { CoordinatorEmitFn } from "../../plan-runs/coordinator.ts";
 import type { HandleInFlightInput } from "../../plan-runs/in-flight.ts";
 import { advanceReview, loadReviewStage } from "../../plan-runs/review.ts";
 import { bearerAuth, NO_AUTH, publicReadAuth } from "../auth.ts";
@@ -16,7 +15,7 @@ describe("review recovery after dispatch failure", () => {
 	let input: HandleInFlightInput;
 	let runId: string;
 	let url: string;
-	let emit: CoordinatorEmitFn;
+	let emit: (id: string, kind: string, payload: Record<string, unknown>) => Promise<void>;
 	const sha = "a".repeat(40);
 
 	beforeEach(async () => {
@@ -153,6 +152,83 @@ describe("review recovery after dispatch failure", () => {
 		expect((await fetch(url, { method: "POST" })).status).toBe(409);
 	});
 
+	test.each(["unchanged", "changed", "missing-gate"])(
+		"delivery recovery reuses only a verified unchanged review: %s",
+		async (scenario) => {
+			const review = await repos.runs.create({
+				agentName: "reviewer",
+				projectId: input.planRun.projectId,
+				prompt: "review",
+				renderedAgentJson: {},
+				trigger: "plan-run",
+				baseCommit: sha,
+			});
+			await repos.runs.markRunning(review.id);
+			await repos.runs.finalize(review.id, "succeeded");
+			await emit(runId, "plan_run.review_step", {
+				step: "review",
+				stepRunId: review.id,
+				reviewedCommit: sha,
+			});
+			await emit(review.id, "state_change", {
+				type: "result",
+				result: `VERDICT: PASS\nREVIEWED_COMMIT: ${sha}\nQUALITY_GATE: PASS\nNo findings.`,
+			});
+			if (scenario !== "missing-gate")
+				await emit(review.id, "quality_gate.completed", {
+					commit: sha,
+					command: "pytest -q",
+					exitCode: 0,
+				});
+			let merges = 0;
+			const mergePassedPr: HandleInFlightInput["mergePassedPr"] = async () => {
+				merges++;
+				return merges === 1
+					? {
+							kind: "blocked",
+							reason: "forbidden",
+							detail: "Check access missing",
+							nextAction: "Fix credential",
+						}
+					: { kind: "merged" };
+			};
+			const run = await repos.runs.require(runId);
+			await advanceReview({ ...input, mergePassedPr }, run, run.prUrl ?? "");
+			expect(await loadReviewStage(repos, "implementer", runId)).toBe("needs_attention");
+			expect((await fetch(url, { method: "POST" })).status).toBe(200);
+			expect((await fetch(url, { method: "POST" })).status).toBe(200);
+			const events = await repos.events.listByRun(runId);
+			const expected =
+				scenario === "missing-gate"
+					? "plan_run.review_retry_requested"
+					: "plan_run.review_delivery_retry_requested";
+			expect(events.filter((event) => event.kind === expected)).toHaveLength(1);
+			const spawns: string[] = [];
+			await advanceReview(
+				{
+					...input,
+					mergePassedPr,
+					getReviewHead: async () => (scenario === "changed" ? "b".repeat(40) : sha),
+					spawn: async (request) => {
+						spawns.push(request.agentName ?? "missing");
+						throw new Error("test observes dispatch intent");
+					},
+				},
+				run,
+				run.prUrl ?? "",
+			);
+			if (scenario === "unchanged") {
+				expect(merges).toBe(2);
+				expect(spawns).toHaveLength(0);
+				expect(await loadReviewStage(repos, "implementer", runId)).toBe("ready_to_merge");
+			} else {
+				expect(merges).toBe(scenario === "changed" ? 1 : 0);
+				expect(spawns).toEqual(["reviewer"]);
+			}
+			expect((await repos.planRuns.listChildren(input.planRun.id))[1]?.state).toBe("pending");
+		},
+	);
+
 	test("rejects retry for an unrelated pending task or a cancelled plan", async () => {
 		expect(
 			(await fetch(url.replace("/children/1/", "/children/2/"), { method: "POST" })).status,
@@ -174,7 +250,6 @@ describe("review recovery after dispatch failure", () => {
 			await repos.runs.markRunning(step.id);
 			await repos.runs.finalize(step.id, agentName === "rework" ? "succeeded" : "failed");
 			await repos.runs.updateUsage(step.id, {
-				costUsd: 0.01,
 				tokensInput: 1,
 				tokensOutput: 1,
 				tokensCacheRead: 0,

@@ -4,38 +4,14 @@ import {
 	extractReapSummary,
 	findFirstText,
 	findToolUseName,
-	formatCostUsd,
 	formatTokenBreakdown,
 	formatTokens,
 	formatWallClock,
 	isBridgeStalled,
-	readCostTotal,
 	readNumber,
 	readString,
 	truncateSummary,
 } from "./run-detail-format.ts";
-
-describe("formatCostUsd", () => {
-	test("formats sub-dollar costs with three decimals", () => {
-		expect(formatCostUsd(0.005)).toBe("$0.005");
-	});
-
-	test("formats zero as $0.00", () => {
-		expect(formatCostUsd(0)).toBe("$0.00");
-	});
-
-	test("formats dollar-and-up costs with two decimals", () => {
-		expect(formatCostUsd(1.234)).toBe("$1.23");
-	});
-
-	test("warren-17d7: returns the em-dash for null and undefined", () => {
-		// The spectator projection strips maxCostUsd
-		// (REDACTED_PLAN_RUN_FIELDS), so callers see undefined — that used
-		// to throw `toFixed of undefined`.
-		expect(formatCostUsd(null)).toBe("—");
-		expect(formatCostUsd(undefined)).toBe("—");
-	});
-});
 
 describe("formatTokens", () => {
 	test("formats small, thousands, and millions", () => {
@@ -91,16 +67,6 @@ describe("readString / readNumber", () => {
 		expect(readString(5)).toBe(null);
 		expect(readNumber(5)).toBe(5);
 		expect(readNumber("5")).toBe(null);
-	});
-});
-
-describe("readCostTotal", () => {
-	test("reads a numeric total off an object payload", () => {
-		expect(readCostTotal({ total: 1.5 })).toBe(1.5);
-		expect(readCostTotal({ total: "1.5" })).toBe(null);
-		expect(readCostTotal(2)).toBe(2);
-		expect(readCostTotal(null)).toBe(null);
-		expect(readCostTotal([1])).toBe(null);
 	});
 });
 

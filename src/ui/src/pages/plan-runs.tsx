@@ -15,16 +15,6 @@ import { useNow } from "@/hooks/use-now.ts";
 import { formatError } from "@/lib/format-error.ts";
 import { WalkRow } from "./plan-runs/walk-row.tsx";
 
-/**
- * Plan runs — the Direction C walk inventory (warren-23b2 / pl-7e38
- * step 6, from docs/ui-revamp/screens/plan-runs.jsx). Sequential walks
- * with task progress and whole-attempt cost. Responsive rows share
- * the same data presentation on phone and desktop. Filters cover state,
- * project, plan name and attempt ID. The read surface is readPublic, so a spectator
- * sees the same inventory read-only — the only operator affordance on
- * this page is the Dispatch plan button, which `OperatorOnly` drops.
- */
-
 type PlanRunSortKey = "state" | "id" | "planId" | "startedAt";
 
 const STATE_OPTIONS: { label: string; value: "all" | PlanRunStateFilter }[] = [
@@ -113,7 +103,7 @@ export function PlanRunsPage() {
 				<div className="flex min-w-0 flex-1 flex-col gap-2">
 					<h1 className="font-semibold text-(--color-text) text-xl leading-6">Plan runs</h1>
 					<p className="text-(--color-text-2) text-sm">
-						Follow each plan attempt, its task progress and total cost.
+						Follow each plan attempt and its task progress.
 					</p>
 				</div>
 				<OperatorOnly>

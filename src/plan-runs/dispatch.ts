@@ -68,12 +68,10 @@ export interface CreatePlanRunSpawnInput {
 	readonly readApprovedBudgetDefaults?: typeof readApprovedDefaults;
 }
 
-/** Per-plan overrides applied to each dispatch; the spend cap applies per child. */
 function planRunOverrides(planRun: PlanRunRow) {
 	return {
 		...(planRun.providerOverride !== null ? { providerOverride: planRun.providerOverride } : {}),
 		...(planRun.modelOverride !== null ? { modelOverride: planRun.modelOverride } : {}),
-		...(planRun.maxCostUsd !== null ? { maxCostUsdOverride: planRun.maxCostUsd } : {}),
 	};
 }
 
@@ -101,7 +99,6 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		existingBranch,
 		baseCommit,
 		reviewFindings,
-		reviewRemainingCostUsd,
 		onRunCreated,
 	}) => {
 		const project = await input.repos.projects.require(planRun.projectId);
@@ -121,7 +118,6 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 			trigger: "plan-run",
 			baseCommit,
 			reviewFindings,
-			reviewRemainingCostUsd,
 			onRunRowCreated: async (runId) => {
 				if (budget) {
 					const now = (input.now ?? (() => new Date()))();

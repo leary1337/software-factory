@@ -203,3 +203,17 @@ pr:
 		expect(result.defaults?.pr?.autoMerge).toEqual({ method: "rebase", protectedPaths: [] });
 	});
 });
+
+test("Warren verification requires an explicit CI contract and preserves merge history", () => {
+	for (const autoMerge of [
+		{ verification: "warren" },
+		{ verification: "warren", method: "squash", requiredChecks: ["test"] },
+		{ verification: "warren", method: "merge", requiredChecks: [] },
+	])
+		expect(PrConfigSchema.safeParse({ autoMerge }).success).toBe(false);
+	expect(
+		PrConfigSchema.safeParse({
+			autoMerge: { verification: "warren", method: "merge", requiredChecks: ["test"] },
+		}).success,
+	).toBe(true);
+});

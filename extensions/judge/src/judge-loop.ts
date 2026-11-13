@@ -1,30 +1,4 @@
-/**
- * The judge loop (plan pl-17ca step 5): a bounded agent loop over the pi
- * SDK that resolves to a wire.ts-validated verdict or an unjudged marker
- * with a reason — nothing else, never a partial write.
- *
- * The loop is SDK-agnostic: `judgeRun` drives a {@link JudgeSessionFactory}
- * seam, and the real pi adapter lives in `pi-session.ts`. The session is
- * created with the built-in coding toolset stripped (`noTools: "builtin"`)
- * and exactly the three tools from `judge-tools.ts`, so the judge holds no
- * mutation capability of any kind (agent-analytics §12.2).
- *
- * Verdict emission is PROMPT-enforced, not provider-enforced: the pi
- * session API surfaces no provider tool_choice forcing, so `report_verdict`
- * carries the mandate in its promptGuidelines, and a judgment that ends in
- * plain text without calling it consumes the bounded retry budget
- * (`JUDGE_MAX_RETRIES`, one fresh session per attempt).
- *
- * Per-judgment accounting: every attempt's `getSessionStats()` aggregates
- * into {@link JudgmentStats} (tokens + cost per provider/model), and the
- * final cost, pages read, and page-cap flag land in the verdict's
- * provenance. The per-judgment cap is enforced twice (warren-9a34): live
- * inside an attempt — once accrued cost reaches the cap, `page_events`
- * stops serving transcript and tells the model to report from what it has,
- * so a successful attempt overshoots by at most one model turn — and
- * between attempts, where a capped-out judgment that still holds no verdict
- * resolves as `budget_exceeded` rather than burning another attempt.
- */
+
 
 import type { WarrenClient } from "./client.ts";
 import { createJudgeTools, type JudgeToolSpec } from "./judge-tools.ts";
@@ -32,7 +6,7 @@ import { renderJudgeSystemPrompt } from "./rubric.ts";
 import type { UnjudgedReason } from "./verdict-store.ts";
 import { type JudgeVerdict, validateVerdict } from "./wire.ts";
 
-/** Token + cost accounting for one session, from `getSessionStats()`. */
+
 export interface SessionStatsSnapshot {
 	readonly tokens: {
 		readonly input: number;
@@ -41,8 +15,6 @@ export interface SessionStatsSnapshot {
 		readonly cacheWrite: number;
 		readonly total: number;
 	};
-	/** USD cost of the session. */
-	readonly costUsd: number;
 }
 
 /**
@@ -92,11 +64,6 @@ export interface JudgeRunOptions {
 	readonly maxPages?: number;
 	/** Default events page size (default {@link DEFAULT_EVENTS_PAGE_SIZE}). */
 	readonly eventsPageSize?: number;
-	/**
-	 * Per-judgment USD cap. When accrued cost across attempts reaches it the
-	 * loop stops with `budget_exceeded` rather than spending another attempt.
-	 */
-	readonly maxCostUsdPerJudgment?: number;
 	readonly now?: () => Date;
 }
 
@@ -110,7 +77,6 @@ export interface JudgmentStats {
 		readonly cacheWrite: number;
 		readonly total: number;
 	};
-	readonly costUsd: number;
 	/** Events pages served across all attempts (0 is a valid, cheap judgment). */
 	readonly pagesRead: number;
 	/** True when any attempt hit the hard events-page cap. */
@@ -133,14 +99,12 @@ export type JudgeOutcome =
 function emptyStats(): {
 	attempts: number;
 	tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
-	costUsd: number;
 	pagesRead: number;
 	pageCapHit: boolean;
 } {
 	return {
 		attempts: 0,
 		tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-		costUsd: 0,
 		pagesRead: 0,
 		pageCapHit: false,
 	};
@@ -150,7 +114,6 @@ function toJudgmentStats(stats: ReturnType<typeof emptyStats>): JudgmentStats {
 	return {
 		attempts: stats.attempts,
 		tokens: { ...stats.tokens },
-		costUsd: stats.costUsd,
 		pagesRead: stats.pagesRead,
 		pageCapHit: stats.pageCapHit,
 	};
@@ -176,34 +139,17 @@ export async function judgeRun(opts: JudgeRunOptions): Promise<JudgeOutcome> {
 
 	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 		stats.attempts = attempt;
-		// Live accrued cost: prior attempts (stats) + the in-flight session.
-		// page_events reads it through this closure to gate on the cap
-		// mid-attempt (warren-9a34); the session lands after tool creation,
-		// so the reference is deliberately mutable.
-		let liveSession: JudgeSession | null = null;
 		const { tools, state } = createJudgeTools({
 			client: opts.client,
 			runId: opts.runId,
 			eventsPageSize: opts.eventsPageSize ?? DEFAULT_EVENTS_PAGE_SIZE,
 			maxPages: opts.maxPages ?? DEFAULT_MAX_PAGES,
-			...(opts.maxCostUsdPerJudgment !== undefined
-				? { maxCostUsd: opts.maxCostUsdPerJudgment }
-				: {}),
-			getAccruedCostUsd: () => {
-				if (liveSession === null) return stats.costUsd;
-				try {
-					return stats.costUsd + liveSession.getSessionStats().costUsd;
-				} catch {
-					return stats.costUsd;
-				}
-			},
 		});
 		let session: JudgeSession | null = null;
 		let attemptError: unknown = null;
 		let providerError: string | null = null;
 		try {
 			session = await opts.sessionFactory({ systemPrompt, tools });
-			liveSession = session;
 			await session.prompt(userPrompt);
 			await session.waitForIdle();
 		} catch (error) {
@@ -219,7 +165,6 @@ export async function judgeRun(opts: JudgeRunOptions): Promise<JudgeOutcome> {
 						cacheWrite: stats.tokens.cacheWrite + snap.tokens.cacheWrite,
 						total: stats.tokens.total + snap.tokens.total,
 					};
-					stats.costUsd += snap.costUsd;
 				} catch {
 					// Stats are accounting, not the judgment: a stats-capture
 					// failure never turns a good verdict into an unjudged marker.
@@ -247,7 +192,6 @@ export async function judgeRun(opts: JudgeRunOptions): Promise<JudgeOutcome> {
 					model: opts.model,
 					rubricVersion: opts.rubricVersion,
 					judgedAt: now().toISOString(),
-					costUsd: stats.costUsd,
 					pagesRead: stats.pagesRead,
 					pageCapHit: stats.pageCapHit,
 				},
@@ -276,18 +220,6 @@ export async function judgeRun(opts: JudgeRunOptions): Promise<JudgeOutcome> {
 				detail:
 					"judgment attempt ended without calling report_verdict " +
 					"(plain-text end counts against the retry budget)",
-			};
-		}
-
-		const cap = opts.maxCostUsdPerJudgment;
-		if (cap !== undefined && stats.costUsd >= cap) {
-			return {
-				kind: "unjudged",
-				reason: "budget_exceeded",
-				detail:
-					`accrued cost $${stats.costUsd.toFixed(4)} reached the ` +
-					`per-judgment cap $${cap.toFixed(4)} after ${attempt} attempt(s)`,
-				stats: toJudgmentStats(stats),
 			};
 		}
 	}

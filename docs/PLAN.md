@@ -45,7 +45,6 @@
 | Автослияние | после вердикта `PASS`, `WARREN_PLAN_RUN_MERGE_ON_PASS=1` |
 | `WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS` | `1` |
 | `WARREN_PLAN_RUN_MERGE_TIMEOUT_MS` | `0` |
-| `maxCostUsd` на запуск | `10` (оценка по ценам API в конце запуска) |
 | Таймаут Codex | 20 минут по умолчанию |
 
 Пресет `bun run factory:start` задаёт local runtime, один автоматический запуск, merge-on-PASS и неограниченное ожидание merge. Интерактивные навыки закреплены отдельно в `factory/skill-pack/owner` и доступны в Codex через `.agents/skills`; они не копируются в unattended-запуски.

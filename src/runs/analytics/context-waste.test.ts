@@ -16,7 +16,6 @@ function run(
 		seedId: null,
 		state: "succeeded",
 		failureReason: null,
-		costUsd: null,
 		tokensInput: tokens.input,
 		tokensCacheRead: tokens.cacheRead,
 		tokensOutput: null,

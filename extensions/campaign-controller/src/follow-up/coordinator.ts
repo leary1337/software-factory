@@ -58,7 +58,6 @@ export type FollowUpInvariant =
 	| "followup_disabled"
 	| "iteration_cap_breached"
 	| "repeat_findings"
-	| "no_budget_headroom"
 	| "no_actionable_feedback"
 	| "head_branch_missing"
 	| "head_branch_invalid"
@@ -105,10 +104,6 @@ export interface FollowUpWorkItemContext {
 	readonly headBranch: string | null;
 	/** The profile's versioned agentGuidance block, if any. */
 	readonly agentGuidance?: string;
-	/** Per-run USD cap; also the reservation size. */
-	readonly maxCostUsd: number;
-	/** Campaign budget headroom in cents (from the ledger). */
-	readonly budgetHeadroomUsdCents: number;
 }
 
 /** One classified finding, ready for the prompt (fields only, no bodies). */
@@ -130,7 +125,6 @@ export interface FollowUpStoreDeps {
 		requestDigest: string;
 		policyDigest?: string | null;
 		attempt?: number;
-		reservedUsdCents?: number | null;
 	}): ActionRow;
 	markExecuting(id: string): ActionRow;
 	settleAction(
@@ -173,7 +167,6 @@ export type FollowUpDispatchFn = (input: {
 	project: string;
 	agent: string;
 	prompt: string;
-	maxCostUsd: number;
 	existingBranch: string;
 	idempotencyKey: string;
 }) => Promise<{ runId: string }>;
@@ -347,15 +340,6 @@ export class FollowUpCoordinator {
 			};
 		}
 
-		// Budget headroom: the follow-up draws from the same campaign cap.
-		const neededCents = Math.round(ctx.maxCostUsd * 100);
-		if (ctx.budgetHeadroomUsdCents < neededCents) {
-			throw new FollowUpRefusal(
-				"no_budget_headroom",
-				`follow-up run needs ${neededCents}c, campaign headroom is ${ctx.budgetHeadroomUsdCents}c`,
-			);
-		}
-
 		// The PR head branch must exist and be a valid ref.
 		const headBranch = ctx.headBranch;
 		if (headBranch === null || headBranch.trim() === "") {
@@ -393,7 +377,6 @@ export class FollowUpCoordinator {
 			actionType: FOLLOW_UP_ACTION_TYPE,
 			requestDigest,
 			attempt: iteration + 1,
-			reservedUsdCents: neededCents,
 		});
 		this.#store.followUps.recordStarted({
 			campaignId: ctx.campaignId,
@@ -409,7 +392,6 @@ export class FollowUpCoordinator {
 				project: ctx.project,
 				agent: ctx.agent,
 				prompt,
-				maxCostUsd: ctx.maxCostUsd,
 				existingBranch: headBranch,
 				idempotencyKey: actionKey,
 			});

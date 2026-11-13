@@ -37,7 +37,7 @@ describe("telemetry deep links (warren-6bca)", () => {
 
 	test("keeps a child route per tab and opens the first tab from the index", () => {
 		const app = readFileSync(join(import.meta.dir, "..", "ui", "src", "app.tsx"), "utf8");
-		for (const tab of ["loop", "behavior", "judge", "economics"]) {
+		for (const tab of ["loop", "behavior", "judge"]) {
 			expect(app).toMatch(new RegExp(`path="${tab}"`));
 		}
 		const page = readFileSync(join(PAGES, "telemetry.tsx"), "utf8");

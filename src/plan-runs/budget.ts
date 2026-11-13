@@ -22,16 +22,12 @@ function usage(metrics: readonly TaskMetrics[]): PlanRunBudgetUsage {
 		(sum, value) => ({
 			runs: sum.runs + value.runCount,
 			activeMs: sum.activeMs + (value.activeMs ?? 0),
-			costUsd: sum.costUsd + (value.costUsd ?? 0),
-			unknownCostRuns: sum.unknownCostRuns + value.costUnknownRuns,
 			unknownDurationRuns: sum.unknownDurationRuns + value.durationUnknownRuns,
 			incomplete: sum.incomplete || value.incomplete,
 		}),
 		{
 			runs: 0,
 			activeMs: 0,
-			costUsd: 0,
-			unknownCostRuns: 0,
 			unknownDurationRuns: 0,
 			incomplete: false,
 		},
@@ -53,12 +49,6 @@ function exceeded(
 			return `${scope} execution time is unknown for ${spent.unknownDurationRuns} run(s).`;
 		if (spent.activeMs >= limits.maxActiveMs)
 			return `${scope} active-time budget reached (${spent.activeMs}/${limits.maxActiveMs} ms).`;
-	}
-	if (limits.maxCostUsd !== undefined) {
-		if (spent.unknownCostRuns > 0)
-			return `${scope} cost is unknown for ${spent.unknownCostRuns} run(s).`;
-		if (spent.costUsd >= limits.maxCostUsd)
-			return `${scope} estimated-cost budget reached (${spent.costUsd}/${limits.maxCostUsd} USD).`;
 	}
 	return null;
 }

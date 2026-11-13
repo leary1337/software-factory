@@ -1,18 +1,3 @@
-/**
- * The runtime-validated V0 campaign manifest schema (plan pl-91b6 step 2,
- * warren-5055).
- *
- * A manifest is immutable operator intent: what upstream repository the
- * campaign contributes to, which bot fork work lands on, the explicit
- * ordered issue list, the warren dispatch identity, spend caps, concurrency,
- * expiry, and the approval envelope. Validation is fail-closed: unknown
- * keys are rejected (so a credential can never ride along — normalization
- * is secret-free by construction), coordinates and refnames follow GitHub
- * grammar, issue ids are unique and ordered, caps are layered per-run ≤
- * daily ≤ total, and the approval digest must recompute exactly over the
- * normalized manifest. Editing any bound field breaks the digest and
- * returns the campaign to awaiting approval.
- */
 import { digestOf } from "./digest.ts";
 import { ValidationError } from "./errors.ts";
 import {
@@ -26,7 +11,6 @@ import {
 	rejectUnknownKeys,
 	requireInt,
 	requireIsoTimestamp,
-	requirePositiveNumber,
 	requireSha256,
 	requireString,
 } from "./validate-utils.ts";
@@ -49,21 +33,11 @@ export const MANIFEST_SCHEMA_VERSION = 1;
 /** Hard ceiling on the explicit issue list — a campaign is bounded by hand. */
 export const MAX_CAMPAIGN_ISSUES = 25;
 
-/** Ceiling on any single USD cap — catch unit mistakes (cents, cents×100). */
-export const MAX_CAP_USD = 1000;
-
 /** `owner/repo` pair, already grammar-validated. */
 export type { RepoCoordinates } from "./github-grammar.ts";
 
 /** Ordered GitHub issue numbers the campaign may work, in execution order. */
 export type IssueId = number;
-
-/** Spend caps, layered per-run ≤ daily ≤ total, all in USD. */
-export interface CampaignBudget {
-	perRunUsd: number;
-	dailyUsd: number;
-	totalUsd: number;
-}
 
 /** The warren dispatch identity every run of the campaign uses. */
 export interface WarrenTarget {
@@ -94,7 +68,6 @@ export interface CampaignManifest {
 	warren: WarrenTarget;
 	prompt: string | undefined;
 	promptDigest: string | undefined;
-	budget: CampaignBudget;
 	maxConcurrentRuns: number;
 	expiresAt: string;
 	approval: ApprovalEnvelope;
@@ -124,14 +97,12 @@ const TOP_LEVEL_FIELDS = [
 	"warren",
 	"prompt",
 	"promptDigest",
-	"budget",
 	"maxConcurrentRuns",
 	"expiresAt",
 	"approval",
 ] as const;
 
 const WARREN_FIELDS = ["project", "agent", "provider", "model"] as const;
-const BUDGET_FIELDS = ["perRunUsd", "dailyUsd", "totalUsd"] as const;
 const APPROVAL_FIELDS = ["approvedBy", "approvedAt", "manifestDigest"] as const;
 
 /**
@@ -173,7 +144,6 @@ export function validateCampaignManifest(
 	const issueEvidenceTiers = requireIssueEvidenceTiers(root, issues);
 	const warren = requireWarren(root);
 	const { prompt, promptDigest } = requirePrompt(root);
-	const budget = requireBudget(root);
 	const maxConcurrentRuns = requireInt(root, "maxConcurrentRuns", "campaign manifest", {
 		min: 1,
 		max: 10,
@@ -198,7 +168,6 @@ export function validateCampaignManifest(
 		warren,
 		prompt,
 		promptDigest,
-		budget,
 		maxConcurrentRuns,
 		expiresAt,
 		approval,
@@ -330,22 +299,6 @@ function requirePrompt(root: ReturnType<typeof asObject>): {
 	}
 	const checked = requireSha256(root, "promptDigest", "campaign manifest");
 	return { prompt: undefined, promptDigest: checked };
-}
-
-function requireBudget(root: ReturnType<typeof asObject>): CampaignBudget {
-	const raw = asObject(root.budget, "campaign manifest.budget");
-	rejectUnknownKeys(raw, BUDGET_FIELDS, "campaign manifest.budget");
-	const budget: CampaignBudget = {
-		perRunUsd: requirePositiveNumber(raw, "perRunUsd", "campaign manifest.budget", MAX_CAP_USD),
-		dailyUsd: requirePositiveNumber(raw, "dailyUsd", "campaign manifest.budget", MAX_CAP_USD),
-		totalUsd: requirePositiveNumber(raw, "totalUsd", "campaign manifest.budget", MAX_CAP_USD),
-	};
-	if (budget.perRunUsd > budget.dailyUsd || budget.dailyUsd > budget.totalUsd) {
-		throw new ValidationError(
-			`caps must layer per-run ≤ daily ≤ total at 'campaign manifest.budget' — got ${budget.perRunUsd} / ${budget.dailyUsd} / ${budget.totalUsd}`,
-		);
-	}
-	return budget;
 }
 
 function requireApproval(

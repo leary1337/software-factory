@@ -1,17 +1,3 @@
-/**
- * Run analytics handlers (warren-0692 / pl-ad0f step 2).
- *
- * Thin `RouteHandler` factories over the pure `buildRunMetrics`
- * aggregator (`src/runs/analytics/run-metrics.ts`). Mirrors the cost
- * analytics handler exactly: parse + validate the `?from`/`?to`/
- * `?projectId` window, fetch the matching `runs` rows via
- * `RunsRepo.listForAnalytics`, hydrate usage so bridge-died terminal
- * runs still carry cost/token totals, map each row into a flat
- * `RunMetricsRow` (reading the `provider`/`model` columns frozen at
- * dispatch — warren-2ede), then emit the rollup wrapped in the resolved
- * `filter` echo.
- */
-
 import type { RuntimeId } from "../../../core/wire.ts";
 import { DEFAULT_RUNTIME_ID } from "../../../registry/schema.ts";
 import type { EventRow, RunRow } from "../../../runs/index.ts";
@@ -42,15 +28,11 @@ import {
 // projector) lives in analytics.projection.ts; re-exported here so every
 // existing import path keeps resolving.
 export {
-	PUBLIC_COST_PER_MERGED_PR_BUCKET_FIELDS,
-	PUBLIC_COST_PER_MERGED_PR_OVERALL_FIELDS,
 	PUBLIC_RUN_ANALYTICS_FIELDS,
 	PUBLIC_RUN_GROUP_FIELDS,
 	PUBLIC_RUN_TOTALS_FIELDS,
 	type PublicRunAnalytics,
 	type PublicRunOutcomes,
-	REDACTED_COST_PER_MERGED_PR_BUCKET_FIELDS,
-	REDACTED_COST_PER_MERGED_PR_OVERALL_FIELDS,
 	REDACTED_RUN_ANALYTICS_FIELDS,
 	REDACTED_RUN_GROUP_FIELDS,
 	REDACTED_RUN_TOTALS_FIELDS,
@@ -65,15 +47,6 @@ interface AnalyticsWindow {
 	to?: string;
 }
 
-/**
- * Parse + resolve the shared `?from`/`?to`/`?projectId` window. Defaults the
- * `from` bound to the last 30 days whenever it is absent and clamps the span
- * to 90 days, matching `GET /analytics/cost` (warren-30cc). Both bounds and
- * `projectId` are validated lightly — a malformed date is a 400 because the
- * lexicographic ISO8601 compare in `listForAnalytics` would silently produce
- * surprising results otherwise. `nowMs` anchors the default `to` bound
- * (`deps.now`, so a frozen-clock boot resolves a stable window).
- */
 export function parseAnalyticsWindow(
 	ctx: { url: URL },
 	nowMs?: number,
@@ -127,7 +100,6 @@ export function toMetricsRows(
 			seedId: r.seedId,
 			state: r.state,
 			failureReason: r.failureReason,
-			costUsd: r.costUsd,
 			tokensInput: r.tokensInput,
 			tokensCacheRead: r.tokensCacheRead,
 			tokensOutput: r.tokensOutput,
@@ -251,35 +223,17 @@ function buildTokensSection(metrics: RunMetrics): RunAnalyticsTokensSection {
 	};
 }
 
-/**
- * `GET /analytics/runs?from=&to=&projectId=` (warren-0692 / pl-ad0f step 2;
- * tokens section added by warren-1244 / pl-d1a2 step 3).
- *
- * Window defaults to the last 30 days when neither bound is supplied,
- * matching `GET /analytics/cost`. Both bounds and `projectId` are
- * validated lightly — a malformed date is a 400 because the
- * lexicographic ISO8601 compare in `listForAnalytics` would silently
- * produce surprising results otherwise.
- *
- * The response includes all `RunMetrics` fields at the top level PLUS a
- * structured `tokens` section that groups token analytics into a single
- * nested object for convenient UI consumption.
- */
 export function listRunAnalyticsHandler(deps: ServerDeps): RouteHandler {
 	return async (ctx) => {
 		const { echo, filter } = parseAnalyticsWindow(ctx, deps.now?.().getTime());
 		const { rows, metrics } = await loadRunMetrics(deps, filter);
 		const tokens = buildTokensSection(metrics);
 		const outcomes = await loadRunOutcomes(deps, rows, metrics);
-		// warren-ea4e: the cap-hit count comes from the event log, not a run
-		// column — there is no cost-cap failure reason to group on.
-		const capHitEvents = await deps.repos.events.listByKind("budget.exceeded");
 		const body: RunAnalyticsBody = {
 			filter: echo,
 			...metrics,
 			tokens,
 			outcomes,
-			capHits: capHitEvents.length,
 		};
 		return jsonResponse(200, projectRunAnalytics(body, ctx.actor));
 	};

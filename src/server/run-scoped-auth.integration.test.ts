@@ -30,7 +30,7 @@ const routes: Route[] = [
 	{ method: "POST", pattern: "/runs/:id/git-credential", policy: "dispatch", handler: ok },
 	{ method: "POST", pattern: "/runs", policy: "dispatch", handler: ok },
 	{ method: "DELETE", pattern: "/projects/:id", policy: "admin", handler: ok },
-	{ method: "GET", pattern: "/analytics/cost", policy: "readOperator", handler: ok },
+	{ method: "GET", pattern: "/metrics", policy: "readOperator", handler: ok },
 ];
 
 // Only RUN_A is live; any other run id reads as terminal.
@@ -92,7 +92,7 @@ describe("run-scoped token — rejected on operator routes (acceptance)", () => 
 	});
 
 	test("cannot read an operator-only body", async () => {
-		expect((await call("GET", "/analytics/cost", scopedA)).status).toBe(403);
+		expect((await call("GET", "/metrics", scopedA)).status).toBe(403);
 	});
 
 	test("cannot reach another run's callback surface", async () => {
@@ -114,7 +114,6 @@ describe("operator token — unaffected", () => {
 	test("still reaches every route", async () => {
 		expect((await call("POST", "/runs", SECRET)).status).toBe(200);
 		expect((await call("DELETE", "/projects/prj_xxxxxxxxxxxx", SECRET)).status).toBe(200);
-		expect((await call("GET", "/analytics/cost", SECRET)).status).toBe(200);
 		expect((await call("GET", `/runs/${RUN_A}/inbox`, SECRET)).status).toBe(200);
 	});
 });

@@ -22,7 +22,6 @@ function baseManifest(): Record<string, unknown> {
 			model: "claude-sonnet-4-5",
 		},
 		prompt: PROMPT,
-		budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 		maxConcurrentRuns: 2,
 		expiresAt: "2026-12-31T00:00:00.000Z",
 	};
@@ -118,25 +117,6 @@ describe("validateCampaignManifest", () => {
 		const tooMany = baseManifest() as { issues: number[] };
 		tooMany.issues = Array.from({ length: 26 }, (_, i) => i + 1);
 		expectInvalid(tooMany, "at most 25 issues");
-	});
-
-	test("rejects over-limit or unlayered caps", () => {
-		expectInvalid(
-			{ ...baseManifest(), budget: { perRunUsd: 50, dailyUsd: 20, totalUsd: 100 } },
-			"layer per-run",
-		);
-		expectInvalid(
-			{ ...baseManifest(), budget: { perRunUsd: 5, dailyUsd: 200, totalUsd: 100 } },
-			"layer per-run",
-		);
-		expectInvalid(
-			{ ...baseManifest(), budget: { perRunUsd: 0, dailyUsd: 20, totalUsd: 100 } },
-			"positive number",
-		);
-		expectInvalid(
-			{ ...baseManifest(), budget: { perRunUsd: 5000, dailyUsd: 5000, totalUsd: 5000 } },
-			"at most 1000",
-		);
 	});
 
 	test("rejects zero concurrency", () => {

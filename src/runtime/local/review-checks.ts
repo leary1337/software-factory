@@ -49,7 +49,6 @@ async function executeReproduction(
 		for (const file of finding.files)
 			await writeFile(join(directory, file.path), file.contents, { flag: "wx", mode: 0o400 });
 		const profile = workspace.profile;
-		const scope = profile.workspaceGit;
 		const reproPath =
 			process.platform === "linux" ? `/workspace/${basename(directory)}` : directory;
 		if (record.cancelRequested || Date.now() >= deadline)
@@ -58,9 +57,7 @@ async function executeReproduction(
 			{
 				...profile,
 				setEnv: { ...profile.setEnv, WARREN_REPRO_DIR: reproPath },
-				...(scope
-					? { workspaceGit: { ...scope, protectedPaths: [...scope.protectedPaths, directory] } }
-					: {}),
+				verificationSources: { directory, files: finding.files.map((file) => file.path) },
 			},
 			{ argv: ["/bin/sh", "-c", finding.command] },
 		);

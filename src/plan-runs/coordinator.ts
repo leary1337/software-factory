@@ -57,7 +57,6 @@ export type CoordinatorGetIssueFn = (projectId: string, issueId: string) => Prom
 
 export interface CoordinatorSpawnInput {
 	readonly reviewFindings?: readonly ReviewFinding[];
-	readonly reviewRemainingCostUsd?: number;
 	readonly planRun: PlanRunRow;
 	readonly child: PlanRunChildRow;
 	readonly prompt: string;
@@ -121,6 +120,7 @@ export const PLAN_RUN_EVENT_KINDS = [
 	"plan_run.resumed",
 	"plan_run.review_step",
 	"plan_run.review_retry_requested",
+	"plan_run.review_delivery_retry_requested",
 	"plan_run.review_finished",
 	"plan_run.review_decided",
 	"plan_run.review_merge_attempt",

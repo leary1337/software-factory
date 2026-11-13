@@ -19,7 +19,6 @@ export {
 export { postRunGitCredentialHandler } from "./git-credential.ts";
 export {
 	getRunHandler,
-	listCostAnalyticsHandler,
 	listRunsHandler,
 	projectRun,
 } from "./lifecycle.ts";

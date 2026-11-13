@@ -1,6 +1,5 @@
 import type { PlanRunDetailResponse, RunRow } from "@/api/types.ts";
 import { formatTimestamp } from "@/lib/utils.ts";
-import { implementationLimitText } from "../tasks/cost-summary.ts";
 
 export function DetailRail({
 	detail,
@@ -18,10 +17,6 @@ export function DetailRail({
 					rows={[
 						{ label: "Plan", value: planRun.planName ?? "Selected issues" },
 						{ label: "Project", value: projectLabel },
-						{
-							label: "Implementation run limit",
-							value: implementationLimitText(planRun.maxCostUsd),
-						},
 						{ label: "Started", value: formatTimestamp(planRun.startedAt) },
 						{ label: "Ended", value: formatTimestamp(planRun.endedAt) },
 					]}

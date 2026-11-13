@@ -108,8 +108,7 @@ describe("ROUTE_TABLE policy classification", () => {
 	/** Reads that must stay operator-only — each with the reason it is here. */
 	const OPERATOR_READS: readonly string[] = [
 		"GET /readyz", // failed-check disclosure
-		"GET /metrics", // cumulative cost + operational shape (warren-682a)
-		"GET /analytics/cost", // instance-wide USD rollup
+		"GET /metrics", // operational shape (warren-682a)
 		"GET /analytics/behavior", // cross-run tool/command mining
 		"GET /analytics/dispatch", // dispatch-context log (warren-5423)
 		"GET /runs/:id/inbox", // DESTRUCTIVE ON READ — drains the steering queue

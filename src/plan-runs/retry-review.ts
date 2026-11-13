@@ -1,8 +1,8 @@
 import { StateTransitionError } from "../core/errors.ts";
 import type { CoordinatorEmitFn, CoordinatorRepos } from "./coordinator.ts";
 import { withPlanRunLock } from "./lock.ts";
-import { loadReviewStage, loadSteps, REVIEWED_AGENT } from "./review.ts";
-import { hasPendingReviewRetry } from "./review-delivery.ts";
+import { decideReviewStep, loadReviewStage, loadSteps, REVIEWED_AGENT } from "./review.ts";
+import { currentReviewEvents, hasPendingReviewRetry } from "./review-delivery.ts";
 
 /** Re-drive review on the existing PR without resetting history, rework limits or budgets. */
 export async function retryPlanRunReview(input: {
@@ -31,17 +31,37 @@ export async function retryPlanRunReview(input: {
 				"Review retry requires the existing task branch and pull request.",
 			);
 		const events = await input.repos.events.listByRun(run.id);
-		if (hasPendingReviewRetry(events)) return { requested: false };
+		if (recoveryPending(events)) return { requested: false };
 		const steps = await loadSteps(input.repos, run.id);
 		if (
 			steps.some((step) => step.state === "running") ||
 			(await loadReviewStage(input.repos, plan.agentName, run.id)) !== "needs_attention"
 		)
 			throw new StateTransitionError("Review is already active or does not require recovery.");
-		await input.emit(run.id, "plan_run.review_retry_requested", {
-			planRunId: plan.id,
-			seq: child.seq,
-		});
+		const decision = decideReviewStep(steps);
+		const verifiedPass =
+			decision.kind === "finished" &&
+			decision.outcome === "passed" &&
+			steps.at(-1)?.gateVerified === true;
+		// Delivery failures do not invalidate a pinned PASS. The coordinator still
+		// rechecks the live head, policy and CI before attempting another merge.
+		await input.emit(
+			run.id,
+			verifiedPass ? "plan_run.review_delivery_retry_requested" : "plan_run.review_retry_requested",
+			{
+				planRunId: plan.id,
+				seq: child.seq,
+			},
+		);
 		return { requested: true };
 	});
+}
+
+function recoveryPending(events: Parameters<typeof currentReviewEvents>[0]): boolean {
+	const current = currentReviewEvents(events);
+	return (
+		hasPendingReviewRetry(events) ||
+		(current.some((event) => event.kind === "plan_run.review_delivery_retry_requested") &&
+			!current.some((event) => event.kind === "plan_run.review_decided"))
+	);
 }

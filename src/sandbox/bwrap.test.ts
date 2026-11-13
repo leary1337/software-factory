@@ -28,6 +28,21 @@ const cmd = (over: Partial<SpawnCommand> = {}): SpawnCommand => ({
 });
 
 describe("buildBwrapArgv", () => {
+	test("anchors proof directories and seals sources at both aliases after workspace mounts", () => {
+		const directory = "/host/ws/.proof";
+		const argv = buildBwrapArgv(
+			baseProfile({
+				workspace: "/host/ws",
+				verificationSources: { directory, files: ["repro.py"] },
+			}),
+			cmd(),
+		);
+		for (const target of [directory, "/workspace/.proof"]) {
+			expectAdjacent(argv, "--bind", directory, target);
+			expectAdjacent(argv, "--ro-bind", `${directory}/repro.py`, `${target}/repro.py`);
+		}
+		expect(argv.indexOf(directory)).toBeGreaterThan(argv.indexOf("/workspace"));
+	});
 	test("starts with `bwrap --unshare-all`, ends with `-- argv`", () => {
 		const argv = buildBwrapArgv(baseProfile(), cmd());
 		expect(argv[0]).toBe("bwrap");

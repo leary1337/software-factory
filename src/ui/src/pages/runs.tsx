@@ -12,7 +12,6 @@ import { Spinner } from "@/components/ui/spinner.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { useNow } from "@/hooks/use-now.ts";
 import { formatError } from "@/lib/format-error.ts";
-import { formatCostUsd } from "@/pages/run-detail-format.ts";
 import { RunsCardList } from "@/pages/runs/runs-cards.tsx";
 import {
 	matchesStateFilter,
@@ -130,16 +129,6 @@ export function RunsPage() {
 	}, [loadedRows]);
 
 	const totalRuns = runs.data?.total ?? 0;
-	// All-time rollup from the server. `costTotalUsd` is absent from a
-	// spectator's envelope (warren-946f drops the instance-wide rollup), so
-	// it stays `undefined` rather than 0 and the footer figure renders on
-	// presence — a coalesced 0 would read as a real "$0.00 all-time"
-	// (warren-f53e). No summary cards (the design spec): this is a quiet
-	// footer figure, not a tile.
-	const costTotals = {
-		total: runs.data?.costTotalUsd,
-		priced: runs.data?.costPricedCount ?? 0,
-	};
 	const emptyHint = useOperatorHint("Dispatch one above.");
 	// Live durations (warren-b610): a 1s tick keeps the Duration cell of a
 	// running run moving between the 45s refetches. The tick runs only
@@ -227,7 +216,7 @@ export function RunsPage() {
 				<div className="flex shrink-0 items-center gap-2 bg-(--color-thead) px-3 py-2 font-mono text-(--color-text-3) text-[9px] leading-[11px] tracking-[0.06em]">
 					<span className="w-[70px] shrink-0">STATE</span>
 					<span className="grow">RUN</span>
-					<span className="shrink-0">ELAPSED · COST</span>
+					<span className="shrink-0">ELAPSED</span>
 				</div>
 				{listState ?? <RunsCardList rows={mobileRows} projectIndex={projectIndex} now={now} />}
 			</div>
@@ -276,14 +265,6 @@ export function RunsPage() {
 							</select>
 						</div>
 						<div className="flex items-center gap-3 text-(--color-text-3) text-xs">
-							{costTotals.total !== undefined && costTotals.priced > 0 ? (
-								<span
-									className="font-mono text-(--color-text-3) text-[10px] leading-3"
-									title={`${costTotals.priced} of ${totalRuns} runs have a recorded cost (all-time)`}
-								>
-									total: {formatCostUsd(costTotals.total)}
-								</span>
-							) : null}
 							<span className="font-mono">
 								{rangeStart}–{rangeEnd} of {totalRuns}
 							</span>

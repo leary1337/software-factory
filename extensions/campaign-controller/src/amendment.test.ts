@@ -77,7 +77,6 @@ function unapprovedManifest(): Record<string, unknown> {
 			model: "claude-sonnet-4-5",
 		},
 		prompt: "Fix the assigned OpenClaw issue end to end.",
-		budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 		maxConcurrentRuns: 2,
 		expiresAt: "2026-12-31T00:00:00.000Z",
 	};
@@ -231,16 +230,6 @@ describe("validateCampaignAmendment", () => {
 			/at most one/,
 		);
 	});
-
-	test("budget amendments must still layer per-run ≤ daily ≤ total", () => {
-		const amendment = signedAmendment("a".repeat(64), (a) => {
-			a.budget = { perRunUsd: 50, dailyUsd: 20, totalUsd: 100 };
-		});
-		expectValidationError(
-			() => validateCampaignAmendment(amendment, { nowMs: NOW }),
-			/per-run ≤ daily ≤ total/,
-		);
-	});
 });
 
 describe("applyAmendment", () => {
@@ -295,20 +284,6 @@ describe("applyAmendment", () => {
 		expect(second.campaign.id).toBe(first.campaign.id);
 		expect(h.store.events.listAmendments(first.campaign.id)).toHaveLength(1);
 		expect(h.store.campaigns.listCampaigns()).toHaveLength(1);
-	});
-
-	test("adjusting the budget cap updates the campaign ledger cap", () => {
-		const h = harness();
-		const base = importAndApprove(h);
-		const result = applyAmendment(h.store, {
-			amendment: signedAmendment(base.digest, (a) => {
-				a.budget = { perRunUsd: 5, dailyUsd: 20, totalUsd: 250 };
-			}),
-			nowMs: NOW,
-		});
-		expect(result.applied).toBe(true);
-		const after = h.store.campaigns.getCampaign(base.campaign.id) as CampaignRow;
-		expect(after.budgetCapUsdCents).toBe(25_000);
 	});
 
 	test("a prompt amendment rebinds the manifest prompt and digest pair", () => {
@@ -426,45 +401,5 @@ describe("applyAmendment", () => {
 			"approved",
 		);
 		expect(h2.store.events.listOpenAttention(completed.campaign.id)).toEqual([]);
-	});
-
-	test("invalidates planned never-executed intents and releases their reservations", () => {
-		const h = harness();
-		const base = importAndApprove(h);
-		const campaign = base.campaign;
-		const item = h.store.campaigns.listWorkItems(campaign.id)[0] as { id: string };
-		// A planned intent from the old version: journaled, never executed.
-		const reservation = h.store.budget.reserve({
-			campaignId: campaign.id,
-			amountUsdCents: 500,
-		});
-		const planned = h.store.actions.beginAction({
-			actionKey: "warren_dispatch:v1:812",
-			campaignId: campaign.id,
-			workItemId: item.id,
-			actionType: "warren_dispatch",
-			requestDigest: "a".repeat(64),
-			reservedUsdCents: 500,
-		});
-		// Bind the reservation to the action row it funds.
-		h.store.budget.attachReservation(reservation.id, planned.id);
-
-		const result = applyAmendment(h.store, {
-			amendment: signedAmendment(base.digest, (a) => {
-				a.appendIssues = [915];
-			}),
-			nowMs: NOW,
-		});
-
-		expect(result.invalidatedActionIds).toEqual([planned.id]);
-		const settled = h.store.actions.getAction(planned.id) as {
-			state: string;
-			errorClass: string | null;
-		};
-		expect(settled.state).toBe("permanent_failure");
-		expect(settled.errorClass).toBe("policy_violation");
-		const released = h.store.budget.getReservation(reservation.id) as { state: string };
-		expect(released.state).toBe("released");
-		expect(h.store.events.listOpenAttention(campaign.id)).toEqual([]);
 	});
 });

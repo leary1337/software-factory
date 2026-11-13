@@ -52,7 +52,6 @@
 		"../core/acceptance-evidence.ts",
 		"../core/quality-gate.ts",
 		"../core/wire-ops.ts",
-		"../core/wire-cost.ts",
 		"../core/wire-inbox.ts",
 		"../core/wire-insight.ts",
 		"../core/wire-actor.ts",

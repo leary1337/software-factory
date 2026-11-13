@@ -182,12 +182,9 @@ function toolResultContent(payload: Record<string, unknown> | null): string {
 	return stringField(payload, "text");
 }
 
-/** Render the terminal `result` turn (cost + duration when present). */
 function renderResult(payload: Record<string, unknown> | null): string {
 	const subtype = stringField(payload, "subtype") || stringField(payload, "type") || "result";
 	const parts = [`result: ${subtype}`];
-	const cost = numberField(payload, "total_cost_usd");
-	if (cost !== null) parts.push(`cost=$${cost.toFixed(4)}`);
 	const duration = numberField(payload, "duration_ms");
 	if (duration !== null) parts.push(`duration=${formatDurationMs(duration)}`);
 	return parts.join(" ");

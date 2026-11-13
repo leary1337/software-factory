@@ -21,7 +21,6 @@ const ROW_DEFAULTS: Omit<RunMetricsRow, "runId"> = {
 	seedId: null,
 	state: "succeeded",
 	failureReason: null,
-	costUsd: null,
 	tokensInput: null,
 	tokensCacheRead: null,
 	tokensOutput: null,
@@ -107,7 +106,6 @@ describe("buildRunMetrics", () => {
 		expect(m.totals.queueWaitMs).toEqual({ avg: null, median: null, p95: null, count: 0 });
 		expect(m.totals.contextTokens.count).toBe(0);
 		expect(m.totals.tokens).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 });
-		expect(m.totals.cost).toEqual({ total: 0, avg: null, priced: 0 });
 		expect(m.timeSeries).toEqual([]);
 		expect(m.byAgent).toEqual([]);
 		expect(m.byModel).toEqual([]);
@@ -194,7 +192,7 @@ describe("buildRunMetrics", () => {
 
 	it("groups by agent ranked by total context tokens with null keys folded to NONE_KEY", () => {
 		const m = buildRunMetrics([
-			row({ runId: "a", agentName: "alpha", tokensInput: 500, state: "succeeded", costUsd: 1 }),
+			row({ runId: "a", agentName: "alpha", tokensInput: 500, state: "succeeded" }),
 			row({ runId: "b", agentName: "beta", tokensInput: 2000, state: "failed" }),
 			row({ runId: "c", agentName: "alpha", tokensInput: 100, state: "succeeded" }),
 		]);
@@ -204,7 +202,6 @@ describe("buildRunMetrics", () => {
 		expect(alpha?.contextTokensTotal).toBe(600);
 		expect(alpha?.avgContextTokens).toBe(300);
 		expect(alpha?.successRate).toBeCloseTo(1);
-		expect(alpha?.priced).toBe(1);
 		const beta = m.byAgent.find((g) => g.key === "beta");
 		expect(beta?.successRate).toBeCloseTo(0);
 	});

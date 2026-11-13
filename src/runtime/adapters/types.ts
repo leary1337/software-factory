@@ -29,7 +29,7 @@
  * dispatcher rewiring onto these hooks is warren-0efe.
  */
 
-import type { EventStream, InboxPriority, RunCostBasis, RuntimeId } from "../../core/wire.ts";
+import type { EventStream, InboxPriority, RuntimeId } from "../../core/wire.ts";
 
 /**
  * Everything warren's domain needs to know about one agent harness.
@@ -42,7 +42,6 @@ import type { EventStream, InboxPriority, RunCostBasis, RuntimeId } from "../../
 export interface AgentRuntimeAdapter {
 	/** The canonical id, matching the {@link KNOWN_RUNTIME_IDS} member. */
 	readonly runtimeId: RuntimeId;
-	readonly costBasis?: RunCostBasis;
 	readonly defaultTimeoutMs?: number;
 	/**
 	 * Workspace-relative path prefixes this harness writes at runtime, which
@@ -241,7 +240,6 @@ export interface PiFrontmatterOptions {
  * model flags honor these to override their pinned defaults (burrow-b5b4).
  */
 export interface AgentFrontmatter {
-	codex?: { pricing?: { input: number; cached: number; output: number } };
 	provider?: string;
 	model?: string;
 	pi?: PiFrontmatterOptions;

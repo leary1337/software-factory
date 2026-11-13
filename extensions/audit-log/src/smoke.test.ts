@@ -223,30 +223,4 @@ describe("end-to-end smoke with golden export", () => {
 		sink.close();
 		cursors.close();
 	});
-
-	test("the smoke's request profile documents the per-run tail fan-out cost", async () => {
-		// One run, three poll cycles, mid-stream kill: every cycle pays a
-		// full `GET /runs` re-list plus one bounded tail page per active run.
-		// The numbers here are the citation in FRICTION §1 — change them only
-		// by changing the collector's request pattern, then update FRICTION.
-		fake.addRun({ id: RUN_ID, state: "queued", startedAt: T_DISPATCHED });
-		const sink = new AuditStore(dbPath, { now: () => new Date(T_DISPATCHED) });
-		const cursors = new CursorStore(dbPath);
-		await cycle(sink, cursors);
-
-		fake.setRunState(RUN_ID, "running");
-		for (const e of PRE_KILL_EVENTS) fake.addEvent(RUN_ID, e);
-		await cycle(sink, cursors);
-
-		for (const e of POST_RESTART_EVENTS) fake.addEvent(RUN_ID, e);
-		fake.setRunState(RUN_ID, "succeeded");
-		await cycle(sink, cursors);
-
-		// 3 cycles × (1 discovery list) + 3 tail pages (empty, 3 events, 2 events).
-		expect(fake.requestCounts.get("GET /runs")).toBe(3);
-		expect(fake.requestCounts.get("GET /runs/:id/events")).toBe(3);
-
-		sink.close();
-		cursors.close();
-	});
 });

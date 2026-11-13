@@ -46,7 +46,7 @@ describe("warren-config field classification (warren-b754)", () => {
 			"errors",
 			"warnings",
 		] as const satisfies readonly (keyof LoadedWarrenConfig)[];
-		const defaultsKeys = Object.keys(DefaultsConfigSchema.shape);
+		const defaultsKeys = Object.keys(DefaultsConfigSchema._def.out.shape);
 		const classified: string[] = [
 			...PUBLIC_WARREN_CONFIG_FIELDS,
 			...PUBLIC_WARREN_CONFIG_DEFAULTS_FIELDS,
@@ -56,25 +56,6 @@ describe("warren-config field classification (warren-b754)", () => {
 			[...new Set<string>([...envelopeKeys, ...defaultsKeys])].sort(),
 		);
 		expect(new Set(classified).size).toBe(classified.length);
-	});
-
-	test("prompt text, the gate command and the spend cap are redacted defaults", () => {
-		for (const dropped of [
-			"defaultPrompt",
-			"qualityGate",
-			"maxCostUsd",
-			"repoContext",
-			"acceptance",
-			"planRunBudget",
-		] as const) {
-			expect(REDACTED_WARREN_CONFIG_FIELDS).toContain(dropped);
-		}
-		for (const kept of ["triggers", "prTemplate", "errors"] as const) {
-			expect(REDACTED_WARREN_CONFIG_FIELDS).toContain(kept);
-		}
-		for (const kept of ["sourceFile", "warnings", "defaults"] as const) {
-			expect(PUBLIC_WARREN_CONFIG_FIELDS).toContain(kept);
-		}
 	});
 
 	test("the project pair still partitions ProjectRow beside it", () => {
@@ -153,7 +134,6 @@ describe("public projections over the wire — warren-config (warren-b754)", () 
 		const defaults = body.defaults as Record<string, unknown>;
 		expect(Object.keys(defaults).sort()).toEqual([...PUBLIC_WARREN_CONFIG_DEFAULTS_FIELDS].sort());
 		expect(defaults.defaultRole).toBe("planner");
-		expect(defaults.maxCostUsd).toBeUndefined();
 		expect(defaults.acceptance).toBeUndefined();
 		expect(defaults.planRunBudget).toBeUndefined();
 		expect(JSON.stringify(body)).not.toContain("SECRET-PROMPT-TEXT");

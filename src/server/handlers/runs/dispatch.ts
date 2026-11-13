@@ -4,7 +4,6 @@ import { mintGitCredential } from "../../../forge/credentials.ts";
 import { refreshProject } from "../../../projects/manage.ts";
 import { readProviderFrontmatter } from "../../../registry/schema.ts";
 import { validateBaseCommit, validateDispatchRef } from "../../../runs/base-commit.ts";
-import { readMaxCostUsd } from "../../../runs/cost-cap.ts";
 import { spawnRun } from "../../../runs/index.ts";
 import { MULCH_ARM_VALUES } from "../../../runtime/adapters/mulch-arm.ts";
 import type { TrackerContext } from "../../../tracker/contract.ts";
@@ -12,7 +11,7 @@ import type { GitSpawnCredential } from "../../../workspace/git/credential-env.t
 import type { IdempotentDispatch } from "../../idempotency.ts";
 import { jsonResponse } from "../../response.ts";
 import type { RouteHandler, ServerDeps } from "../../types.ts";
-import { optionalEnum, optionalObject, optionalPositiveNumber } from "../body-fields.ts";
+import { optionalEnum, optionalObject } from "../body-fields.ts";
 import { defaultSpawn, optionalString, readJsonBody, requireString } from "../index.ts";
 
 /**
@@ -28,7 +27,6 @@ interface CloneDefaults {
 	readonly prompt: string;
 	readonly providerOverride?: string;
 	readonly modelOverride?: string;
-	readonly maxCostUsd?: number;
 }
 
 /**
@@ -194,17 +192,12 @@ function readParentDefaults(parent: {
 }): CloneDefaults {
 	const rendered = parent.renderedAgentJson as { frontmatter?: Record<string, unknown> };
 	const fm = readProviderFrontmatter(rendered.frontmatter ?? {});
-	// warren-a63d: the parent's EFFECTIVE cap (whichever tier supplied it) sits
-	// folded on the frozen frontmatter; read it back so the follow-up inherits it
-	// verbatim, same as provider/model.
-	const capUsd = readMaxCostUsd(rendered.frontmatter ?? {});
 	return {
 		agentName: parent.agentName,
 		projectId: parent.projectId,
 		prompt: parent.prompt,
 		...(fm.provider !== undefined ? { providerOverride: fm.provider } : {}),
 		...(fm.model !== undefined ? { modelOverride: fm.model } : {}),
-		...(capUsd !== null ? { maxCostUsd: capUsd } : {}),
 	};
 }
 
@@ -249,7 +242,6 @@ interface ResolvedDispatchFields {
 	readonly prompt: string;
 	readonly providerOverride?: string;
 	readonly modelOverride?: string;
-	readonly maxCostUsd?: number;
 	readonly parentRunId?: string;
 	readonly cloneKind?: "replicate" | "rescue";
 	/** #1241: the source run's rescue branch, dispatched as `existingBranch`. */
@@ -306,11 +298,6 @@ async function resolveDispatchFields(
 			clone?.providerOverride,
 		modelOverride:
 			optionalString(body, "modelOverride") ?? rescue?.modelOverride ?? clone?.modelOverride,
-		// Per-dispatch spend cap (warren-a63d): explicit body field wins; a
-		// replicate or rescue falls back to the source run's effective cap read
-		// off its frozen frontmatter, matching the provider/model inheritance.
-		maxCostUsd:
-			optionalPositiveNumber(body, "maxCostUsd") ?? rescue?.maxCostUsd ?? clone?.maxCostUsd,
 		// A replicate or rescue records the same `parent_run_id` column as a
 		// continuation; the `clone_kind` discriminator keeps them apart.
 		...(continueFromRunId !== undefined ? { parentRunId: continueFromRunId } : {}),
@@ -361,7 +348,6 @@ async function buildHttpSpawnOptions(
 		prompt,
 		providerOverride,
 		modelOverride,
-		maxCostUsd,
 		parentRunId,
 		cloneKind,
 		rescueRef,
@@ -396,7 +382,6 @@ async function buildHttpSpawnOptions(
 		providerOverride,
 		modelOverride,
 		...(trigger !== undefined ? { trigger } : {}),
-		...(maxCostUsd !== undefined ? { maxCostUsdOverride: maxCostUsd } : {}),
 		...(mulchArm !== undefined ? { mulchArm } : {}),
 		seedId,
 		...(targetBranch !== undefined ? { targetBranch } : {}),

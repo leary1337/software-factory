@@ -1,17 +1,3 @@
-/**
- * Pi + claude cost-stats persistence (warren-a7dc, warren-17a4,
- * warren-87f9). Two paths into `RunsRepo.attachStats`:
- *
- *   - `persistPiStatsDelta` — out-of-band `PiStatsClient` (baseline +
- *     terminal snapshot, delta persisted). Used when the wire format
- *     doesn't carry usage (declarative stubs, custom dispatchers).
- *   - `persistInStreamUsage` — accumulator already populated from
- *     in-stream `turn_end` / `result` envelopes; persisted verbatim.
- *
- * All persistence is best-effort: attachStats failures are logged and
- * swallowed so a cost-write error never fails the bridge or the run.
- */
-
 import type { RuntimeId } from "../../core/wire.ts";
 import type { Repos } from "../../db/repos/index.ts";
 import type { SessionStatsAccumulator } from "../usage-aggregate.ts";
@@ -40,7 +26,7 @@ export async function snapshotStats(
 				phase,
 				err: err instanceof Error ? err.message : String(err),
 			},
-			"pi get_session_stats failed; cost columns will stay null",
+			"pi get_session_stats failed; token columns will stay null",
 		);
 		return null;
 	}
@@ -77,14 +63,12 @@ export async function persistPiStatsDelta(input: PersistPiStatsInput): Promise<v
 	if (terminal === null) return;
 	const baseline = input.baseline !== undefined ? await input.baseline : null;
 	const base: SessionStats = baseline ?? {
-		costUsd: 0,
 		tokensInput: 0,
 		tokensOutput: 0,
 		tokensCacheRead: 0,
 		tokensCacheWrite: 0,
 	};
 	const delta = {
-		costUsd: terminal.costUsd - base.costUsd,
 		tokensInput: terminal.tokensInput - base.tokensInput,
 		tokensOutput: terminal.tokensOutput - base.tokensOutput,
 		tokensCacheRead: terminal.tokensCacheRead - base.tokensCacheRead,
@@ -96,7 +80,6 @@ export async function persistPiStatsDelta(input: PersistPiStatsInput): Promise<v
 			{
 				runId: input.runId,
 				sandboxRunId: input.sandboxRunId,
-				costUsd: delta.costUsd,
 				tokensInput: delta.tokensInput,
 				tokensOutput: delta.tokensOutput,
 			},
@@ -109,36 +92,24 @@ export async function persistPiStatsDelta(input: PersistPiStatsInput): Promise<v
 				sandboxRunId: input.sandboxRunId,
 				err: err instanceof Error ? err.message : String(err),
 			},
-			"attachStats threw; cost columns may be inconsistent",
+			"attachStats threw; token columns may be inconsistent",
 		);
 	}
 }
 
 export interface PersistInStreamUsageInput {
 	readonly usage: SessionStatsAccumulator;
-	readonly runtime: RuntimeId;
+	readonly runtime?: RuntimeId;
 	readonly runId: string;
 	readonly sandboxRunId: string;
 	readonly repos: Repos;
 	readonly logger?: BridgeLogger;
 }
 
-/**
- * Persist in-stream-accumulated runtime usage via `RunsRepo.attachStats`.
- * Skips when nothing was observed (non-cost-emitting run) so columns
- * stay null. attachStats throws on storage errors; we log + swallow to
- * match the PiStatsClient path's best-effort posture. The `runtime`
- * tag distinguishes pi (`turn_end` accumulator, warren-17a4) from
- * claude-code (`result` single-shot, warren-87f9) in the log line. It is a
- * {@link RuntimeId}, so the tag reads the same as every other runtime id in
- * the system: before warren-c80e this field carried the literal "claude",
- * which is not a runtime id, so filtering logs by runtime missed these rows.
- */
 export async function persistInStreamUsage(input: PersistInStreamUsageInput): Promise<void> {
 	if (!input.usage.seen) return;
 	try {
 		await input.repos.runs.attachStats(input.runId, {
-			costUsd: input.usage.costUsd,
 			tokensInput: input.usage.tokensInput,
 			tokensOutput: input.usage.tokensOutput,
 			tokensCacheRead: input.usage.tokensCacheRead,
@@ -149,7 +120,6 @@ export async function persistInStreamUsage(input: PersistInStreamUsageInput): Pr
 				runId: input.runId,
 				sandboxRunId: input.sandboxRunId,
 				runtime: input.runtime,
-				costUsd: input.usage.costUsd,
 				tokensInput: input.usage.tokensInput,
 				tokensOutput: input.usage.tokensOutput,
 			},
@@ -163,7 +133,26 @@ export async function persistInStreamUsage(input: PersistInStreamUsageInput): Pr
 				runtime: input.runtime,
 				err: err instanceof Error ? err.message : String(err),
 			},
-			"attachStats threw on in-stream usage; cost columns may stay null",
+			"attachStats threw on in-stream usage; token columns may stay null",
 		);
 	}
+}
+
+export async function persistObservedUsage(input: {
+	runId: string;
+	sandboxRunId: string;
+	piUsage: SessionStatsAccumulator;
+	claudeUsage: SessionStatsAccumulator;
+	repos: Repos;
+	logger?: BridgeLogger;
+}): Promise<void> {
+	const usage = input.piUsage.seen ? input.piUsage : input.claudeUsage;
+	await persistInStreamUsage({
+		usage,
+		...(usage.runtime ? { runtime: usage.runtime } : {}),
+		runId: input.runId,
+		sandboxRunId: input.sandboxRunId,
+		repos: input.repos,
+		...(input.logger !== undefined ? { logger: input.logger } : {}),
+	});
 }

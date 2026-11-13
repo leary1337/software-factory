@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { CODEX_DEFAULT_MODEL } from "../../runtime/adapters/codex-config.ts";
-import { adapterFor } from "../../runtime/adapters/index.ts";
 import { DefaultsConfigSchema } from "../../warren-config/schema.ts";
 import { readRuntimeId } from "../schema.ts";
 import { BUILTIN_AGENTS } from "./index.ts";
@@ -14,7 +13,6 @@ describe("Codex service agents", () => {
 		if (runtime !== "codex") throw new Error(`${agent.name} uses ${runtime}`);
 		expect(agent.frontmatter.provider).toBe("openai");
 		expect(agent.frontmatter.model).toBe(CODEX_DEFAULT_MODEL);
-		expect(adapterFor(runtime).costBasis).toBe("subscription_estimate");
 	});
 
 	test("resolves automatic repair defaults to Codex service roles", () => {

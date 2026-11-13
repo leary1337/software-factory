@@ -72,8 +72,6 @@ export interface DispatchDraft {
 	readonly seedId: string;
 	readonly providerOverride: string;
 	readonly modelOverride: string;
-	/** Cost cap as free text; parsed to `maxCostUsd` at submit. */
-	readonly costCap: string;
 }
 
 /** Touched flags stop the per-project default auto-fill per field. */
@@ -82,7 +80,6 @@ export interface DispatchTouched {
 	readonly prompt: boolean;
 	readonly provider: boolean;
 	readonly model: boolean;
-	readonly costCap: boolean;
 }
 
 /** Draft + touched flags travel together through the page's single state. */
@@ -100,7 +97,6 @@ export function initialDraft(state: DispatchRouteState): DispatchDraft {
 		seedId: state.seedId ?? "",
 		providerOverride: "",
 		modelOverride: "",
-		costCap: "",
 	};
 }
 
@@ -110,29 +106,12 @@ export function initialTouched(state: DispatchRouteState): DispatchTouched {
 		prompt: state.prompt !== undefined && state.prompt.length > 0,
 		provider: false,
 		model: false,
-		costCap: false,
 	};
 }
 
-/** Parse `costCap` into a `maxCostUsd` value. Invalid text returns null. */
-export function parseCostCap(text: string): { value: number } | { error: string } | null {
-	const trimmed = text.trim();
-	if (trimmed.length === 0) return null;
-	const value = Number(trimmed);
-	if (!Number.isFinite(value) || value <= 0) {
-		return { error: "Cost cap must be a positive number." };
-	}
-	return { value };
-}
-
-/**
- * Build the `POST /runs` body from the draft (plus parsed cost cap and
- * continuation/replicate route state). Pure — the page only fires it.
- */
 export function buildCreateRunInput(args: {
 	readonly draft: DispatchDraft;
 	readonly routeState: DispatchRouteState;
-	readonly maxCostUsd: number | undefined;
 }): CreateRunInput {
 	const { draft } = args;
 	const trimmedRef = draft.ref.trim();
@@ -147,7 +126,6 @@ export function buildCreateRunInput(args: {
 		...(trimmedProvider.length > 0 ? { providerOverride: trimmedProvider } : {}),
 		...(trimmedModel.length > 0 ? { modelOverride: trimmedModel } : {}),
 		...(trimmedSeed.length > 0 ? { seedId: trimmedSeed } : {}),
-		...(args.maxCostUsd !== undefined ? { maxCostUsd: args.maxCostUsd } : {}),
 		...(args.routeState.continueFromRunId !== undefined
 			? { continueFromRunId: args.routeState.continueFromRunId }
 			: {}),

@@ -127,8 +127,6 @@ default policy is `none`, which blocks all traffic. Two policies work:
   points inside the container or pod, not at the host. A reachable
   address for the model server (for Docker Desktop,
   `host.docker.internal`) must go in the extension's `baseUrl`.
-- Cost enforcement is inert. The extension declares zero cost per token,
-  so `maxCostUsd` caps never trigger for these runs.
 - Model quality is your problem. Warren's run contract (commit, quality
   gates, PR delivery) assumes an agent that can follow it. Small local
   models frequently cannot.

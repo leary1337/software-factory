@@ -40,6 +40,7 @@ import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
 import { allAdapters } from "../adapters/index.ts";
 import type { RunSpec } from "../contract.ts";
 import { privateGitDenyRoots } from "./paths.ts";
+import { resolveProjectInputs, withProjectInputs } from "./project-inputs.ts";
 
 /* -------------------------------------------------------------------------- */
 /* Env passthrough (warren-owned allowlist; warren-fb8d formalizes)            */
@@ -365,6 +366,7 @@ export async function buildLocalSandboxProfile(input: BuildProfileInput): Promis
 	const projectRoot = spec.hostClonePathHint ?? "";
 	const toml = projectRoot === "" ? {} : await readLocalSandboxConfig(projectRoot);
 	const hostHome = homedir();
+	const projectInputsPath = await resolveProjectInputs(spec.projectId);
 
 	const readOnlyMounts = (toml.readOnlyPaths ?? [])
 		.map((p) => expandHome(p, hostHome))
@@ -398,5 +400,5 @@ export async function buildLocalSandboxProfile(input: BuildProfileInput): Promis
 	const cpuMillicores = spec.resources?.cpuMillicores;
 	if (cpuMillicores !== undefined) profile.cpuLimit = cpuMillicores / 1000;
 	else if (toml.cpuLimit !== undefined) profile.cpuLimit = toml.cpuLimit;
-	return profile;
+	return withProjectInputs(profile, projectInputsPath);
 }

@@ -15,7 +15,7 @@ import { expect, test } from "@playwright/test";
 import { harnessCases, openCase } from "../harness.ts";
 
 const SEED = "warren-6bca";
-const TABS = ["loop", "behavior", "judge", "economics"] as const;
+const TABS = ["loop", "behavior", "judge"] as const;
 
 const { fixture, cases } = harnessCases();
 

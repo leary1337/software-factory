@@ -38,10 +38,8 @@ import { AdmissionRefusal } from "./admission-errors.ts";
 import { digestOf } from "./digest.ts";
 import { ValidationError } from "./errors.ts";
 import {
-	type CampaignBudget,
 	type CampaignManifest,
 	MAX_CAMPAIGN_ISSUES,
-	MAX_CAP_USD,
 	validateCampaignManifest,
 } from "./manifest.ts";
 import type { CampaignStateStore } from "./store/state-store.ts";
@@ -51,7 +49,6 @@ import {
 	rejectUnknownKeys,
 	requireInt,
 	requireIsoTimestamp,
-	requirePositiveNumber,
 	requireSha256,
 	requireString,
 } from "./validate-utils.ts";
@@ -78,7 +75,6 @@ export interface CampaignAmendment {
 	/** The manifest digest this amendment edits; approval binds it. */
 	baseManifestDigest: string;
 	appendIssues?: number[];
-	budget?: CampaignBudget;
 	prompt?: string;
 	promptDigest?: string;
 	maxConcurrentRuns?: number;
@@ -117,22 +113,15 @@ const TOP_LEVEL_FIELDS = [
 	"campaignId",
 	"baseManifestDigest",
 	"appendIssues",
-	"budget",
 	"prompt",
 	"promptDigest",
 	"maxConcurrentRuns",
 	"expiresAt",
 	"approval",
 ] as const;
-
-const BUDGET_FIELDS = ["perRunUsd", "dailyUsd", "totalUsd"] as const;
 const APPROVAL_FIELDS = ["approvedBy", "approvedAt", "amendmentDigest"] as const;
 const ISSUE_MIN = 1;
 const ISSUE_MAX = 1_000_000;
-
-function usdToCents(usd: number): number {
-	return Math.round(usd * 100);
-}
 
 function parseManifestRow(row: CampaignRow): CampaignManifest {
 	try {
@@ -180,7 +169,6 @@ export function validateCampaignAmendment(
 	const baseManifestDigest = requireSha256(root, "baseManifestDigest", "campaign amendment");
 
 	const appendIssues = requireAppendIssues(root);
-	const budget = requireBudgetChange(root);
 	const { prompt, promptDigest } = requirePromptChange(root);
 	let maxConcurrentRuns: number | undefined;
 	if (root.maxConcurrentRuns !== undefined) {
@@ -195,7 +183,6 @@ export function validateCampaignAmendment(
 	}
 	if (
 		appendIssues === undefined &&
-		budget === undefined &&
 		prompt === undefined &&
 		promptDigest === undefined &&
 		maxConcurrentRuns === undefined &&
@@ -213,7 +200,6 @@ export function validateCampaignAmendment(
 		campaignId,
 		baseManifestDigest,
 		appendIssues,
-		budget,
 		prompt,
 		promptDigest,
 		maxConcurrentRuns,
@@ -261,23 +247,6 @@ function requireAppendIssues(root: ReturnType<typeof asObject>): number[] | unde
 		issues.push(item);
 	}
 	return issues;
-}
-
-function requireBudgetChange(root: ReturnType<typeof asObject>): CampaignBudget | undefined {
-	if (root.budget === undefined) return undefined;
-	const raw = asObject(root.budget, "campaign amendment.budget");
-	rejectUnknownKeys(raw, BUDGET_FIELDS, "campaign amendment.budget");
-	const budget: CampaignBudget = {
-		perRunUsd: requirePositiveNumber(raw, "perRunUsd", "campaign amendment.budget", MAX_CAP_USD),
-		dailyUsd: requirePositiveNumber(raw, "dailyUsd", "campaign amendment.budget", MAX_CAP_USD),
-		totalUsd: requirePositiveNumber(raw, "totalUsd", "campaign amendment.budget", MAX_CAP_USD),
-	};
-	if (budget.perRunUsd > budget.dailyUsd || budget.dailyUsd > budget.totalUsd) {
-		throw new ValidationError(
-			`caps must layer per-run ≤ daily ≤ total at 'campaign amendment.budget' — got ${budget.perRunUsd} / ${budget.dailyUsd} / ${budget.totalUsd}`,
-		);
-	}
-	return budget;
 }
 
 function requirePromptChange(root: ReturnType<typeof asObject>): {
@@ -342,9 +311,6 @@ function composeNextManifest(
 	};
 	if (amendment.appendIssues !== undefined) {
 		next.issues = [...base.issues, ...amendment.appendIssues];
-	}
-	if (amendment.budget !== undefined) {
-		next.budget = amendment.budget;
 	}
 	if (amendment.prompt !== undefined) {
 		next.prompt = amendment.prompt;
@@ -431,10 +397,6 @@ function invalidatePlannedActions(
 				newManifestDigest,
 			}),
 		});
-		const reservation = store.budget.getReservationByAction(action.id);
-		if (reservation !== null && reservation.state === "active") {
-			store.budget.releaseReservation(reservation.id);
-		}
 		invalidated.push(action.id);
 	}
 	return invalidated;
@@ -512,7 +474,6 @@ export function applyAmendment(
 
 	const amendedFields = [
 		...(amendment.appendIssues !== undefined ? ["appendIssues"] : []),
-		...(amendment.budget !== undefined ? ["budget"] : []),
 		...(amendment.prompt !== undefined ? ["prompt"] : []),
 		...(amendment.promptDigest !== undefined ? ["promptDigest"] : []),
 		...(amendment.maxConcurrentRuns !== undefined ? ["maxConcurrentRuns"] : []),
@@ -526,7 +487,6 @@ export function applyAmendment(
 		store.campaigns.updateManifestInPlace(campaign.id, {
 			manifestDigest: nextDigest,
 			manifestJson: JSON.stringify(finalManifest),
-			budgetCapUsdCents: usdToCents(finalManifest.budget.totalUsd),
 		});
 		// A completed campaign re-opens with its appended work; an
 		// awaiting_approval row is approved by the amendment's approval.

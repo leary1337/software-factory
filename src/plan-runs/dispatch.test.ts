@@ -66,7 +66,6 @@ describe("createPlanRunSpawn", () => {
 			projectId,
 			agentName: "claude-code",
 			children: [{ seq: 1, seedId: "warren-a" }],
-			maxCostUsd: 3,
 			now: NOW,
 		});
 		const child = (await repos.planRuns.listChildren(planRun.id))[0];
@@ -127,8 +126,6 @@ describe("createPlanRunSpawn", () => {
 		expect(captured[0]?.dispatchOrigin).toBe("plan_run");
 		expect(captured[0]?.dispatcherHandle).toBe(planRun.dispatcherHandle);
 		expect(captured[0]?.runtimeProvider).toBe(runtimeProvider);
-		// warren-a63d: the plan-run's per-child spend cap rides the override slot.
-		expect(captured[0]?.maxCostUsdOverride).toBe(3);
 	});
 
 	test("spawns a single child run for a PlanRun with no bindings", async () => {
