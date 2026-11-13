@@ -125,7 +125,7 @@ export function PlanRunDetailPage() {
 								onClick={() => cancel.mutate()}
 								disabled={cancel.isPending}
 							>
-								<CircleStop className="h-2 w-2 text-(--color-danger)" aria-hidden />
+								<CircleStop className="h-4 w-4 text-(--color-danger)" aria-hidden />
 								{cancel.isPending ? "Cancelling…" : "Cancel plan run"}
 							</Button>
 							<CancelStatus mutation={cancel} />

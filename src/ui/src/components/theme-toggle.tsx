@@ -1,6 +1,7 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { type Theme, useTheme } from "@/hooks/use-theme.ts";
+import { cn } from "@/lib/utils.ts";
 
 const NEXT: Record<Theme, Theme> = {
 	light: "dark",
@@ -14,7 +15,7 @@ const LABEL: Record<Theme, string> = {
 	system: "System",
 };
 
-export function ThemeToggle(): React.JSX.Element {
+export function ThemeToggle({ className }: { className?: string }): React.JSX.Element {
 	const { theme, setTheme } = useTheme();
 	const next = NEXT[theme];
 	const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
@@ -25,12 +26,12 @@ export function ThemeToggle(): React.JSX.Element {
 			variant="ghost"
 			size="sm"
 			onClick={() => setTheme(next)}
-			className="mt-2 justify-start"
+			className={cn("justify-start", className)}
 			aria-label={ariaLabel}
 			title={ariaLabel}
 		>
-			<Icon className="h-4 w-4" />
-			{LABEL[theme]}
+			<Icon className="h-4 w-4 shrink-0" aria-hidden />
+			<span>{LABEL[theme]}</span>
 		</Button>
 	);
 }

@@ -61,26 +61,20 @@ export function ActiveWorkloads({
 	return (
 		<div className="flex min-w-0 flex-col md:flex-[1.8]">
 			<header className="hidden h-7 shrink-0 items-center pb-1.25 md:flex">
-				<h2 className="font-semibold text-(--color-text-2) text-[11px] leading-3.5">
+				<h2 className="font-semibold text-(--color-text-2) text-xs leading-4.5">
 					Active workloads
 				</h2>
 				<span className="flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
-					{windowSummary}
-				</span>
+				<span className="font-mono text-(--color-text-3) text-xs leading-4">{windowSummary}</span>
 			</header>
 			<div className="flex flex-col overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-surface)">
 				<div className="flex items-center gap-2 border-(--color-border) border-b bg-(--color-thead) px-3 py-2.5 md:hidden">
-					<h2 className="font-semibold text-(--color-text) text-[12px] leading-[15px]">
-						Active workloads
-					</h2>
+					<h2 className="font-semibold text-(--color-text) text-xs leading-4">Active workloads</h2>
 					<span className="flex-1" />
-					<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px]">
-						{windowSummary}
-					</span>
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">{windowSummary}</span>
 				</div>
 				{active.length === 0 ? (
-					<p className="px-3 py-3 font-mono text-(--color-text-3) text-[10px] leading-3">
+					<p className="px-3 py-3 font-mono text-(--color-text-3) text-xs leading-4">
 						{loading ? (
 							"loading active workloads…"
 						) : (
@@ -111,38 +105,38 @@ export function ActiveWorkloads({
 					</InventoryCardList>
 				)}
 				<div className="flex items-center border-(--color-border) border-t px-3 py-2.25 md:hidden">
-					<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px]">
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">
 						UPDATED {refreshedAgeLabel(refreshedAt === undefined ? undefined : now - refreshedAt)}
 					</span>
 					<span className="flex-1" />
 					<Link
 						to="/runs"
-						className="font-medium text-(--color-primary) text-[11px] leading-[14px] hover:underline"
+						className="font-medium text-(--color-primary) text-xs leading-4 hover:underline"
 					>
 						{total === undefined ? "View all runs →" : `View all ${total} runs →`}
 					</Link>
 				</div>
 				<div className="hidden md:block">
 					<div className="flex h-[31px] shrink-0 items-center gap-2.5 border-(--color-border-strong) border-b bg-(--color-thead) px-2.5">
-						<span className="w-[82px] shrink-0 font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="w-[82px] shrink-0 font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							STATE
 						</span>
-						<span className="w-[112px] shrink-0 font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="w-[112px] shrink-0 font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							RUN
 						</span>
-						<span className="w-[76px] shrink-0 font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="w-[76px] shrink-0 font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							AGENT
 						</span>
-						<span className="w-[96px] shrink-0 font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="w-[96px] shrink-0 font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							PROJECT
 						</span>
-						<span className="min-w-0 flex-1 font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="min-w-0 flex-1 font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							ACTIVITY
 						</span>
-						<span className="w-[48px] shrink-0 text-right font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="w-[48px] shrink-0 text-right font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							ELAPSED
 						</span>
-						<span className="w-[52px] shrink-0 text-right font-mono font-semibold text-(--color-text-3) text-[9px] tracking-[0.05em]">
+						<span className="w-[52px] shrink-0 text-right font-mono font-semibold text-(--color-text-3) text-xs tracking-[0.05em]">
 							COST
 						</span>
 					</div>
@@ -155,37 +149,34 @@ export function ActiveWorkloads({
 							<span className="w-[82px] shrink-0">
 								<StatePill state={run.state} />
 							</span>
-							<span className="w-[112px] shrink-0 truncate font-mono text-(--color-text) text-[10px] leading-3">
+							<span className="w-[112px] shrink-0 truncate font-mono text-(--color-text) text-xs leading-4">
 								{run.id}
 							</span>
-							<span className="w-[76px] shrink-0 truncate text-(--color-text-2) text-[11px] leading-3.5">
+							<span className="w-[76px] shrink-0 truncate text-(--color-text-2) text-xs leading-4.5">
 								{run.agentName}
 							</span>
-							<span className="w-[96px] shrink-0 truncate text-(--color-text-3) text-[11px] leading-3.5">
+							<span className="w-[96px] shrink-0 truncate text-(--color-text-3) text-xs leading-4.5">
 								{run.projectId === null
 									? "orphaned"
 									: (projectIndex.get(run.projectId) ?? run.projectId)}
 							</span>
-							<span className="min-w-0 flex-1 truncate text-(--color-text-2) text-[11px] leading-3.5">
+							<span className="min-w-0 flex-1 truncate text-(--color-text-2) text-xs leading-4.5">
 								{run.state === "queued" ? "awaiting admission" : activityLine(run.prompt)}
 							</span>
-							<span className="w-[48px] shrink-0 text-right font-mono text-(--color-text-2) text-[10px] leading-3">
+							<span className="w-[48px] shrink-0 text-right font-mono text-(--color-text-2) text-xs leading-4">
 								{formatDurationMs(phaseElapsedMs(run, now))}
 							</span>
-							<span className="w-[52px] shrink-0 text-right font-mono text-(--color-text-2) text-[10px] leading-3">
+							<span className="w-[52px] shrink-0 text-right font-mono text-(--color-text-2) text-xs leading-4">
 								{run.costUsd === null ? "—" : formatCostUsd(run.costUsd)}
 							</span>
 						</Link>
 					))}
 					<div className="flex h-[38px] shrink-0 items-center gap-3 border-(--color-border) border-t px-2.5">
-						<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
+						<span className="font-mono text-(--color-text-3) text-xs leading-4">
 							FROM THE NEWEST RUNS
 						</span>
 						<span className="flex-1" />
-						<Link
-							to="/runs"
-							className="text-(--color-primary) text-[11px] leading-3.5 hover:underline"
-						>
+						<Link to="/runs" className="text-(--color-primary) text-xs leading-4.5 hover:underline">
 							View all runs →
 						</Link>
 					</div>

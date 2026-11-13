@@ -40,32 +40,28 @@ export function EventsPanel() {
 	return (
 		<div className="flex min-w-0 flex-col md:min-w-[320px] md:flex-1">
 			<header className="hidden h-7 shrink-0 items-center pb-1.25 md:flex">
-				<h2 className="font-semibold text-(--color-text-2) text-[11px] leading-3.5">
+				<h2 className="font-semibold text-(--color-text-2) text-xs leading-4.5">
 					Recent run events
 				</h2>
 				<span className="flex-1" />
-				<span className="font-mono text-(--color-text-3) text-[9px] leading-3">RECENT EVENTS</span>
+				<span className="font-mono text-(--color-text-3) text-xs leading-4">RECENT EVENTS</span>
 			</header>
 			<div className="flex flex-1 flex-col justify-center overflow-clip rounded-(--radius-md) border border-(--color-border) bg-(--color-sidebar) md:bg-(--color-surface)">
 				<div className="flex items-center gap-2 border-(--color-border) border-b bg-(--color-thead) px-3 py-2.5 md:hidden">
-					<h2 className="font-semibold text-(--color-text) text-[12px] leading-[15px]">
-						Recent run events
-					</h2>
+					<h2 className="font-semibold text-(--color-text) text-xs leading-4">Recent run events</h2>
 					<span className="flex-1" />
-					<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px]">
-						LIVE TAIL
-					</span>
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">LIVE TAIL</span>
 				</div>
 				{events.isPending ? (
-					<p className="px-3 py-4 font-mono text-(--color-text-3) text-[10px] leading-4">
+					<p className="px-3 py-4 font-mono text-(--color-text-3) text-xs leading-4">
 						loading run events…
 					</p>
 				) : events.isError ? (
-					<p className="px-3 py-4 font-mono text-(--color-danger) text-[10px] leading-4">
+					<p className="px-3 py-4 font-mono text-(--color-danger) text-xs leading-4">
 						{formatError(events.error)}
 					</p>
 				) : rows.length === 0 ? (
-					<p className="px-3 py-4 font-mono text-(--color-text-3) text-[10px] leading-4">
+					<p className="px-3 py-4 font-mono text-(--color-text-3) text-xs leading-4">
 						No run events recorded yet.
 					</p>
 				) : (
@@ -74,34 +70,34 @@ export function EventsPanel() {
 							key={event.id}
 							className="flex min-h-[26px] items-baseline gap-2.5 border-(--color-border) border-b px-3 py-1 last:border-b-0"
 						>
-							<span className="w-[52px] shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3">
+							<span className="w-[52px] shrink-0 font-mono text-(--color-text-3) text-xs leading-4">
 								{formatEventClock(event.ts)}
 							</span>
 							<span
-								className={`w-[64px] shrink-0 truncate font-mono text-[10px] uppercase leading-3 ${streamToneClass(event.stream)}`}
+								className={`w-[64px] shrink-0 truncate font-mono text-xs uppercase leading-4 ${streamToneClass(event.stream)}`}
 							>
 								{event.stream ?? "—"}
 							</span>
-							<span className="min-w-0 flex-1 truncate font-mono text-(--color-text-2) text-[10px] leading-3">
+							<span className="min-w-0 flex-1 truncate font-mono text-(--color-text-2) text-xs leading-4">
 								{summarizeEventPayload(event.payload)}
 							</span>
 						</div>
 					))
 				)}
 				<div className="flex h-[30px] shrink-0 items-center gap-3 border-(--color-border) border-t px-3">
-					<span className="font-mono text-(--color-text-3) text-[9px] leading-3">
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">
 						{seqRange ?? "NEWEST FIRST"}
 					</span>
 					<span className="flex-1" />
 					<Link
 						to="/events"
-						className="text-(--color-primary) text-[11px] leading-3.5 hover:underline md:hidden"
+						className="text-(--color-primary) text-xs leading-4.5 hover:underline md:hidden"
 					>
 						Open event explorer →
 					</Link>
 					<Link
 						to="/events"
-						className="hidden text-(--color-primary) text-[11px] leading-3.5 hover:underline md:inline"
+						className="hidden text-(--color-primary) text-xs leading-4.5 hover:underline md:inline"
 					>
 						View all →
 					</Link>

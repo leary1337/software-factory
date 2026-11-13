@@ -37,13 +37,10 @@ const alertVariants = cva(
 	{
 		variants: {
 			variant: {
-				info: "border-(--color-info)/30 bg-(--color-info)/10 text-(--color-info-foreground)",
-				success:
-					"border-(--color-success)/30 bg-(--color-success)/10 text-(--color-success-foreground)",
-				warning:
-					"border-(--color-warning)/30 bg-(--color-warning)/10 text-(--color-warning-foreground)",
-				danger:
-					"border-(--color-danger)/30 bg-(--color-danger)/10 text-(--color-danger-foreground)",
+				info: "border-(--color-info)/30 bg-(--color-info-soft) text-(--color-text)",
+				success: "border-(--color-success)/30 bg-(--color-success-soft) text-(--color-text)",
+				warning: "border-(--color-warning)/30 bg-(--color-warning-soft) text-(--color-text)",
+				danger: "border-(--color-danger)/30 bg-(--color-danger-soft) text-(--color-text)",
 				neutral: "border-(--color-border) bg-(--color-muted) text-(--color-fg)",
 			},
 		},

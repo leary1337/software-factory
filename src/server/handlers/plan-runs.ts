@@ -27,6 +27,7 @@ import {
 	resumePlanRun,
 	tailPlanRunEvents,
 } from "../../plan-runs/index.ts";
+import { loadProductionVerification } from "../../plan-runs/production-verification.ts";
 import { loadReviewStage } from "../../plan-runs/review.ts";
 import { loadReviewMergeResult, loadReviewSummaries } from "../../plan-runs/review-summary.ts";
 import { loadTaskMetrics } from "../../plan-runs/task-metrics-load.ts";
@@ -208,6 +209,7 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 					...(isPublicOnly(ctx.actor)
 						? {}
 						: {
+								productionVerification: await loadProductionVerification(deps.repos, child.runId),
 								reviewMerge:
 									child.runId !== null
 										? await loadReviewMergeResult(deps.repos, child.runId)
