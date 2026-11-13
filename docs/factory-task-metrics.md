@@ -31,6 +31,29 @@ with their unknown counts. A subscription estimate is not a payment, quota
 balance or hard spending limit. Cached input is already separate from uncached
 input in Warren's persisted token buckets and is counted once.
 
+The task cards and plan screens display these whole-task costs for the current
+attempt. A plan total adds its children's metrics; it never adds just the current
+implementation runs. Earlier plan attempts remain separate. Task details show
+the current implementation's cost as an included portion, not a second total.
+Missing metrics display as unknown, and incomplete totals retain a visible
+unknown remainder. A complete empty run lineage costs zero for this attempt;
+missing run links do not. Cost details distinguish subscription estimates from
+charges, and the implementation run limit is displayed separately from observed cost.
+
+Task cards and task details also compare independent attempts of the same tracker
+task in the same project. The selected attempt is included once in the loaded
+subtotal. Task details load project history in batches of 12 plans; additional
+plans can be loaded explicitly. Errors and unloaded history limit that subtotal:
+it is not presented as an all-time total. A plan's own total continues to cover
+only that plan attempt and all its tasks.
+
+All displayed totals add the original task measurements before formatting.
+For example, 8.5644 + 2.8644 is displayed as 11.43, while the two individually
+formatted rows show 8.56 and 2.86. The expandable cost calculation shows six
+decimal places and explains the 0.01 display difference. It is not another
+charge. Unknown measurements remain outside the known sum and retain their
+unknown remainder. Subscription equivalents remain estimates.
+
 Active time sums run execution time, so concurrent runs can exceed elapsed wall
 time. It includes a running run up to the response timestamp; queued runs have
 no known execution interval. Delivery duration is not populated for skipped or

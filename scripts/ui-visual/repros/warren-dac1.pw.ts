@@ -43,7 +43,7 @@ const TARGETS = [
 		page: "plan-run-detail",
 		card: "Child walk",
 		locate: (p: Page) =>
-			p.getByRole("heading", { name: "Child walk" }).locator("xpath=ancestor::section[1]"),
+			p.getByRole("heading", { name: "Tasks in this plan" }).locator("xpath=ancestor::section[1]"),
 	},
 ] as const;
 

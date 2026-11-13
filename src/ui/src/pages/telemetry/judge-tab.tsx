@@ -56,7 +56,7 @@ function AbsentPanel({ state }: { state: JudgeVerdictsAbsent }) {
 	const copy = ABSENT_COPY[state.reason];
 	return (
 		<TelemetryPanel title="Judge verdicts" meta={copy.meta}>
-			<p className="max-w-prose text-(--color-text-2) text-[12px] leading-[17px]">{copy.line}</p>
+			<p className="max-w-prose text-(--color-text-2) text-xs leading-[17px]">{copy.line}</p>
 		</TelemetryPanel>
 	);
 }
@@ -118,7 +118,7 @@ function JudgeDistributionMobile({
 	const topClass = summary.failingClasses[0];
 	return (
 		<div className="flex flex-col gap-2.5 md:hidden">
-			<div className="flex h-2 shrink-0 overflow-clip rounded-[2px]">
+			<div className="flex h-2 shrink-0 overflow-clip rounded-none">
 				{segments.map((seg) => (
 					<div
 						key={seg.key}
@@ -130,8 +130,8 @@ function JudgeDistributionMobile({
 			<div className="flex flex-wrap items-center gap-3">
 				{segments.map((seg) => (
 					<span key={seg.key} className="flex items-center gap-[5px]">
-						<span className={`h-[7px] w-[7px] shrink-0 rounded-[2px] ${seg.swatch}`} aria-hidden />
-						<span className="font-mono text-(--color-text-2) text-[9px] leading-[11px]">
+						<span className={`h-[7px] w-[7px] shrink-0 rounded-none ${seg.swatch}`} aria-hidden />
+						<span className="font-mono text-(--color-text-2) text-xs leading-4">
 							{seg.label} {String(pct(seg.count, total))}%
 						</span>
 					</span>
@@ -139,10 +139,10 @@ function JudgeDistributionMobile({
 			</div>
 			{topClass !== undefined ? (
 				<div className="flex items-center gap-2 pt-[2px]">
-					<span className="w-[110px] shrink-0 font-mono text-(--color-danger) text-[9px] leading-[11px]">
+					<span className="w-[110px] shrink-0 font-mono text-(--color-danger) text-xs leading-4">
 						{topClass.name}
 					</span>
-					<span className="flex-1 font-mono text-(--color-text-3) text-[9px] leading-[11px]">
+					<span className="flex-1 font-mono text-(--color-text-3) text-xs leading-4">
 						top failure class · {String(topClass.count)} runs
 					</span>
 				</div>
@@ -171,7 +171,7 @@ function FailedVerdictCard({ row, run }: { row: JudgeStoreRow; run: RunRow | und
 					: "—"
 			}
 			meta={
-				<span className="font-mono text-(--color-danger) text-[9px] leading-[11px]">
+				<span className="font-mono text-(--color-danger) text-xs leading-4">
 					{failedClassLabel(row)}
 				</span>
 			}
@@ -186,21 +186,19 @@ function FailedVerdictRow({ row, run }: { row: JudgeStoreRow; run: RunRow | unde
 			<td className="py-1.5 pr-3">
 				<Link
 					to={`/runs/${encodeURIComponent(row.runId)}`}
-					className="font-mono text-(--color-text-2) text-[11px] leading-[14px] underline-offset-2 hover:underline"
+					className="font-mono text-(--color-text-2) text-xs leading-4 underline-offset-2 hover:underline"
 				>
 					{row.runId}
 				</Link>
 			</td>
-			<td className="py-1.5 pr-3 font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 font-mono text-(--color-text-3) text-xs leading-4">
 				{run?.agentName ?? "—"}
 			</td>
-			<td className="py-1.5 pr-3 font-mono text-(--color-danger) text-[11px] leading-[14px]">
-				{label}
-			</td>
-			<td className="py-1.5 pr-3 font-mono text-(--color-text-2) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 font-mono text-(--color-danger) text-xs leading-4">{label}</td>
+			<td className="py-1.5 pr-3 font-mono text-(--color-text-2) text-xs leading-4">
 				{prStateLabel(run)}
 			</td>
-			<td className="py-1.5 text-right font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+			<td className="py-1.5 text-right font-mono text-(--color-text-3) text-xs leading-4">
 				{row.verdict?.provenance.judgedAt !== undefined
 					? relativeTime(row.verdict.provenance.judgedAt)
 					: "—"}
@@ -223,24 +221,24 @@ function UnjudgedRow({ row, run }: { row: JudgeStoreRow; run: RunRow | undefined
 			<td className="py-1.5 pr-3">
 				<Link
 					to={`/runs/${encodeURIComponent(row.runId)}`}
-					className="font-mono text-(--color-text-2) text-[11px] leading-[14px] underline-offset-2 hover:underline"
+					className="font-mono text-(--color-text-2) text-xs leading-4 underline-offset-2 hover:underline"
 				>
 					{row.runId}
 				</Link>
 			</td>
-			<td className="py-1.5 pr-3 font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 font-mono text-(--color-text-3) text-xs leading-4">
 				{run?.agentName ?? "—"}
 			</td>
-			<td className="py-1.5 pr-3 font-mono text-(--color-text-2) text-[11px] leading-[14px]">
+			<td className="py-1.5 pr-3 font-mono text-(--color-text-2) text-xs leading-4">
 				{UNJUDGED_REASON_LABELS[row.reason ?? ""] ?? row.reason ?? "—"}
 			</td>
 			<td
-				className="max-w-[280px] truncate py-1.5 pr-3 font-mono text-(--color-text-3) text-[11px] leading-[14px]"
+				className="max-w-[280px] truncate py-1.5 pr-3 font-mono text-(--color-text-3) text-xs leading-4"
 				title={row.detail ?? undefined}
 			>
 				{row.detail ?? "—"}
 			</td>
-			<td className="py-1.5 font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+			<td className="py-1.5 font-mono text-(--color-text-3) text-xs leading-4">
 				{prStateLabel(run)}
 			</td>
 		</tr>
@@ -256,7 +254,7 @@ function UnjudgedCard({ row, run }: { row: JudgeStoreRow; run: RunRow | undefine
 			subline={`${run?.agentName ?? "—"} · pr ${prStateLabel(run)}`}
 			figures="—"
 			meta={
-				<span className="font-mono text-(--color-text-2) text-[9px] leading-[11px]">
+				<span className="font-mono text-(--color-text-2) text-xs leading-4">
 					{UNJUDGED_REASON_LABELS[row.reason ?? ""] ?? row.reason ?? "—"}
 					{row.detail ? ` · ${row.detail}` : ""}
 				</span>
@@ -272,7 +270,7 @@ export function TelemetryJudgeTab() {
 	if (verdicts.isLoading) {
 		return (
 			<TelemetryPanel title="Judge verdicts" meta="LOADING">
-				<p className="text-(--color-text-3) text-[12px] leading-4">Loading verdicts…</p>
+				<p className="text-(--color-text-3) text-xs leading-4">Loading verdicts…</p>
 			</TelemetryPanel>
 		);
 	}
@@ -287,7 +285,7 @@ export function TelemetryJudgeTab() {
 	if (state.rows.length === 0) {
 		return (
 			<TelemetryPanel title="Judge verdicts" meta="HEALTHY · NO VERDICTS YET">
-				<p className="max-w-prose text-(--color-text-2) text-[12px] leading-[17px]">
+				<p className="max-w-prose text-(--color-text-2) text-xs leading-[17px]">
 					The judge export is reachable and answered with an empty page — no verdicts have been
 					recorded yet. Once the judge starts finishing runs, its rubric-v1 verdicts land here.
 				</p>
@@ -323,7 +321,7 @@ export function TelemetryJudgeTab() {
 									{UNJUDGED_COLS.map((h) => (
 										<th
 											key={h}
-											className="pr-3 pb-2 text-left font-mono text-(--color-text-3) text-[10px] tracking-[0.06em]"
+											className="pr-3 pb-2 text-left font-mono text-(--color-text-3) text-xs tracking-[0.06em]"
 										>
 											{h}
 										</th>
@@ -337,7 +335,7 @@ export function TelemetryJudgeTab() {
 							</tbody>
 						</table>
 						{unjudged.length > FAILED_ROWS ? (
-							<p className="pt-2 font-mono text-(--color-text-3) text-[9px] leading-[11px]">
+							<p className="pt-2 font-mono text-(--color-text-3) text-xs leading-4">
 								showing {String(FAILED_ROWS)} of {String(unjudged.length)} unjudged runs
 							</p>
 						) : null}
@@ -352,7 +350,7 @@ export function TelemetryJudgeTab() {
 
 			<TelemetryPanel title="Merged, then failed the judge" meta="REVIEW THESE FIRST">
 				{failing.length === 0 ? (
-					<p className="text-(--color-text-3) text-[12px] leading-4">
+					<p className="text-(--color-text-3) text-xs leading-4">
 						No failed verdicts in the export — every judged run is clean.
 					</p>
 				) : (
@@ -364,7 +362,7 @@ export function TelemetryJudgeTab() {
 										{["RUN", "AGENT", "FAILING CLASS", "PR", "JUDGED"].map((h, i) => (
 											<th
 												key={h}
-												className={`pr-3 pb-2 text-left font-mono text-(--color-text-3) text-[10px] tracking-[0.06em] ${i === 4 ? "text-right" : ""}`}
+												className={`pr-3 pb-2 text-left font-mono text-(--color-text-3) text-xs tracking-[0.06em] ${i === 4 ? "text-right" : ""}`}
 											>
 												{h}
 											</th>
@@ -391,13 +389,13 @@ export function TelemetryJudgeTab() {
 
 			<TelemetryPanel title="Judge verdicts" meta="NEWEST 500 ROWS · RUBRIC V1 · 15 CLASSES">
 				<div className="hidden flex-wrap items-center gap-4 md:flex">
-					<span className="font-mono text-(--color-success) text-[11px] leading-[14px]">
+					<span className="font-mono text-(--color-success) text-xs leading-4">
 						pass {String(summary.pass)}
 					</span>
-					<span className="font-mono text-(--color-danger) text-[11px] leading-[14px]">
+					<span className="font-mono text-(--color-danger) text-xs leading-4">
 						fail {String(summary.fail)}
 					</span>
-					<span className="font-mono text-(--color-text-3) text-[11px] leading-[14px]">
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">
 						unjudged {String(summary.unjudged)}
 					</span>
 				</div>
@@ -406,16 +404,16 @@ export function TelemetryJudgeTab() {
 					<span
 						className={
 							summary.passRate === null
-								? "font-mono text-(--color-text-3) text-[11px] leading-[14px]"
+								? "font-mono text-(--color-text-3) text-xs leading-4"
 								: judgedCoverage !== null && judgedCoverage < 0.8
-									? "font-mono text-(--color-text-2) text-[11px] leading-[14px]"
-									: "font-mono text-(--color-success) text-[11px] leading-[14px]"
+									? "font-mono text-(--color-text-2) text-xs leading-4"
+									: "font-mono text-(--color-success) text-xs leading-4"
 						}
 					>
 						pass rate{" "}
 						{summary.passRate === null ? "—" : `${String(Math.round(summary.passRate * 100))}%`}
 					</span>
-					<span className="font-mono text-(--color-text-3) text-[10px] leading-[14px]">
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">
 						{summary.pass + summary.fail} of {String(state.rows.length)} judged
 					</span>
 				</div>
@@ -424,7 +422,7 @@ export function TelemetryJudgeTab() {
 
 				{summary.failingClasses.length > 0 ? (
 					<div className="hidden flex-col gap-2 md:flex">
-						<span className="font-mono text-(--color-text-3) text-[10px] leading-3 tracking-[0.06em]">
+						<span className="font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.06em]">
 							FAILING CLASSES · WORST 5 OF 15
 						</span>
 						{summary.failingClasses.slice(0, 5).map((c) => {
@@ -443,7 +441,7 @@ export function TelemetryJudgeTab() {
 						})}
 					</div>
 				) : (
-					<p className="text-(--color-text-3) text-[12px] leading-4">
+					<p className="text-(--color-text-3) text-xs leading-4">
 						No failing classes in the export.
 					</p>
 				)}

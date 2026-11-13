@@ -82,7 +82,7 @@ export function ProjectsPage() {
 					<h1 className="font-semibold text-(--color-text) text-xl leading-6 tracking-[-0.025em]">
 						Projects
 					</h1>
-					<p className="text-(--color-text-2) text-[12px] leading-4">
+					<p className="text-(--color-text-2) text-xs leading-4">
 						Repositories warren can dispatch runs against.
 					</p>
 				</div>
@@ -96,7 +96,7 @@ export function ProjectsPage() {
 				</OperatorOnly>
 			</div>
 
-			<div className="flex flex-col rounded-[4px] border border-(--color-border) bg-(--color-surface)">
+			<div className="flex flex-col rounded-none border border-(--color-border) bg-(--color-surface)">
 				{projects.isLoading ? (
 					<div className="p-6">
 						<Spinner label="Loading projects" />
@@ -126,7 +126,7 @@ export function ProjectsPage() {
 						<div className="hidden md:block">
 							<table className="w-full table-fixed border-collapse">
 								<thead>
-									<tr className="h-[31px] rounded-t-[4px] bg-(--color-thead) text-left">
+									<tr className="h-[31px] rounded-t-none bg-(--color-thead) text-left">
 										<Th className="w-[min(250px,35%)]">Project</Th>
 										<Th className="w-[110px]">Default branch</Th>
 										<Th className="w-[110px]">Last head</Th>
@@ -210,7 +210,7 @@ export function ProjectsPage() {
 function Th({ className, children }: { className?: string; children: React.ReactNode }) {
 	return (
 		<th
-			className={`border-(--color-border-strong) border-b px-2.5 font-semibold text-(--color-text-3) text-[9px] uppercase tracking-[0.05em] ${className ?? ""}`}
+			className={`border-(--color-border-strong) border-b px-2.5 font-semibold text-(--color-text-3) text-xs uppercase tracking-[0.05em] ${className ?? ""}`}
 		>
 			{children}
 		</th>
@@ -246,40 +246,40 @@ function RegistryRow({
 				<div className="flex flex-col gap-0.5">
 					<Link
 						to={`/projects/${encodeURIComponent(project.id)}`}
-						className="font-mono text-(--color-text) text-[10px] leading-3 underline-offset-4 hover:underline"
+						className="font-mono text-(--color-text) text-xs leading-4 underline-offset-4 hover:underline"
 					>
 						{repoName(project)}
 					</Link>
-					<span className="truncate font-mono text-(--color-text-3) text-[9px] leading-3">
+					<span className="truncate font-mono text-(--color-text-3) text-xs leading-4">
 						{project.gitUrl}
 					</span>
 				</div>
 			</td>
-			<td className="px-2.5 py-1.5 font-mono text-(--color-text-2) text-[10px] leading-3">
+			<td className="px-2.5 py-1.5 font-mono text-(--color-text-2) text-xs leading-4">
 				{project.defaultBranch}
 			</td>
 			<td
-				className="px-2.5 py-1.5 font-mono text-(--color-text-2) text-[10px] leading-3"
+				className="px-2.5 py-1.5 font-mono text-(--color-text-2) text-xs leading-4"
 				title={project.lastHeadSha ?? "never fetched"}
 			>
 				{project.lastHeadSha !== null ? project.lastHeadSha.slice(0, 7) : "—"}
 			</td>
 			<td
-				className="px-2.5 py-1.5 font-mono text-(--color-text-3) text-[10px] leading-3"
+				className="px-2.5 py-1.5 font-mono text-(--color-text-3) text-xs leading-4"
 				title={project.lastFetchedAt ?? "never fetched"}
 			>
 				{project.lastFetchedAt !== null ? relativeTime(project.lastFetchedAt) : "never"}
 			</td>
 			<td className="px-2.5 py-1.5">
 				{project.hasSeeds ? (
-					<span className="inline-flex h-5 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-primary) text-[9px] leading-3">
+					<span className="inline-flex h-5 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-primary) text-xs leading-4">
 						.seeds
 					</span>
 				) : (
-					<span className="font-mono text-(--color-text-3) text-[10px] leading-3">—</span>
+					<span className="font-mono text-(--color-text-3) text-xs leading-4">—</span>
 				)}
 			</td>
-			<td className="px-2.5 py-1.5 font-mono text-(--color-text-3) text-[10px] leading-3">
+			<td className="px-2.5 py-1.5 font-mono text-(--color-text-3) text-xs leading-4">
 				{formatDate(project.addedAt)}
 			</td>
 			<td className="px-2.5 py-1.5 text-right">
@@ -290,7 +290,7 @@ function RegistryRow({
 						<Button
 							variant="outline"
 							size="sm"
-							className="h-6 px-2.5 text-[10px]"
+							className="h-6 px-2.5 text-xs"
 							onClick={onRefresh}
 							disabled={refreshPending}
 							title="git fetch + reset --hard origin/<branch>"
@@ -354,7 +354,7 @@ function ProjectCard({
 					<Button
 						variant="outline"
 						size="sm"
-						className="h-6 px-2.5 text-[10px]"
+						className="h-6 px-2.5 text-xs"
 						onClick={onRefresh}
 						disabled={refreshPending}
 						title="git fetch + reset --hard origin/<branch>"

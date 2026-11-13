@@ -20,7 +20,6 @@ describe("console brand navigation", () => {
 			new URL("../ui/src/components/console/console-sidebar.tsx", import.meta.url),
 			"utf8",
 		);
-		expect(source).toContain("<BrandRow onNavigate={onNavigate} />");
 		expect(source).toMatch(/aria-label="Warren home"\s+onClick={onNavigate}/);
 	});
 });

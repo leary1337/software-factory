@@ -1,5 +1,6 @@
 import type { PlanRunChildRow } from "@/api/types.ts";
 import { Alert } from "@/components/ui/alert.tsx";
+import { formatCostUsd } from "../run-detail-format.ts";
 
 export function TaskBudgetPanel({ child }: { child: PlanRunChildRow }) {
 	const budget = child.budget;
@@ -19,7 +20,9 @@ export function TaskBudgetPanel({ child }: { child: PlanRunChildRow }) {
 					const usage = budget[scope];
 					return (
 						<div key={scope} className="space-y-1 text-sm">
-							<h3 className="font-semibold">{scope === "task" ? "This task" : "Entire plan"}</h3>
+							<h3 className="font-semibold">
+								{scope === "task" ? "This task attempt" : "This plan attempt"}
+							</h3>
 							{limits.maxRuns !== undefined ? (
 								<p>
 									Runs: {usage.runs} / {limits.maxRuns}
@@ -33,8 +36,9 @@ export function TaskBudgetPanel({ child }: { child: PlanRunChildRow }) {
 							) : null}
 							{limits.maxCostUsd !== undefined ? (
 								<p>
-									Reported cost / estimate: ${usage.costUsd.toFixed(2)} / $
-									{limits.maxCostUsd.toFixed(2)}
+									Reported cost / estimate: {formatCostUsd(usage.costUsd)}
+									{usage.incomplete || usage.unknownCostRuns > 0 ? " + unknown" : ""} /{" "}
+									{formatCostUsd(limits.maxCostUsd)}
 								</p>
 							) : null}
 						</div>

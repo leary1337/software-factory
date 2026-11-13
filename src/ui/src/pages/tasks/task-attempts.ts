@@ -37,7 +37,11 @@ export function isOpenAttempt(attempt: TaskAttempt): boolean {
 /** A task is a tracker identity within a project; names and plan positions may change. */
 export function groupTaskAttempts(rows: readonly TaskAttempt[]): TaskItem[] {
 	const groups = new Map<string, TaskAttempt[]>();
+	const seen = new Set<string>();
 	for (const row of rows) {
+		const attemptId = JSON.stringify([row.detail.planRun.id, row.child.seq]);
+		if (seen.has(attemptId)) continue;
+		seen.add(attemptId);
 		const identity = row.child.seedId || `${row.detail.planRun.id}:${row.child.seq}`;
 		const key = JSON.stringify([row.detail.planRun.projectId, identity]);
 		const attempts = groups.get(key) ?? [];

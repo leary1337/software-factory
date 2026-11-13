@@ -1,6 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ConsoleBottomNav } from "@/components/console/console-bottom-nav.tsx";
 import { ConsoleSidebar, ConsoleSidebarBody } from "@/components/console/console-sidebar.tsx";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { WarrenLogo } from "@/components/warren-logo.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
+import { WorkspaceNavigation } from "./workspace-navigation.tsx";
 
 /**
  * The Direction C operator-console shell (warren-4ed7, pl-7e38 step 2):
@@ -42,10 +43,10 @@ function MobileIdentityChip({ stats }: { stats: ConsoleStats }) {
 				)}
 				aria-hidden
 			/>
-			<span className="font-medium text-(--color-text) text-[11px] leading-[14px]">
+			<span className="font-medium text-(--color-text) text-xs leading-4">
 				{isOperator ? "operator" : "read-only"}
 			</span>
-			<span className="text-(--color-text-3) text-[10px] leading-3" aria-hidden>
+			<span className="text-(--color-text-3) text-xs leading-4" aria-hidden>
 				⌄
 			</span>
 		</span>
@@ -56,6 +57,7 @@ export function ConsoleShell() {
 	const stats = useConsoleStats();
 	const location = useLocation();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
+	const scrollRef = useRef<HTMLElement>(null);
 
 	// Close the drawer on route change so a mobile → desktop resize never
 	// leaves a stale open flag (same pattern the legacy layout used).
@@ -79,7 +81,7 @@ export function ConsoleShell() {
 						className="flex items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4"
 					>
 						<WarrenLogo className="h-5 w-5 shrink-0" />
-						<span className="font-semibold text-(--color-text) text-[13px] leading-4 tracking-[-0.02em]">
+						<span className="font-semibold text-(--color-text) text-sm leading-4 tracking-[-0.02em]">
 							warren
 						</span>
 					</Link>
@@ -95,14 +97,16 @@ export function ConsoleShell() {
 					<ConsoleTopbar stats={stats} />
 				</div>
 
-				{/* biome-ignore lint/a11y/noNoninteractiveTabindex: warren-f009 keyboard users must be able to focus this scroll container. */}
-				<main tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-					{/* Boundary sits INSIDE the chrome so a page-level throw costs
-					    the page, not the shell (warren-1f12). */}
-					<ErrorBoundary resetKey={location.pathname}>
-						<Outlet />
-					</ErrorBoundary>
-				</main>
+				<WorkspaceNavigation scrollRef={scrollRef}>
+					{/* biome-ignore lint/a11y/noNoninteractiveTabindex: warren-f009 keyboard users must be able to focus this scroll container. */}
+					<main ref={scrollRef} tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+						{/* Boundary sits INSIDE the chrome so a page-level throw costs
+						    the page, not the shell (warren-1f12). */}
+						<ErrorBoundary resetKey={location.pathname}>
+							<Outlet />
+						</ErrorBoundary>
+					</main>
+				</WorkspaceNavigation>
 
 				{/* Mobile bottom tab bar (warren-4d4a): in-flow sibling of <main>,
 				    so pages scroll above it and nothing hides under the bar. */}
@@ -118,7 +122,7 @@ export function ConsoleShell() {
 						className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-(--color-border) border-r bg-(--color-sidebar) shadow-lg md:hidden"
 					>
 						<DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
-						<div className="relative">
+						<div className="relative flex min-h-0 flex-1 flex-col">
 							<ConsoleSidebarBody stats={stats} onNavigate={() => setMobileNavOpen(false)} />
 						</div>
 						<DialogPrimitive.Close asChild>

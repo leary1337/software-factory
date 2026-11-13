@@ -1,37 +1,6 @@
-import type { PlanRunChildState, PlanRunRow, PlanRunState, RunRow } from "@/api/types.ts";
+import type { PlanRunChildState, PlanRunRow, PlanRunState } from "@/api/types.ts";
 
 import { planProgressText } from "../tasks/plan-progress-summary.ts";
-
-/**
- * Direction C walk-inventory state helpers (warren-23b2 / pl-7e38 step
- * 6). Colour mappings use only token variables so the dark and light
- * themes both render; the vocabulary itself (`PlanRunState`,
- * `PlanRunChildState`) is re-exported from `src/core/wire.ts`.
- */
-
-/** State dot + label colour for the STATE cell. */
-export const PLAN_RUN_STATE_COLOR: Record<PlanRunState, string> = {
-	queued: "var(--color-warning)",
-	running: "var(--color-info)",
-	succeeded: "var(--color-success)",
-	failed: "var(--color-danger)",
-	cancelled: "var(--color-neutral)",
-};
-
-/**
- * Child-square colour per `PlanRunChildState` (the canvas walk-inventory
- * squares): merged green, in-flight blue, pr_open amber (gated on the
- * merge gate), failed red, skipped neutral, pending unfilled rail.
- */
-export const CHILD_SQUARE_COLOR: Record<PlanRunChildState, string> = {
-	pending: "var(--color-border-strong)",
-	dispatched: "var(--color-info)",
-	running: "var(--color-info)",
-	pr_open: "var(--color-warning)",
-	merged: "var(--color-success)",
-	failed: "var(--color-danger)",
-	skipped: "var(--color-neutral)",
-};
 
 /** `h:mm:ss` / `m:ss` / `Ns` mono elapsed, matching the canvas rows. */
 export function formatElapsedMs(ms: number): string {
@@ -75,27 +44,4 @@ export function childSummary(
 			? `Task ${current.seq ?? index + 1} of ${children.length} · `
 			: "";
 	return `${position}${planProgressText(children, state)}`;
-}
-
-/**
- * Aggregate cost across a plan-run's child runs (warren-2235 / pl-b0c0
- * step 5). Mirrors RunsRepo.aggregate's NULL-aware rollup: `sum` adds
- * non-null `costUsd` only, `priced` counts those rows, `total` is the
- * full child-run count. Ghost runs whose cost was never recorded land
- * in `total - priced`.
- */
-export function summarizeCost(runs: readonly RunRow[]): {
-	sum: number;
-	priced: number;
-	total: number;
-} {
-	let sum = 0;
-	let priced = 0;
-	for (const r of runs) {
-		if (r.costUsd !== null) {
-			sum += r.costUsd;
-			priced += 1;
-		}
-	}
-	return { sum, priced, total: runs.length };
 }
