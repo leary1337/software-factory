@@ -26,14 +26,14 @@ function PhaseCell({ cell, first, last }: { cell: PhaseCellData; first: boolean;
 				/>
 				<span
 					className={cn(
-						"font-medium text-[10px] leading-3",
+						"font-medium text-xs leading-4",
 						cell.state === "active" ? "text-(--color-text)" : "text-(--color-text-2)",
 					)}
 				>
 					{cell.label}
 				</span>
 			</span>
-			<span className="pl-[13px] font-mono text-(--color-text-3) text-[9px] leading-3">
+			<span className="pl-[13px] font-mono text-(--color-text-3) text-xs leading-4">
 				{cellSub(cell)}
 			</span>
 		</div>
@@ -72,7 +72,7 @@ function StripNode({ cell }: { cell: PhaseCellData }) {
 			/>
 			<span
 				className={cn(
-					"font-mono text-[9px] leading-[11px]",
+					"font-mono text-xs leading-4",
 					cell.state === "pending" ? "text-(--color-text-3)" : "text-(--color-text-2)",
 				)}
 			>
@@ -97,13 +97,18 @@ export function PhaseRail({ run, events }: { run: RunRow; events: RunEvent[] }) 
 export function PhaseRailStrip({ run, events }: { run: RunRow; events: RunEvent[] }) {
 	const phases = derivePhases(run, events);
 	return (
-		<div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-(--color-border) border-b px-3.5 py-3">
+		<section
+			aria-label="Run phases"
+			// biome-ignore lint/a11y/noNoninteractiveTabindex: the phase rail scrolls horizontally on phones.
+			tabIndex={0}
+			className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-(--color-border) border-b px-3.5 py-3"
+		>
 			{phases.map((p, i) => (
 				<Fragment key={p.label}>
 					{i > 0 && <span aria-hidden className="h-px w-3.5 shrink-0 bg-(--color-border)" />}
 					<StripNode cell={p} />
 				</Fragment>
 			))}
-		</div>
+		</section>
 	);
 }

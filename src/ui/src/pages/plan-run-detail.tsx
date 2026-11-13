@@ -4,22 +4,26 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
 import type { CancelPlanRunResponse, PlanRunDetailResponse } from "@/api/types.ts";
 import { isTerminalPlanRunState } from "@/api/types.ts";
+import { useWorkspaceReturn } from "@/components/console/workspace-navigation.tsx";
 import { OperatorOnly } from "@/components/operator-only.tsx";
 import { Alert } from "@/components/ui/alert.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
 import { formatPlanRunFailureReason } from "@/lib/labels.ts";
 import { ChildWalkPanel } from "./plan-run-detail/child-walk.tsx";
 import { DetailRail } from "./plan-run-detail/detail-rail.tsx";
 import { TaskDetail } from "./plan-run-detail/task-detail.tsx";
-import { PLAN_RUN_STATE_COLOR, summarizeCost } from "./plan-runs/walk-state.ts";
+import { PlanStateLabel } from "./plan-runs/plan-state-label.tsx";
+import { PlanCostPanel } from "./tasks/cost-panel.tsx";
+import { PlanProgress } from "./tasks/plan-progress.tsx";
 
 /**
  * Plan run detail — the Direction C walk inspector (warren-2520 /
  * pl-7e38 step 8, from docs/ui-revamp/screens/plan-run-detail.jsx).
  * Child-by-child gate state in the main panel, the source plan
- * definition + prompt + delivered PRs in the right rail. No summary
- * cards; the walk is the product.
+ * definition + prompt + delivered PRs in the right rail. Attempt progress
+ * separates confirmed delivery from tracker closures.
  *
  * Keeps the legacy page's data behavior: one `GET /plan-runs/:id`
  * round-trip under the `["plan-runs", id]` key (shared with the
@@ -36,6 +40,7 @@ export function PlanRunDetailPage() {
 	const { id = "" } = useParams<{ id: string }>();
 	const qc = useQueryClient();
 	const [search] = useSearchParams();
+	const backToPlans = useWorkspaceReturn("/plan-runs");
 
 	const detail = useQuery({
 		queryKey: ["plan-runs", id],
@@ -48,7 +53,7 @@ export function PlanRunDetailPage() {
 	});
 
 	// Same key as the inventory pages: resolves the project git URL for
-	// the hero meta line, falling back to the raw project id.
+	// the hero meta line.
 	const projects = useQuery({
 		queryKey: ["projects"],
 		queryFn: ({ signal }) => projectsApi.list(signal),
@@ -62,10 +67,13 @@ export function PlanRunDetailPage() {
 	if (detail.isLoading) {
 		return <Spinner label="Loading plan run" />;
 	}
-	if (detail.isError) {
+	if (detail.isError && !detail.data) {
 		return (
 			<Alert variant="danger" title="Failed to load plan run">
-				{formatError(detail.error)}
+				{formatError(detail.error)}{" "}
+				<Button variant="outline" onClick={() => void detail.refetch()}>
+					Retry
+				</Button>
 			</Alert>
 		);
 	}
@@ -73,15 +81,21 @@ export function PlanRunDetailPage() {
 	const { planRun, children, runs } = detail.data;
 
 	const project = projects.data?.projects.find((p) => p.id === planRun.projectId);
-	const projectLabel = project
-		? project.gitUrl.replace(/^https:\/\/github\.com\//, "") || project.gitUrl
-		: planRun.projectId;
+	const projectLabel =
+		project?.gitUrl.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "") ||
+		"Project unavailable";
 	const canCancel = ACTIVE_STATES.has(planRun.state);
-	const cost = summarizeCost(runs);
+	const refreshWarning = (
+		<PlanRefreshWarning isError={detail.isError} retry={() => void detail.refetch()} />
+	);
+
 	if (search.has("task")) {
 		const child = children.find((entry) => entry.seq === Number(search.get("task")));
 		return child ? (
-			<TaskDetail detail={detail.data} child={child} />
+			<>
+				{refreshWarning}
+				<TaskDetail detail={detail.data} child={child} />
+			</>
 		) : (
 			<Alert title="Task not found" variant="warning">
 				<Link to={`/plan-runs/${encodeURIComponent(id)}`}>Back to plan</Link>
@@ -90,33 +104,30 @@ export function PlanRunDetailPage() {
 	}
 
 	return (
-		<div className="flex min-h-full flex-col px-3.5 pt-[22px] pb-12 md:px-6">
-			<div className="shrink-0 pb-2.5">
-				<span className="font-mono text-(--color-text-3) text-[10px] leading-3">
-					PLAN RUNS / {id.toUpperCase()}
-				</span>
-			</div>
-
+		<div className="flex min-h-full flex-col px-3.5 py-6 md:px-6">
+			<Link {...backToPlans} className="mb-4 text-(--color-primary) text-sm">
+				← Back to plans
+			</Link>
 			<header className="flex shrink-0 flex-wrap items-center gap-3 pb-5">
-				<h1 className="font-medium font-mono text-(--color-text) text-[16px] leading-5">{id}</h1>
-				<StateLabel state={planRun.state} />
-				{planRun.planId !== null ? <PlanChip planId={planRun.planName ?? planRun.planId} /> : null}
-				<span className="text-(--color-text-2) text-[11px] leading-[14px]">
-					{projectLabel} · {planRun.agentName} · {planRun.trigger}
-				</span>
-				<div className="min-w-0 flex-1" />
+				<div className="min-w-0 basis-full space-y-2 md:flex-1">
+					<h1 className="wrap-anywhere font-semibold text-xl">
+						{planRun.planName ?? "Plan attempt"}
+					</h1>
+					<p className="wrap-anywhere text-(--color-text-2) text-sm">{projectLabel}</p>
+				</div>
+				<PlanStateLabel state={planRun.state} tasks={children} />
 				{canCancel ? (
 					<OperatorOnly>
 						<div className="flex flex-col items-end gap-1">
-							<button
+							<Button
+								variant="outline"
 								type="button"
 								onClick={() => cancel.mutate()}
 								disabled={cancel.isPending}
-								className="flex h-[31px] items-center justify-center gap-[7px] rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-surface) px-[11px] font-medium text-(--color-text) text-[11px] leading-[14px] disabled:opacity-60"
 							>
-								<CircleStop className="h-2 w-2 text-(--color-danger)" aria-hidden />
+								<CircleStop className="h-4 w-4 text-(--color-danger)" aria-hidden />
 								{cancel.isPending ? "Cancelling…" : "Cancel plan run"}
-							</button>
+							</Button>
 							<CancelStatus mutation={cancel} />
 						</div>
 					</OperatorOnly>
@@ -134,37 +145,17 @@ export function PlanRunDetailPage() {
 				</Alert>
 			) : null}
 
+			{refreshWarning}
+			<PlanProgress plan={planRun} tasks={children} />
+			<PlanCostPanel>{children}</PlanCostPanel>
+
 			{/* items-start: the child walk sizes to its rows rather than
 			    stretching to the rail's height (warren-dac1). */}
 			<div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-start">
 				<ChildWalkPanel planRun={planRun} childRows={children} runs={runs} />
-				<DetailRail detail={detail.data} projectLabel={projectLabel} cost={cost} />
+				<DetailRail detail={detail.data} projectLabel={projectLabel} />
 			</div>
 		</div>
-	);
-}
-
-function StateLabel({ state }: { state: PlanRunDetailResponse["planRun"]["state"] }) {
-	const color = PLAN_RUN_STATE_COLOR[state];
-	return (
-		<span className="flex items-center gap-[7px]">
-			<span
-				className="h-1.5 w-1.5 shrink-0 rounded-full"
-				style={{ backgroundColor: color }}
-				aria-hidden
-			/>
-			<span className="font-mono text-[10px] leading-3" style={{ color }}>
-				{state}
-			</span>
-		</span>
-	);
-}
-
-function PlanChip({ planId }: { planId: string }) {
-	return (
-		<span className="var(--color-border-strong)) flex h-5 items-center rounded-(--radius-xs) border border-(--color-primary-border, px-1.5 font-mono text-(--color-primary) text-[9px] leading-3">
-			{planId}
-		</span>
 	);
 }
 
@@ -174,13 +165,11 @@ function CancelStatus({
 	mutation: ReturnType<typeof useMutation<CancelPlanRunResponse, Error, void>>;
 }) {
 	if (mutation.isError) {
-		return (
-			<p className="text-(--color-danger) text-[10px] leading-3">{formatError(mutation.error)}</p>
-		);
+		return <p className="text-(--color-danger) text-xs">{formatError(mutation.error)}</p>;
 	}
 	if (mutation.isSuccess && mutation.data !== undefined) {
 		return (
-			<p className="text-(--color-success) text-[10px] leading-3">
+			<p className="text-(--color-success) text-xs">
 				{mutation.data.alreadyTerminal
 					? "Walk was already terminal."
 					: `Cancel forwarded${mutation.data.cancelledChild !== null ? ` (child ${mutation.data.cancelledChild.childSeq})` : ""}.`}
@@ -188,4 +177,15 @@ function CancelStatus({
 		);
 	}
 	return null;
+}
+
+function PlanRefreshWarning({ isError, retry }: { isError: boolean; retry: () => void }) {
+	return isError ? (
+		<Alert variant="warning" title="Plan updates unavailable">
+			Showing the last known task states.{" "}
+			<Button variant="outline" onClick={retry}>
+				Retry plan
+			</Button>
+		</Alert>
+	) : null;
 }

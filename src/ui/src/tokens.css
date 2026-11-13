@@ -1,77 +1,55 @@
-/*
- * Direction C operator-console design tokens (warren-059a, pl-7e38 step 1).
- *
- * The `:root` block below is the token set exported verbatim from the Paper
- * canvas "Warren · Direction C — Operator Console" (token contentHash
- * d4ac0285) in docs/ui-revamp/tokens.css — the single theming source. Dark
- * values are the defaults; each `--color-lt-*` token is the light-theme
- * value for its base twin. Components reference only the base names
- * (--color-bg, --color-text, ...): the light theme reassigns each base
- * property from its --color-lt-* twin under the
- * `:root[data-theme="light"]` scope, and with no data-theme attribute the
- * OS `prefers-color-scheme` decides (dark unless the OS asks for light).
- *
- * The one deviation from the verbatim export: the two font tokens carry
- * full fallback stacks rather than the bare family names, per the issue
- * spec. The @font-face payloads themselves are self-hosted in index.css.
- *
- * The second deviation (warren-b629): five lightness values move so text
- * meets WCAG AA 4.5:1 on every surface, which the axe pass in
- * scripts/ui-visual/a11y.pw.ts enforces. --color-text-3 goes 53% -> 61%,
- * --color-lt-text-3 58% -> 52%, --color-lt-primary and --color-lt-success
- * 54% -> 52%, and --color-lt-warning 60% -> 54%.
- *
- * Below the verbatim block sit two additions of ours, each fenced off with
- * comments: a compatibility layer that keeps the legacy token names
- * (pre-Direction-C vocabulary used across the existing pages) resolving to
- * Direction C base names, and the Tailwind `@theme` wiring.
- */
-
+/* warren-f106: Balun reference palette; see docs/ui-revamp/balun-reference.md.
+ * The dark theme uses the reference's exact surface, text and accent colors.
+ * Semantic inks on solid fills are separate from text on tinted callouts. */
 :root {
-	--color-bg: oklch(14% 0.008 264);
-	--color-sidebar: oklch(12.8% 0.008 264);
-	--color-surface: oklch(16.5% 0.01 264);
-	--color-surface-raised: oklch(19% 0.011 264);
-	--color-surface-hover: oklch(21% 0.012 264);
-	--color-thead: oklch(15.5% 0.009 264);
-	--color-text: oklch(96% 0.005 264);
-	--color-text-2: oklch(72% 0.012 264);
-	--color-text-3: oklch(61% 0.014 264);
-	--color-border: oklch(24% 0.012 264);
-	--color-border-strong: oklch(31% 0.013 264);
-	--color-primary: oklch(72% 0.11 152);
-	--color-primary-ink: oklch(15% 0.01 152);
-	--color-success: oklch(72% 0.13 150);
-	--color-warning: oklch(80% 0.15 75);
-	--color-danger: oklch(68% 0.21 27);
-	--color-info: oklch(72% 0.14 240);
-	--color-neutral: oklch(70% 0.02 264);
-	--color-lt-bg: oklch(96.8% 0.004 264);
-	--color-lt-sidebar: oklch(98.6% 0.002 264);
-	--color-lt-surface: oklch(100% 0 0);
-	--color-lt-surface-raised: oklch(97.6% 0.004 264);
-	--color-lt-surface-hover: oklch(95.2% 0.006 264);
-	--color-lt-thead: oklch(98% 0.003 264);
-	--color-lt-text: oklch(22% 0.015 264);
-	--color-lt-text-2: oklch(45% 0.015 264);
-	--color-lt-text-3: oklch(52% 0.014 264);
-	--color-lt-border: oklch(90% 0.006 264);
-	--color-lt-border-strong: oklch(82.5% 0.01 264);
-	--color-lt-primary: oklch(52% 0.125 152);
-	--color-lt-primary-ink: oklch(99% 0.002 152);
-	--color-lt-success: oklch(52% 0.125 150);
-	--color-lt-warning: oklch(54% 0.13 75);
-	--color-lt-danger: oklch(54% 0.19 27);
-	--color-lt-info: oklch(52% 0.125 240);
-	--color-lt-neutral: oklch(48% 0.018 264);
-	--font-sans:
-		"Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-	--font-mono:
-		"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
-		Consolas, monospace;
-	--radius-xs: 2px;
-	--radius-sm: 3px;
-	--radius-md: 4px;
+	--color-bg: #070709;
+	--color-sidebar: #070709;
+	--color-surface: #1e1e20;
+	--color-surface-raised: #28282a;
+	--color-surface-hover: #363636;
+	--color-thead: #1e1e20;
+	--color-text: #ffffff;
+	--color-text-2: #cdcaca;
+	--color-text-3: #acacac;
+	--color-border: #464647;
+	--color-border-strong: #6c7670;
+	--color-primary: #2af16b;
+	--color-primary-ink: #070709;
+	--color-action: #2af16b;
+	--color-action-ink: #070709;
+	--color-success: #2af16b;
+	--color-warning: #f1a12a;
+	--color-danger: #ff4a4a;
+	--color-info: #2af16b;
+	--color-neutral: #acacac;
+	--color-lt-bg: #ffffff;
+	--color-lt-sidebar: #ededed;
+	--color-lt-surface: #ffffff;
+	--color-lt-surface-raised: #ededed;
+	--color-lt-surface-hover: #ebebeb;
+	--color-lt-thead: #ededed;
+	--color-lt-text: #070709;
+	--color-lt-text-2: #464647;
+	--color-lt-text-3: #585858;
+	--color-lt-border: #cdcaca;
+	--color-lt-border-strong: #6c7670;
+	--color-lt-primary: #004216;
+	--color-lt-primary-ink: #ffffff;
+	--color-lt-success: #004216;
+	--color-lt-warning: #7a4800;
+	--color-lt-danger: #a51515;
+	--color-lt-info: #004216;
+	--color-lt-neutral: #585858;
+	--font-sans: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+	--font-mono: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+	--font-display: "Neue Machina", "Roboto Mono", sans-serif;
+	--radius-xs: 0px;
+	--radius-sm: 0px;
+	--radius-md: 0px;
+	--radius-lg: 0px;
+	--radius-xl: 0px;
+	--radius-2xl: 0px;
+	--color-overlay: rgb(0 0 0 / 60%);
 }
 
 /*
@@ -144,14 +122,11 @@
 
 /*
  * ---------------------------------------------------------------------------
- * Compatibility layer (legacy token names -> Direction C base names).
+ * Compatibility layer (legacy token names -> current base names).
  * ---------------------------------------------------------------------------
  *
- * The pre-Direction-C pages and shared components reference the legacy
- * vocabulary below (e.g. `bg-(--color-card)`, `var(--color-fg)`). Those
- * pages are rebuilt one issue at a time later in pl-7e38; until then these
- * aliases keep them rendering against the Direction C palette. New
- * Direction C code must use the base names only — never these aliases.
+ * Existing pages still reference the legacy vocabulary below. These aliases
+ * resolve to the current palette; new code uses the base names directly.
  * The legacy *-foreground inks flip per theme alongside the light remap
  * above (dark theme: dark ink on bright status fills; light theme: light
  * ink on the darker light-theme status fills).
@@ -163,7 +138,7 @@
 	--color-muted-foreground: var(--color-text-2);
 	--color-card: var(--color-surface);
 	--color-accent: var(--color-surface-hover);
-	--color-ring: var(--color-border-strong);
+	--color-ring: var(--color-primary);
 	--color-primary-foreground: var(--color-primary-ink);
 	--color-destructive: var(--color-danger);
 	--color-destructive-foreground: var(--color-danger-foreground);
@@ -174,6 +149,13 @@
 	--color-neutral-foreground: var(--color-bg);
 }
 
+:root {
+	--color-info-soft: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
+	--color-success-soft: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+	--color-warning-soft: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+	--color-danger-soft: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+}
+
 /*
  * ---------------------------------------------------------------------------
  * Tailwind wiring.
@@ -181,7 +163,7 @@
  *
  * `@theme inline` inlines each value into the utility it generates instead
  * of re-emitting a :root variable, so these entries can point at the
- * Direction C custom properties without colliding with the :root blocks
+ * base custom properties without colliding with the :root blocks
  * above. The theme switch flips the custom properties; every utility that
  * references them follows. Static tokens (shadows, z-index) stay in a plain
  * @theme block — they never change with the theme.
@@ -192,6 +174,10 @@
 	--radius-xs: var(--radius-xs);
 	--radius-sm: var(--radius-sm);
 	--radius-md: var(--radius-md);
+	--radius-lg: var(--radius-lg);
+	--radius-xl: var(--radius-xl);
+	--radius-2xl: var(--radius-2xl);
+	--font-display: var(--font-display);
 }
 
 @theme {

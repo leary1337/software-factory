@@ -33,17 +33,13 @@ export function MeterBar({
 	return (
 		<div className="flex w-full min-w-0 items-center gap-2.5">
 			{label === undefined ? null : (
-				<span className={cn("shrink-0 font-mono text-[11px] leading-[14px]", labelClass)}>
-					{label}
-				</span>
+				<span className={cn("shrink-0 font-mono text-xs leading-4", labelClass)}>{label}</span>
 			)}
 			<div className="min-w-0 flex-1">
-				<div className={cn("rounded-[1px]", markClass)} style={{ width }} title={title} />
+				<div className={cn("rounded-none", markClass)} style={{ width }} title={title} />
 			</div>
 			{value === undefined ? null : (
-				<span
-					className={cn("font-mono text-(--color-text-3) text-[11px] leading-[14px]", valueClass)}
-				>
+				<span className={cn("font-mono text-(--color-text-3) text-xs leading-4", valueClass)}>
 					{value}
 				</span>
 			)}

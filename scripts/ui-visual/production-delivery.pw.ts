@@ -32,7 +32,10 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 				await route.fulfill({ json: { resumed: true } });
 			});
 			await openCase(page, c, fixture);
-			await page.getByRole("link", { name: /Deliver production/ }).click();
+			await page
+				.getByRole("region", { name: "Plan progress", exact: true })
+				.getByRole("link", { name: "Deliver production", exact: true })
+				.click();
 			await expect(page.getByText("Production needs attention", { exact: true })).toBeVisible();
 			await expect(
 				page.getByText("Production smoke returned HTTP 503", { exact: true }),

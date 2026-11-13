@@ -1,23 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { planRunsApi, projectsApi } from "@/api/client.ts";
 import type { PlanRunRow, PlanRunStateFilter } from "@/api/types.ts";
 import { isTerminalPlanRunState } from "@/api/types.ts";
 import { OperatorOnly, useOperatorHint } from "@/components/operator-only.tsx";
-import type { SortState } from "@/components/ui/sortable-table-head.tsx";
-import { type Comparator, compareStrings, useClientSort } from "@/hooks/use-client-sort.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { SelectInput } from "@/components/ui/select-input.tsx";
+import { nextSortState, type SortState } from "@/components/ui/sortable-table-head.tsx";
+import { applySort, type Comparator, compareStrings } from "@/hooks/use-client-sort.ts";
+import { useListParams } from "@/hooks/use-list-params.ts";
 import { useNow } from "@/hooks/use-now.ts";
 import { formatError } from "@/lib/format-error.ts";
-import { WalkCardList } from "./plan-runs/walk-cards.tsx";
 import { WalkRow } from "./plan-runs/walk-row.tsx";
 
 /**
  * Plan runs — the Direction C walk inventory (warren-23b2 / pl-7e38
  * step 6, from docs/ui-revamp/screens/plan-runs.jsx). Sequential walks
- * with child-by-child progress: no summary cards, the table is the
- * product. Filterable like the run index (state, project, free-text
- * plan / plan-run id). The read surface is readPublic, so a spectator
+ * with task progress and whole-attempt cost. Responsive rows share
+ * the same data presentation on phone and desktop. Filters cover state,
+ * project, plan name and attempt ID. The read surface is readPublic, so a spectator
  * sees the same inventory read-only — the only operator affordance on
  * this page is the Dispatch plan button, which `OperatorOnly` drops.
  */
@@ -26,30 +29,20 @@ type PlanRunSortKey = "state" | "id" | "planId" | "startedAt";
 
 const STATE_OPTIONS: { label: string; value: "all" | PlanRunStateFilter }[] = [
 	{ label: "State: all", value: "all" },
-	{ label: "State: active", value: "active" },
+	{ label: "State: unfinished", value: "active" },
 	{ label: "State: queued", value: "queued" },
-	{ label: "State: running", value: "running" },
-	{ label: "State: succeeded", value: "succeeded" },
-	{ label: "State: failed", value: "failed" },
+	{ label: "State: in progress", value: "running" },
+	{ label: "State: completed", value: "succeeded" },
+	{ label: "State: stopped", value: "failed" },
 	{ label: "State: cancelled", value: "cancelled" },
 ];
 
-const COLUMN_WIDTHS = {
-	state: "w-[78px]",
-	planRun: "w-[150px]",
-	plan: "w-[90px]",
-	project: "w-[128px]",
-	agent: "w-[118px]",
-	trigger: "w-[62px]",
-	started: "w-[56px]",
-	elapsed: "w-[62px]",
-	cap: "w-[54px]",
-} as const;
-
 export function PlanRunsPage() {
-	const [stateFilter, setStateFilter] = useState<"all" | PlanRunStateFilter>("all");
-	const [projectFilter, setProjectFilter] = useState<string>("");
-	const [search, setSearch] = useState("");
+	const { params, update } = useListParams();
+	const stateFilter =
+		STATE_OPTIONS.find((option) => option.value === params.get("state"))?.value ?? "all";
+	const projectFilter = params.get("project") ?? "";
+	const search = params.get("q") ?? "";
 
 	const planRuns = useQuery({
 		queryKey: ["plan-runs", projectFilter, stateFilter],
@@ -80,8 +73,8 @@ export function PlanRunsPage() {
 		const all = planRuns.data?.planRuns ?? [];
 		if (search.length === 0) return all;
 		const q = search.toLowerCase();
-		return all.filter(
-			(pr) => pr.id.toLowerCase().includes(q) || (pr.planId ?? "").toLowerCase().includes(q),
+		return all.filter((pr) =>
+			`${pr.id} ${pr.planId ?? ""} ${pr.planName ?? ""}`.toLowerCase().includes(q),
 		);
 	}, [planRuns.data, search]);
 
@@ -89,16 +82,21 @@ export function PlanRunsPage() {
 		() => ({
 			state: (a, b) => compareStrings(a.state, b.state),
 			id: (a, b) => compareStrings(a.id, b.id),
-			planId: (a, b) => compareStrings(a.planId ?? "", b.planId ?? ""),
+			planId: (a, b) => compareStrings(a.planName ?? a.planId ?? "", b.planName ?? b.planId ?? ""),
 			startedAt: (a, b) => compareStrings(a.startedAt ?? "", b.startedAt ?? ""),
 		}),
 		[],
 	);
-	const { sorted, sort, onSort } = useClientSort(rows, comparators, {
-		initialKey: "startedAt",
-		initialDirection: "desc",
-		defaultDirections: { startedAt: "desc" },
-	});
+	const sortKey = params.get("sort");
+	const sort: SortState<PlanRunSortKey> = {
+		key: sortKey === "state" || sortKey === "planId" ? sortKey : "startedAt",
+		direction: params.get("direction") === "asc" ? "asc" : "desc",
+	};
+	const sorted = applySort(rows, comparators, sort);
+	const onSort = (key: PlanRunSortKey) => {
+		const next = nextSortState(sort, key, key === "startedAt" ? "desc" : "asc");
+		update({ sort: next.key, direction: next.direction });
+	};
 
 	const hasFilters = stateFilter !== "all" || projectFilter.length > 0 || search.length > 0;
 	const emptyHint = useOperatorHint("Dispatch one from the Dispatch plan page.");
@@ -106,34 +104,30 @@ export function PlanRunsPage() {
 	// running only while a visible walk is non-terminal.
 	const hasLiveWalks = sorted.some((pr) => !isTerminalPlanRunState(pr.state));
 	const now = useNow(1000, hasLiveWalks);
-	const projectLabel = (pr: PlanRunRow): string => projectIndex.get(pr.projectId) ?? pr.projectId;
+	const projectLabel = (pr: PlanRunRow): string =>
+		projectIndex.get(pr.projectId) ?? "Project unavailable";
 
 	return (
-		<div className="flex min-h-full flex-col px-3.5 pt-[22px] pb-12 md:px-6">
-			<div className="flex shrink-0 items-start gap-4 pb-5">
-				<div className="flex min-w-0 flex-1 flex-col gap-[5px]">
-					<h1 className="font-semibold text-(--color-text) text-[20px] leading-6 tracking-[-0.025em]">
-						Plan runs
-					</h1>
-					<p className="text-(--color-text-2) text-[12px] leading-4">
-						Plans dispatched as sequential runs, one child at a time.
+		<div className="flex min-h-full flex-col px-3.5 py-6 md:px-6">
+			<div className="flex shrink-0 flex-wrap items-start gap-4 pb-5">
+				<div className="flex min-w-0 flex-1 flex-col gap-2">
+					<h1 className="font-semibold text-(--color-text) text-xl leading-6">Plan runs</h1>
+					<p className="text-(--color-text-2) text-sm">
+						Follow each plan attempt, its task progress and total cost.
 					</p>
 				</div>
 				<OperatorOnly>
-					<Link
-						to="/dispatch/plan"
-						className="flex h-[31px] shrink-0 items-center justify-center gap-[7px] rounded-(--radius-sm) bg-(--color-primary) px-[11px] font-medium text-(--color-primary-ink) text-[11px] leading-3.5"
-					>
-						＋ Dispatch plan
-					</Link>
+					<Button asChild>
+						<Link to="/dispatch/plan">Start a plan</Link>
+					</Button>
 				</OperatorOnly>
 			</div>
 
-			<div className="flex min-h-[44px] shrink-0 flex-wrap items-center gap-[7px] rounded-t border border-(--color-border) bg-(--color-surface) px-2 py-[7px]">
+			<div className="flex shrink-0 flex-wrap items-center gap-3 rounded-t-lg border border-(--color-border) bg-(--color-surface) p-3">
 				<FilterSelect
 					name="State filter"
 					value={stateFilter}
-					onChange={(v) => setStateFilter(v as "all" | PlanRunStateFilter)}
+					onChange={(value) => update({ state: value === "all" ? null : value })}
 					active={stateFilter !== "all"}
 				>
 					{STATE_OPTIONS.map((o) => (
@@ -145,7 +139,7 @@ export function PlanRunsPage() {
 				<FilterSelect
 					name="Project filter"
 					value={projectFilter}
-					onChange={setProjectFilter}
+					onChange={(value) => update({ project: value })}
 					active={projectFilter !== ""}
 				>
 					<option value="">All projects</option>
@@ -156,33 +150,35 @@ export function PlanRunsPage() {
 					))}
 				</FilterSelect>
 				{hasFilters ? (
-					<button
+					<Button
+						variant="ghost"
 						type="button"
-						onClick={() => {
-							setStateFilter("all");
-							setProjectFilter("");
-							setSearch("");
-						}}
-						className="h-[25px] px-2 font-medium text-(--color-text-2) text-[10px] leading-3 hover:text-(--color-text)"
+						onClick={() => update({ state: null, project: null, q: null })}
 					>
 						Clear
-					</button>
+					</Button>
 				) : null}
 				<div className="min-w-0 flex-1" />
-				<input
+				<Input
+					aria-label="Search plans"
 					type="search"
 					value={search}
-					onChange={(e) => setSearch(e.target.value)}
-					placeholder="Filter by plan or plan-run ID"
-					className="h-[27px] w-[220px] shrink-0 rounded-(--radius-sm) border border-(--color-border-strong) bg-(--color-bg) px-[9px] text-(--color-text-2) text-[10px] leading-3 placeholder:text-(--color-text-3) focus:outline-none"
+					onChange={(event) => update({ q: event.target.value })}
+					placeholder="Search by plan name or ID"
+					className="min-w-0 flex-1 basis-56"
 				/>
 			</div>
 
-			<div className="shrink-0 overflow-x-auto rounded-b bg-(--color-surface)">
+			<div className="min-w-0 shrink-0 rounded-b-lg border border-(--color-border) border-t-0 bg-(--color-surface)">
 				{planRuns.isLoading ? (
 					<StatusLine>Loading plan runs…</StatusLine>
-				) : planRuns.isError ? (
-					<StatusLine danger>Failed to load plan runs: {formatError(planRuns.error)}</StatusLine>
+				) : planRuns.isError && !planRuns.data ? (
+					<StatusLine danger>
+						Failed to load plan runs: {formatError(planRuns.error)}{" "}
+						<Button variant="outline" onClick={() => void planRuns.refetch()}>
+							Retry plans
+						</Button>
+					</StatusLine>
 				) : sorted.length === 0 ? (
 					<StatusLine>
 						No plan runs match this filter.
@@ -190,10 +186,16 @@ export function PlanRunsPage() {
 					</StatusLine>
 				) : (
 					<>
-						{/* Mobile arm: compact walk cards (warren-dea8). */}
-						<WalkCardList planRuns={sorted} projectLabel={projectLabel} now={now} />
-						<div className="hidden min-w-[1080px] md:block">
-							<HeaderRow sort={sort} onSort={onSort} />
+						{planRuns.isError ? (
+							<StatusLine danger>
+								Updates unavailable. Showing the last known plans.{" "}
+								<Button variant="outline" onClick={() => void planRuns.refetch()}>
+									Retry plans
+								</Button>
+							</StatusLine>
+						) : null}
+						<HeaderRow sort={sort} onSort={onSort} />
+						<div className="divide-y divide-(--color-border)">
 							{sorted.map((pr) => (
 								<WalkRow key={pr.id} planRun={pr} projectLabel={projectLabel(pr)} now={now} />
 							))}
@@ -212,41 +214,27 @@ function HeaderRow({
 	sort: SortState<PlanRunSortKey>;
 	onSort: (key: PlanRunSortKey) => void;
 }) {
-	const head = (label: string, width: string, sortKey?: PlanRunSortKey, right = false) => (
-		<div
-			key={label}
-			className={`${width} shrink-0 ${right ? "text-right" : ""} font-semibold text-(--color-text-3) text-[9px] uppercase leading-3 tracking-[0.05em]`}
-		>
-			{sortKey === undefined ? (
-				label
-			) : (
-				<button
-					type="button"
-					onClick={() => onSort(sortKey)}
-					className="cursor-pointer hover:text-(--color-text-2)"
-					title={sort.key === sortKey ? `Sorted ${sort.direction}` : `Sort by ${label}`}
+	return (
+		<div className="flex flex-wrap items-center gap-2 border-(--color-border) border-b p-3 text-xs">
+			<span className="text-(--color-text-2)">Sort by</span>
+			{(
+				[
+					["Plan", "planId"],
+					["State", "state"],
+					["Started", "startedAt"],
+				] as const
+			).map(([label, key]) => (
+				<Button
+					key={key}
+					variant="ghost"
+					size="sm"
+					onClick={() => onSort(key)}
+					aria-pressed={sort.key === key}
 				>
 					{label}
-					{sort.key === sortKey ? (sort.direction === "asc" ? " ↑" : " ↓") : ""}
-				</button>
-			)}
-		</div>
-	);
-
-	return (
-		<div className="flex h-[31px] items-center gap-2.5 border-(--color-border-strong) border-b bg-(--color-thead) px-2.5">
-			{head("State", COLUMN_WIDTHS.state, "state")}
-			{head("Plan run", COLUMN_WIDTHS.planRun, "id")}
-			{head("Plan", COLUMN_WIDTHS.plan, "planId")}
-			{head("Project", COLUMN_WIDTHS.project)}
-			{head("Agent", COLUMN_WIDTHS.agent)}
-			{head("Trigger", COLUMN_WIDTHS.trigger)}
-			{head("Started", COLUMN_WIDTHS.started, "startedAt")}
-			{head("Elapsed", COLUMN_WIDTHS.elapsed, undefined, true)}
-			{head("Cap", COLUMN_WIDTHS.cap, undefined, true)}
-			<div className="min-w-0 flex-1 font-semibold text-(--color-text-3) text-[9px] uppercase leading-3 tracking-[0.05em]">
-				Children
-			</div>
+					{sort.key === key ? (sort.direction === "asc" ? " ↑" : " ↓") : ""}
+				</Button>
+			))}
 		</div>
 	);
 }
@@ -266,28 +254,20 @@ function FilterSelect({
 	children: React.ReactNode;
 }) {
 	return (
-		<select
+		<SelectInput
 			aria-label={name}
 			value={value}
-			onChange={(e) => onChange(e.target.value)}
-			className={`h-[27px] cursor-pointer rounded-(--radius-sm) border bg-(--color-bg) px-2 text-(--color-text-2) text-[10px] leading-3 focus:outline-none ${
-				active
-					? "border-(--color-primary) text-(--color-primary)"
-					: "border-(--color-border) text-(--color-text-3)"
-			}`}
+			onChange={(event) => onChange(event.target.value)}
+			className={active ? "border-(--color-primary)" : undefined}
 		>
 			{children}
-		</select>
+		</SelectInput>
 	);
 }
 
 function StatusLine({ children, danger = false }: { children: React.ReactNode; danger?: boolean }) {
 	return (
-		<div
-			className={`px-2.5 py-6 text-[11px] leading-4 ${
-				danger ? "text-(--color-danger)" : "text-(--color-text-3)"
-			}`}
-		>
+		<div className={`p-4 text-sm ${danger ? "text-(--color-danger)" : "text-(--color-text-3)"}`}>
 			{children}
 		</div>
 	);

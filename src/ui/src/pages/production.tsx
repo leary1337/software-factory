@@ -6,44 +6,45 @@ import { Button } from "@/components/ui/button.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
 import { DeployPanel } from "./project-detail.deploy-panel.tsx";
+import { useProjectScope } from "./workspace/project-scope.tsx";
+import { projectName } from "./workspace/task-model.ts";
+import { WorkspaceHeader } from "./workspace/workspace-header.tsx";
 
 export function ProductionPage() {
+	const { project, setProject } = useProjectScope();
 	const projects = useQuery({
 		queryKey: ["projects"],
 		queryFn: ({ signal }) => projectsApi.list(signal),
 	});
+	const visible = projects.data?.projects.filter((p) => !project || p.id === project) ?? [];
 	return (
-		<div className="flex min-h-full flex-col gap-6 px-3.5 py-6 md:px-6">
-			<header>
-				<h1 className="font-semibold text-xl">Production</h1>
-				<p className="mt-2 text-(--color-text-2) text-sm">
-					Current releases and delivery status across your projects.
-				</p>
-			</header>
-			{projects.isLoading ? <Spinner label="Loading projects" /> : null}
+		<div className="min-h-full space-y-7 px-3.5 py-6 md:px-6">
+			<WorkspaceHeader
+				title="Production"
+				description="Опубликованные версии и следующие releases по проектам."
+				projects={projects.data?.projects ?? []}
+				project={project}
+				onProject={setProject}
+			/>
+			{projects.isLoading ? <Spinner label="Загрузка проектов" /> : null}
 			{projects.isError ? (
-				<Alert variant="danger" title="Could not load production">
-					{formatError(projects.error)}{" "}
+				<Alert variant="danger" title="Не удалось загрузить Production">
+					{formatError(projects.error)}
 					<Button variant="outline" onClick={() => void projects.refetch()}>
-						Retry
+						Повторить
 					</Button>
 				</Alert>
 			) : null}
-			{projects.data?.projects.length === 0 ? (
-				<Alert title="No projects yet">
-					<Link to="/projects">Connect a project to track delivery.</Link>
+			{!projects.isLoading && !projects.isError && !visible.length ? (
+				<Alert title="Нет доступных проектов">
+					<Link to="/projects">Открыть проекты →</Link>
 				</Alert>
 			) : null}
-			{projects.data?.projects.map((project) => (
-				<section key={project.id} className="min-w-0 space-y-3">
-					<h2 className="break-all font-semibold">
-						<Link to={`/projects/${encodeURIComponent(project.id)}`}>
-							{project.gitUrl.replace(/^https:\/\/github.com\//, "")}
-						</Link>
-					</h2>
-					<DeployPanel projectId={project.id} />
-				</section>
-			))}
+			<div className="grid gap-4 xl:grid-cols-2">
+				{visible.map((p) => (
+					<DeployPanel key={p.id} projectId={p.id} title={projectName(p)} />
+				))}
+			</div>
 		</div>
 	);
 }
