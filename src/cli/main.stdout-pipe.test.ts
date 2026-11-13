@@ -37,7 +37,6 @@ beforeAll(async () => {
 						projectId: null,
 						state: "succeeded",
 						trigger: "manual",
-						costUsd: 0,
 						failureReason: null,
 						prUrl: null,
 						seedId: null,

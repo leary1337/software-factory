@@ -1,52 +1,3 @@
-/**
- * Derived insights aggregator (warren-1788 / pl-ad0f step 8).
- *
- * Pure, dialect-agnostic capstone over the other two analytics aggregators.
- * Where `run-metrics.ts` and `command-mining.ts` emit exhaustive breakdowns,
- * this module distills them into a short, ranked list of human-readable
- * callouts — the "what should an operator look at first" layer the
- * `GET /analytics/behavior` endpoint (step 9) returns and the Phase-2 UI
- * (step 10) renders as severity-coded cards above the dense tables.
- *
- * It takes the already-computed {@link RunMetrics} + {@link CommandMining}
- * rollups (plus an optional {@link SteeringSignals} bundle) and derives at most
- * one {@link Insight} per category:
- *
- *   - `highest-context-seed`: the seed burning the most context tokens
- *   - `worst-success-agent`: the agent with the lowest success rate (only when
- *     it dips below a healthy threshold over a meaningful sample)
- *   - `most-failed-command`: the command that failed the most outright
- *   - `most-retried-command`: the strongest "stuck in a loop" signal
- *     (re-running a command that already failed in the same run)
- *   - `model-cost-outlier`: a model whose average per-run cost is a multiple of
- *     its peers' median
- *   - `steering-anomaly`: a high share of runs needing mid-run human steering
- *   - `steering-outcome-delta` (warren-be04): steered versus unsteered
- *     merged-PR rates, denominators + confidence attached
- *   - `cost-per-merged-pr` (warren-be04): total priced cost over merged-PR
- *     count, overall with the priciest bucket named
- *   - `context-waste-proxy` (warren-6d41): the tool whose tool_result byte
- *     share of run context tokens dominates — a byte-size proxy, not
- *     per-turn usage deltas, and the payload says so
- *
- * NOTE: the `steering-anomaly` callout fires only when a caller passes the
- * optional {@link SteeringSignals} bundle. The `GET /analytics/behavior`
- * handler now supplies it — it tallies steering counters via
- * `buildSteeringSignals` (over a dedicated event query) and passes `steering`
- * into `buildInsights` — so this kind appears in the live endpoint's response
- * whenever the underlying signal is present.
- *
- * Every callout carries a typed `kind`, a `severity`, a numeric `value` (the
- * metric that triggered it) and a `subject` (the seed / agent / command /
- * model it's about, or null). Insights with no signal are simply omitted —
- * a clean instance yields an empty list rather than a wall of "all good"
- * cards.
- *
- * Determinism: the list is sorted by severity (critical → warning → info),
- * then by a fixed per-kind order, so golden/unit tests are stable regardless
- * of which categories fired.
- */
-
 import type { InsightConfidence } from "../../core/wire.ts";
 import type { CommandMining, CommandStat } from "./command-mining.ts";
 import type { ContextWasteProxy } from "./context-waste.ts";
@@ -67,10 +18,8 @@ export type InsightKind =
 	| "worst-success-agent"
 	| "most-failed-command"
 	| "most-retried-command"
-	| "model-cost-outlier"
 	| "steering-anomaly"
 	| "steering-outcome-delta"
-	| "cost-per-merged-pr"
 	| "context-waste-proxy"
 	| "hardest-directory";
 
@@ -81,7 +30,7 @@ export interface Insight {
 	readonly title: string;
 	/** one-line explanation with the concrete numbers. */
 	readonly detail: string;
-	/** the metric value that triggered the callout (tokens, rate, count, usd). */
+
 	readonly value: number;
 	/** the subject (seedId / agent / command / model), or null when global. */
 	readonly subject: string | null;
@@ -117,12 +66,7 @@ export interface InsightsInput {
 	readonly metrics: RunMetrics;
 	readonly mining: CommandMining;
 	readonly steering?: SteeringSignals;
-	/**
-	 * Outcome-joined rollup (warren-be04) — steered/unsteered cohort
-	 * outcomes plus cost-per-merged-PR. When supplied, `buildInsights`
-	 * also derives the `steering-outcome-delta` and `cost-per-merged-pr`
-	 * callouts.
-	 */
+
 	readonly outcomes?: RunOutcomes;
 	/**
 	 * Context-waste proxy rollup (warren-6d41) — tool_result byte shares
@@ -151,9 +95,6 @@ const COMMAND_CRITICAL_FAILURES = 5;
 const COMMAND_WARNING_FAILURES = 2;
 /** Stuck-score thresholds for the most-retried-command callout. */
 const COMMAND_CRITICAL_STUCK = 3;
-/** A model is a cost outlier when its avg ≥ this multiple of peers' median. */
-const COST_OUTLIER_FACTOR = 2;
-const MIN_MODELS_FOR_OUTLIER = 2;
 /** Share-of-runs thresholds for the steering anomaly. */
 const STEERING_CRITICAL_SHARE = 0.5;
 const STEERING_WARNING_SHARE = 0.25;
@@ -163,8 +104,6 @@ const KIND_ORDER: readonly InsightKind[] = [
 	"worst-success-agent",
 	"most-retried-command",
 	"most-failed-command",
-	"model-cost-outlier",
-	"cost-per-merged-pr",
 	"steering-outcome-delta",
 	"steering-anomaly",
 	"context-waste-proxy",
@@ -252,40 +191,6 @@ function mostRetriedCommand(mining: CommandMining): Insight | null {
 	};
 }
 
-/** Average per-priced-run cost for a model bucket, or null when unpriced. */
-function avgCostOf(g: RunGroupBucket): number | null {
-	return g.priced === 0 ? null : g.costUsd / g.priced;
-}
-
-function medianOf(values: readonly number[]): number {
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	if (sorted.length % 2 === 1) return sorted[mid] ?? 0;
-	return ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
-}
-
-function modelCostOutlier(metrics: RunMetrics): Insight | null {
-	const priced = metrics.byModel
-		.map((g) => ({ key: g.key, avg: avgCostOf(g) }))
-		.filter((m): m is { key: string; avg: number } => m.avg !== null && m.avg > 0);
-	if (priced.length < MIN_MODELS_FOR_OUTLIER) return null;
-	let top = priced[0];
-	if (top === undefined) return null;
-	for (const m of priced) if (m.avg > top.avg) top = m;
-	const peers = priced.filter((m) => m.key !== top.key).map((m) => m.avg);
-	if (peers.length === 0) return null;
-	const peerMedian = medianOf(peers);
-	if (peerMedian <= 0 || top.avg < peerMedian * COST_OUTLIER_FACTOR) return null;
-	return {
-		kind: "model-cost-outlier",
-		severity: "warning",
-		title: "Model cost outlier",
-		detail: `Model "${top.key}" averages $${top.avg.toFixed(4)}/run — ${(top.avg / peerMedian).toFixed(1)}× the median of its peers ($${peerMedian.toFixed(4)}).`,
-		value: top.avg,
-		subject: top.key,
-	};
-}
-
 function steeringAnomaly(s: SteeringSignals): Insight | null {
 	if (s.totalRuns <= 0 || s.runsSteered <= 0) return null;
 	const share = s.runsSteered / s.totalRuns;
@@ -332,50 +237,6 @@ function steeringOutcomeDelta(outcomes: RunOutcomes): Insight | null {
 		subject: null,
 		denominator: steered.prStateKnown + unsteered.prStateKnown,
 		confidence,
-	};
-}
-
-/**
- * Overall cost per merged PR (warren-be04): total priced cost over merged-PR
- * count, with the priciest agent/model/provider bucket named as the subject.
- * Fires only when at least one PR merged AND at least one run carried a
- * price — a zero-merged window has no ratio, and an unpriced window has no
- * cost numerator. Buckets with zero merged PRs never win the "priciest"
- * slot: their ratio is undefined, not infinite.
- */
-function costPerMergedPr(outcomes: RunOutcomes): Insight | null {
-	const c = outcomes.costPerMergedPr;
-	if (c.overall.costPerMergedPrUsd === null || c.overall.priced === 0) return null;
-	let worst: { dimension: string; key: string; ratio: number } | null = null;
-	const dimensions = [
-		["agent", c.byAgent],
-		["model", c.byModel],
-		["provider", c.byProvider],
-	] as const;
-	for (const [dimension, buckets] of dimensions) {
-		for (const b of buckets) {
-			if (b.costPerMergedPrUsd === null) continue;
-			if (worst === null || b.costPerMergedPrUsd > worst.ratio) {
-				worst = { dimension, key: b.key, ratio: b.costPerMergedPrUsd };
-			}
-		}
-	}
-	const ratio = c.overall.costPerMergedPrUsd;
-	return {
-		kind: "cost-per-merged-pr",
-		severity: "info",
-		title: "Cost per merged PR",
-		detail:
-			`$${ratio.toFixed(2)} of priced run cost per merged PR ` +
-			`($${c.overall.costUsd.toFixed(2)} across ${c.overall.priced} priced run(s) over ` +
-			`${c.overall.prsMerged} merged PR(s) of ${c.overall.prStateKnown} resolved)` +
-			(worst === null
-				? "."
-				: ` — priciest ${worst.dimension}: "${worst.key}" at $${worst.ratio.toFixed(2)}/merged PR.`),
-		value: ratio,
-		subject: worst?.key ?? null,
-		denominator: c.overall.prsMerged,
-		confidence: c.confidence,
 	};
 }
 
@@ -459,14 +320,12 @@ export function buildInsights(input: InsightsInput): Insight[] {
 		worstSuccessAgent(metrics),
 		mostFailedCommand(mining),
 		mostRetriedCommand(mining),
-		modelCostOutlier(metrics),
 	];
 	if (steering !== undefined) {
 		candidates.push(steeringAnomaly(steering));
 	}
 	if (outcomes !== undefined) {
 		candidates.push(steeringOutcomeDelta(outcomes));
-		candidates.push(costPerMergedPr(outcomes));
 	}
 	if (directories !== undefined) {
 		candidates.push(hardestDirectory(directories));

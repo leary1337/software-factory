@@ -1,19 +1,3 @@
-/**
- * Event, tool-call, and judge-verdict generators for the ui-visual fixture
- * boot (warren-010b). Split from `fixture-data.ts` for the 500-line budget.
- *
- * Every payload mirrors a shape the live pipeline persists, so the UI
- * renders the fixture exactly as it renders a real run:
- *   - claude-code stream-json blocks as `jsonl-claude.ts` maps them
- *     (`text` / `thinking` / `tool_use` / `tool_result` on stdout,
- *     `state_change` on system);
- *   - `stderr` lines as the local engine appends them (`{ line }`);
- *   - warren-authored `steer.sent` / `reap.*` rows on system.
- *
- * No usage envelopes (`state_change` with `type: "result"`) are emitted:
- * those would let the usage hydrator recompute the seeded cost columns.
- */
-
 import type { AppendEventInput } from "../../src/db/repos/events.ts";
 import type { Repos } from "../../src/db/repos/index.ts";
 
@@ -340,7 +324,6 @@ export function judgeExportRows(
 					model: "claude-haiku-4-5",
 					rubricVersion: FIXTURE_RUBRIC_VERSION,
 					judgedAt: r.endedAt,
-					costUsd: 0.0042,
 				},
 			},
 			reason: null,

@@ -244,7 +244,7 @@ describe("GET /plan-runs/:id", () => {
 			children: {
 				seq: number;
 				productionVerification: { sha: string; environment: string; verifiedAt: string } | null;
-				metrics: { runCount: number; reviewCount: number; costUnknownRuns: number };
+				metrics: { runCount: number; reviewCount: number };
 				runId: string | null;
 				reviewMerge: { kind: string; reason: string; nextAction: string; paths: string[] } | null;
 				reviewSteps: { executionState: string; summary: { status: string; reason: string } }[];
@@ -278,11 +278,6 @@ describe("GET /plan-runs/:id", () => {
 			verifiedAt: "2026-11-12T00:00:00Z",
 		});
 		expect(verifiedBody.children[1]?.productionVerification).toBeNull();
-		expect(body.children[0]?.metrics).toMatchObject({
-			runCount: 2,
-			reviewCount: 1,
-			costUnknownRuns: 2,
-		});
 		expect(body.children[0]?.reviewSteps[0]).toMatchObject({
 			executionState: "succeeded",
 			summary: { status: "checks_not_run", reason: "Dependencies missing." },

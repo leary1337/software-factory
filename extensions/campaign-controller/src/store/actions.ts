@@ -26,7 +26,6 @@ type ActionDbRow = {
 	policy_digest: string | null;
 	state: string;
 	attempt: number;
-	reserved_usd_cents: number | null;
 	started_at_ms: number | null;
 	settled_at_ms: number | null;
 	result_run_id: string | null;
@@ -40,7 +39,7 @@ type ActionDbRow = {
 };
 
 const COLUMNS =
-	"id, action_key, campaign_id, work_item_id, action_type, request_digest, policy_digest, state, attempt, reserved_usd_cents, started_at_ms, settled_at_ms, result_run_id, result_plan_run_id, result_branch, result_pr_number, error_class, error_json, created_at_ms, updated_at_ms";
+	"id, action_key, campaign_id, work_item_id, action_type, request_digest, policy_digest, state, attempt, started_at_ms, settled_at_ms, result_run_id, result_plan_run_id, result_branch, result_pr_number, error_class, error_json, created_at_ms, updated_at_ms";
 
 function toAction(row: ActionDbRow): ActionRow {
 	return {
@@ -53,7 +52,6 @@ function toAction(row: ActionDbRow): ActionRow {
 		policyDigest: row.policy_digest,
 		state: row.state as ActionState,
 		attempt: row.attempt,
-		reservedUsdCents: row.reserved_usd_cents,
 		startedAtMs: row.started_at_ms,
 		settledAtMs: row.settled_at_ms,
 		resultRunId: row.result_run_id,
@@ -98,7 +96,6 @@ export class ActionStore {
 		requestDigest: string;
 		policyDigest?: string | null;
 		attempt?: number;
-		reservedUsdCents?: number | null;
 	}): ActionRow {
 		const existing = this.getActionByKey(input.actionKey);
 		if (existing !== null) {
@@ -123,9 +120,9 @@ export class ActionStore {
 		this.#ctx.db
 			.query(
 				`INSERT INTO actions (id, action_key, campaign_id, work_item_id, action_type,
-				 request_digest, policy_digest, state, attempt, reserved_usd_cents,
+				 request_digest, policy_digest, state, attempt,
 				 created_at_ms, updated_at_ms)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', ?, ?, ?, ?)`,
+				 VALUES (?, ?, ?, ?, ?, ?, ?, 'planned', ?, ?, ?)`,
 			)
 			.run(
 				id,
@@ -136,7 +133,6 @@ export class ActionStore {
 				input.requestDigest,
 				input.policyDigest ?? null,
 				input.attempt ?? 1,
-				input.reservedUsdCents ?? null,
 				now,
 				now,
 			);

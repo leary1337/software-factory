@@ -57,7 +57,6 @@ export type CoordinatorGetIssueFn = (projectId: string, issueId: string) => Prom
 
 export interface CoordinatorSpawnInput {
 	readonly reviewFindings?: readonly ReviewFinding[];
-	readonly reviewRemainingCostUsd?: number;
 	readonly planRun: PlanRunRow;
 	readonly child: PlanRunChildRow;
 	readonly prompt: string;

@@ -77,7 +77,6 @@ CLI on the warren host.
      agent prepares it before the first test run.
    - **`defaultProvider` / `defaultModel`** pin what the agents run
      on, so you do not have to pass them per dispatch.
-   - **`maxCostUsd`** sets a project-wide per-run spend cap.
    - **`runBranchPrefix`** namespaces the branches warren pushes, so
      `warren/<run-id>` does not collide with the upstream naming.
    - **`pr.autoMerge`** (plan `pl-92a3`) opts the project into warren-armed

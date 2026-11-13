@@ -1,41 +1,3 @@
-/**
- * Automatic retry for infra-lost runs (warren-4af7).
- *
- * A run that terminalizes `failed` with an infra-lost failure reason
- * (`sandbox_run_lost` — the sandbox/pod vanished under a healthy run: burrow
- * 404s the run, a GC'd pod, a lost worker) says nothing about the prompt,
- * the seed, or the agent — the failure is in the substrate. Warren therefore
- * dispatches ONE replacement run automatically:
- *
- *   - The retry is a NEW run id linked to the original via `runs.retry_of`
- *     (wired through the schema, `SpawnRunInput.retryOf`, and the SDK/UI
- *     run projections). No attempt counter on the row — the link field IS
- *     the budget: a run whose `retryOf` is set (it IS a retry), or that
- *     already has a retry pointing at it, earns no further automatic retry.
- *     If the retry itself lands infra-lost, it stays terminal.
- *   - Spend is cumulative: the retry inherits the original run's resolved
- *     cost cap MINUS the first attempt's recorded spend, folded onto the
- *     dispatch-override slot (`maxCostUsdOverride`) so the event bridge
- *     enforces one shrinking ceiling across both attempts — no fresh
- *     budget. An exhausted budget (remaining <= 0) means no retry.
- *   - Plan-run children are EXCLUDED here: the coordinator's own child
- *     retry (warren-6de9, `src/plan-runs/retry.ts`) owns them — this module
- *     appended the infra-lost cause to `RETRYABLE_CHILD_FAILURE_REASONS`,
- *     and the run-level hook stands down via `planRuns.findChildByRunId`
- *     so a child never double-retries.
- *
- * The hook is fired from the two places a run can terminalize infra-lost:
- * `reapRun` (watchdog terminal-reconcile, inline bridge reap) and
- * `reconcileLostSandboxRun` (live-bridge 404, boot ghost reconcile). The
- * user-initiated cancel ghost path (`src/runs/cancel.ts`) deliberately does
- * NOT fire it — an operator who clicked Cancel asked for no new run.
- *
- * Linkage is observable both directions: the original run's stream gets
- * `run.retry_dispatched` (naming the new run id) and the retry's stream
- * opens with `run.retry_of` (naming the original), so an operator tailing
- * either run can follow the chain.
- */
-
 import type { Repos } from "../../db/repos/index.ts";
 import type { RunFailureReason, RunRow } from "../../db/schema.ts";
 import type { Forge } from "../../forge/contract.ts";
@@ -47,7 +9,6 @@ import type { SeedsCliDeps } from "../../seeds-cli/index.ts";
 import type { IssueTracker } from "../../tracker/contract.ts";
 import type { WarrenConfigCache } from "../../warren-config/index.ts";
 import type { GitSpawnCredential } from "../../workspace/git/credential-env.ts";
-import { resolveCostCapUsd } from "../cost-cap.ts";
 import type { RunEventBroker } from "../events.ts";
 import { spawnRun } from "../spawn/dispatch.ts";
 import type { SpawnRunInput } from "../spawn/types.ts";
@@ -97,18 +58,11 @@ export type InfraLostRetrySkip =
 	| "is_retry"
 	| "already_retried"
 	| "plan_run_child"
-	| "no_project"
-	| "budget_exhausted";
+	| "no_project";
 
 export interface InfraLostRetryDecision {
 	readonly retry: boolean;
 	readonly skip?: InfraLostRetrySkip;
-	/**
-	 * The cap the retry dispatch inherits: the original run's resolved cap
-	 * minus its recorded spend. `null` when the original had no cap (the
-	 * retry then dispatches with no override, exactly like the original).
-	 */
-	readonly remainingBudgetUsd: number | null;
 }
 
 /**
@@ -121,10 +75,9 @@ export async function decideInfraLostRetry(
 	repos: Repos,
 	run: RunRow,
 ): Promise<InfraLostRetryDecision> {
-	const no = (skip: InfraLostRetrySkip, remainingBudgetUsd: number | null = null) => ({
+	const no = (skip: InfraLostRetrySkip) => ({
 		retry: false,
 		skip,
-		remainingBudgetUsd,
 	});
 	if (run.state !== "failed" || !isInfraLostRunFailure(run.failureReason)) {
 		return no("not_infra_lost");
@@ -143,12 +96,7 @@ export async function decideInfraLostRetry(
 	if ((await repos.events.payloadKeyHistory("plan_run.review_step", "stepRunId", run.id)).count > 0)
 		return no("plan_run_child");
 	if (run.projectId === null) return no("no_project");
-	// Cumulative spend: the retry inherits the original cap minus what the
-	// first attempt already burned. Null cap ⇒ uncapped ⇒ null remaining.
-	const cap = resolveCostCapUsd(run.renderedAgentJson);
-	const remaining = cap === null ? null : cap - (run.costUsd ?? 0);
-	if (remaining !== null && remaining <= 0) return no("budget_exhausted", remaining);
-	return { retry: true, remainingBudgetUsd: remaining };
+	return { retry: true };
 }
 
 /** Writable draft of the retry's {@link SpawnRunInput} (the input type is readonly). */
@@ -156,21 +104,12 @@ type RetrySpawnDraft = {
 	-readonly [K in keyof SpawnRunInput]?: SpawnRunInput[K];
 };
 
-/**
- * Map a failed infra-lost run onto the spawn input for its ONE retry: same
- * agent/project/prompt/seed/trigger/mode/ref, `retryOf` back-link set, and
- * the remaining budget on the dispatch-override slot (warren-4af7:
- * cumulative spend — the retry's cap is what the original cap has LEFT;
- * omitted when the original was uncapped, so the retry resolves caps
- * exactly as the original did). Linear if-chains keep this under the
- * cognitive-complexity ceiling where conditional spreads would not.
- */
 function buildRetrySpawnInput(
 	gitCredential: GitSpawnCredential | undefined,
 	input: CreateInfraLostRetryHookInput,
 	run: RunRow,
 	projectId: string,
-	decision: InfraLostRetryDecision,
+	_decision: InfraLostRetryDecision,
 ): SpawnRunInput {
 	const draft: RetrySpawnDraft = {
 		...(gitCredential !== undefined ? { gitCredential } : {}),
@@ -200,7 +139,6 @@ function buildRetrySpawnInput(
 	// The cap is deliberately NOT taken from `inherited`. warren-4af7 gives
 	// this retry the original cap MINUS what the first attempt spent, and the
 	// full frozen cap would hand it a fresh budget.
-	if (decision.remainingBudgetUsd !== null) draft.maxCostUsdOverride = decision.remainingBudgetUsd;
 	if (input.projectsConfig !== undefined) draft.projectsConfig = input.projectsConfig;
 	if (input.projectSpawn !== undefined) draft.projectSpawn = input.projectSpawn;
 	if (input.warrenConfigs !== undefined) draft.warrenConfigs = input.warrenConfigs;
@@ -300,18 +238,15 @@ export function createInfraLostRetryHook(input: CreateInfraLostRetryHookInput): 
 			await emitSystem(run.id, RUN_RETRY_DISPATCHED_KIND, {
 				retryRunId: result.run.id,
 				failureReason: run.failureReason,
-				remainingBudgetUsd: decision.remainingBudgetUsd,
 			});
 			await emitSystem(result.run.id, RUN_RETRY_OF_KIND, {
 				retryOf: run.id,
 				failureReason: run.failureReason,
-				remainingBudgetUsd: decision.remainingBudgetUsd,
 			});
 			log.info(
 				{
 					event: "run.retry_dispatched",
 					retry_run_id: result.run.id,
-					remainingBudgetUsd: decision.remainingBudgetUsd,
 				},
 				"infra-lost run auto-retried",
 			);

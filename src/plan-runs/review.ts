@@ -52,7 +52,6 @@ export interface ReviewStepRecord {
 	readonly evidenceRequired?: boolean;
 	readonly evidence?: ReviewEvidence;
 	readonly artifacts?: readonly ReviewFinding[];
-	readonly costUsd?: number | null;
 	readonly activeMs?: number | null;
 }
 
@@ -165,7 +164,6 @@ async function loadStep(
 		evidenceRequired: payload.evidenceRequired,
 		...(evidence ? { evidence } : {}),
 		artifacts: parseReviewArtifacts(rawArtifacts?.payloadJson),
-		costUsd: stepRun.costUsd,
 		activeMs: activeDuration(stepRun),
 		step: payload.step,
 		reviewedCommit: payload.reviewedCommit ?? stepRun.baseCommit ?? "",

@@ -1,11 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { runsApi } from "@/api/client.ts";
 
-/**
- * The recent-runs page the Judge and Economics tabs join verdict and
- * cost data against (runId → agent, project, forge PR state). One
- * shared query key so both tabs ride a single round-trip.
- */
+/** Recent runs used to join judge verdicts to agents, projects and PR state. */
 
 const RUNS_JOIN_LIMIT = 200;
 

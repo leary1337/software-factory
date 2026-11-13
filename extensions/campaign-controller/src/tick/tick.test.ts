@@ -97,7 +97,6 @@ function signedManifest(issues: number[]): Record<string, unknown> {
 			model: "claude-sonnet-4-5",
 		},
 		prompt: "Fix the assigned OpenClaw issue end to end.",
-		budget: { perRunUsd: 5, dailyUsd: 20, totalUsd: 100 },
 		maxConcurrentRuns: 2,
 		expiresAt: "2026-12-31T00:00:00.000Z",
 	};
@@ -298,7 +297,6 @@ describe("runTick", () => {
 		// renders the dry-run PR intent, and settles the campaign.
 		h.warren.setRunState(runIdOf(tick1), {
 			state: "succeeded",
-			costUsd: 1.25,
 			targetBranch: BRANCH,
 		});
 		const tick2 = await runTick(h.deps, h.campaignId);
@@ -309,7 +307,6 @@ describe("runTick", () => {
 			"github_reconcile:none",
 		]);
 		expect(tick2.campaignStatus).toBe("completed");
-		expect(tick2.report.budget).toEqual({ capUsdCents: 10000, availableUsdCents: 9875 });
 		expect(tick2.report.workItems).toEqual([
 			{ id: expect.any(String), issueRef: "812", position: 1, status: "terminal" },
 		]);
@@ -352,7 +349,6 @@ describe("runTick", () => {
 			if (count >= 3) {
 				h.warren.setRunState(runId, {
 					state: "succeeded",
-					costUsd: 1.5,
 					targetBranch: BRANCH,
 				});
 			}
@@ -375,7 +371,6 @@ describe("runTick", () => {
 		const tick1 = await runTick(h.deps, h.campaignId);
 		h.warren.setRunState(runIdOf(tick1), {
 			state: "succeeded",
-			costUsd: 1,
 			targetBranch: BRANCH,
 		});
 		// The operator had supplied no summary yet, so the intent was skipped
@@ -413,7 +408,7 @@ describe("runTick", () => {
 		// A warren predating the run-wire `branch` field: the run succeeds
 		// with no targetBranch override and no composed branch served, so the
 		// dispatch settles with result_branch null and the intent refuses.
-		h.warren.setRunState(runId, { state: "succeeded", costUsd: 1 });
+		h.warren.setRunState(runId, { state: "succeeded" });
 		const tick2 = await runTick(h.deps, h.campaignId);
 		expect(stagesOf(tick2.stages)).toContain("pr_intent:refused");
 		const settled = h.store.actions
@@ -454,7 +449,6 @@ describe("runTick", () => {
 		h1.warren.restart();
 		h1.warren.setRunState(runId, {
 			state: "succeeded",
-			costUsd: 2,
 			targetBranch: BRANCH,
 		});
 		const store2 = new CampaignStateStore(dbPath, { clock, ids });
@@ -566,7 +560,6 @@ describe("runTick", () => {
 
 		h.warren.setRunState(runIdOf(tick1), {
 			state: "succeeded",
-			costUsd: 1,
 			targetBranch: BRANCH,
 		});
 		const tick2 = await runTick(h.deps, h.campaignId);
@@ -592,7 +585,6 @@ describe("runTick", () => {
 		const tick1 = await runTick(h.deps, h.campaignId);
 		h.warren.setRunState(runIdOf(tick1), {
 			state: "succeeded",
-			costUsd: 1.25,
 			targetBranch: BRANCH,
 		});
 		await runTick(h.deps, h.campaignId); // renders + journals the intent
@@ -713,7 +705,6 @@ describe("runTick with a policy-gated PR creator", () => {
 		const tick1 = await runTick(h.deps, h.campaignId);
 		h.warren.setRunState(runIdOf(tick1), {
 			state: "succeeded",
-			costUsd: 1,
 			branch: BRANCH,
 		});
 	}
@@ -841,7 +832,7 @@ describe("runTick with a policy-gated PR creator", () => {
 		expect(firstPrompt).toContain("END AGENT GUIDANCE");
 
 		// Follow-up dispatch (the second work item, next tick): same block.
-		h.warren.setRunState(runIdOf(tick1), { state: "succeeded", costUsd: 1, targetBranch: BRANCH });
+		h.warren.setRunState(runIdOf(tick1), { state: "succeeded", targetBranch: BRANCH });
 		const tick2 = await runTick(h.deps, h.campaignId);
 		expect(stagesOf(tick2.stages)).toContain("dispatch:dispatched");
 		const secondRunId = detailOf(requireStage(tick2, "dispatch")).runId;
@@ -872,7 +863,6 @@ describe("runTick with a profile bot grammar (warren-8c83)", () => {
 		const tick1 = await runTick(h.deps, h.campaignId);
 		h.warren.setRunState(runIdOf(tick1), {
 			state: "succeeded",
-			costUsd: 1.25,
 			targetBranch: BRANCH,
 		});
 		await runTick(h.deps, h.campaignId); // renders + journals the intent

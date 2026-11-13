@@ -28,8 +28,6 @@ import { type JudgeVerdict, validateVerdict } from "./wire.ts";
 export const UNJUDGED_REASONS = [
 	/** The retry budget was exhausted on malformed or missing verdicts. */
 	"malformed_verdict",
-	/** JUDGE_MAX_COST_USD or JUDGE_DAILY_BUDGET_USD would be breached. */
-	"budget_exceeded",
 	/** The judge loop itself failed (provider error, transport, crash). */
 	"judge_error",
 ] as const;
@@ -144,6 +142,11 @@ export class VerdictStore {
 		this.#db.run("PRAGMA journal_mode = WAL;");
 		this.#db.run(SCHEMA);
 		this.#ensureDetailColumn();
+		this.#db.transaction(() => {
+			this.#db.exec("DROP TABLE IF EXISTS judge_spend");
+			this.#db.exec("UPDATE verdict_rows SET reason = 'judge_error', detail = 'Judgment ended under a retired monetary limit.' WHERE reason = 'budget_exceeded'");
+			this.#db.exec("UPDATE verdict_rows SET verdict = json_remove(verdict, '$.provenance.costUsd') WHERE verdict IS NOT NULL AND json_type(verdict, '$.provenance.costUsd') IS NOT NULL");
+		})();
 		this.#now = opts?.now ?? (() => new Date());
 	}
 
@@ -177,7 +180,7 @@ export class VerdictStore {
 
 	/**
 	 * Append an unjudged marker. Idempotent under the same dedupe key, so a
-	 * budget-skip replay does not stack markers. Returns the new row id, or
+	 * unjudged replay does not stack markers. Returns the new row id, or
 	 * null on replay.
 	 */
 	recordUnjudged(opts: {

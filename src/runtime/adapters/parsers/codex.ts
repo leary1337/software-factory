@@ -1,5 +1,4 @@
-import { type CodexPricing, codexPricing, estimateCodexCost } from "../codex-config.ts";
-import type { AdapterRuntimeEvent, AgentFrontmatter } from "../types.ts";
+import type { AdapterRuntimeEvent } from "../types.ts";
 
 type RecordValue = Record<string, unknown>;
 
@@ -17,19 +16,19 @@ function event(kind: AdapterRuntimeEvent["kind"], payload: unknown): AdapterRunt
 	};
 }
 
-function normalizedUsage(raw: unknown, pricing: CodexPricing): RecordValue {
+function normalizedUsage(raw: unknown): RecordValue {
 	const usage = record(raw);
 	if (!usage) return {};
-	const cost = estimateCodexCost(usage, pricing);
-	if (cost === undefined) return {};
-	const cached = (usage.cached_input_tokens ?? 0) as number;
+	const { input_tokens: input, cached_input_tokens: cached = 0, output_tokens: output } = usage;
+	if (typeof input !== "number" || typeof cached !== "number" || typeof output !== "number")
+		return {};
+	if (![input, cached, output].every((n) => Number.isFinite(n) && n >= 0) || cached > input)
+		return {};
 	return {
-		total_cost_usd: cost,
-		cost_basis: "subscription_estimate",
 		usage: {
 			// Warren keeps uncached and cached input in separate buckets.
-			input_tokens: (usage.input_tokens as number) - cached,
-			output_tokens: usage.output_tokens,
+			input_tokens: input - cached,
+			output_tokens: output,
 			cache_read_input_tokens: cached,
 		},
 	};
@@ -77,10 +76,7 @@ function itemEvents(type: unknown, item: RecordValue): AdapterRuntimeEvent[] {
 }
 
 /** One parser per process: final text must never leak between concurrent runs. */
-export function createCodexParser(
-	frontmatter?: AgentFrontmatter,
-): (line: string) => AdapterRuntimeEvent[] {
-	const pricing = codexPricing(frontmatter);
+export function createCodexParser(): (line: string) => AdapterRuntimeEvent[] {
 	let result = "";
 	let sessionId: unknown;
 	return (line) => {
@@ -104,7 +100,7 @@ export function createCodexParser(
 					session_id: sessionId,
 					is_error: type === "turn.failed",
 					error: envelope.error,
-					...normalizedUsage(envelope.usage, pricing),
+					...normalizedUsage(envelope.usage),
 				}),
 			];
 		}

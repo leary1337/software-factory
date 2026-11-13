@@ -2,9 +2,7 @@ import type { RunEvent } from "@/api/types.ts";
 import {
 	findFirstText,
 	findToolUseName,
-	formatCostUsd,
 	formatTokens,
-	readCostTotal,
 	readNumber,
 	readString,
 	truncateSummary,
@@ -71,8 +69,6 @@ function usageParts(usage: unknown): string[] {
 			const b = outT !== null ? formatTokens(outT) : "?";
 			parts.push(`usage ${a}/${b}`);
 		}
-		const cost = readCostTotal(u.cost);
-		if (cost !== null) parts.push(formatCostUsd(cost));
 	}
 	return parts;
 }
@@ -97,8 +93,6 @@ function resultParts(payload: Record<string, unknown>): string[] {
 	if (payload.is_error === true) parts.push("error");
 	const subtype = readString(payload.subtype);
 	if (subtype !== null) parts.push(subtype);
-	const cost = readNumber(payload.total_cost_usd);
-	if (cost !== null) parts.push(formatCostUsd(cost));
 	return parts;
 }
 

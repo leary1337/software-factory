@@ -155,16 +155,6 @@ describe("resolveCliExitCode", () => {
 		expect(resolveCliExitCode(new CommanderError(0, "commander.helpDisplayed", "help"))).toBe(0);
 		expect(resolveCliExitCode(new Error("boom"))).toBe(1);
 	});
-
-	test("an invalid --max-cost-usd maps to the usage-error exit 2 (warren-b61e)", async () => {
-		const program = buildProgram(silentContext());
-		program.configureOutput({ writeErr: () => undefined });
-		const err = await program
-			.parseAsync(["node", "warren", "run", "agent", "prj_x", "-p", "x", "--max-cost-usd", "abc"])
-			.catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(CommanderError);
-		expect(resolveCliExitCode(err)).toBe(2);
-	});
 });
 
 describe("cli entry shebang", () => {

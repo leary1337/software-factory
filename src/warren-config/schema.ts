@@ -49,6 +49,7 @@ import { MigrationsConfigSchema } from "./migrations-config.ts";
 import { PlanRunBudgetConfigSchema } from "./plan-run-budget-config.ts";
 import { DeployConfigSchema, PrConfigSchema } from "./pr-config.ts";
 import { AdmissionConfigSchema, ResourcesConfigSchema } from "./resources-config.ts";
+import { omitRetiredCostLimit } from "./retired-cost-limit.ts";
 import { TrackerConfigSchema } from "./tracker-config.ts";
 
 // warren-3db0: re-exported so the historical import sites (and
@@ -227,15 +228,7 @@ const AgentConfigSchema = z
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
-// warren-b802: per-project override of the burrow runtime backing the
-// planner interactive built-in agent. Without this, an
-// operator must stand up a canopy library just to change the runtime
-// field. Validated against the known burrow runtime ids so a typo
-// surfaces at config-load time, not at burrow boot.
-//
-// warren-c4be: the id vocabulary itself is canonical in `src/core/wire.ts`
-// because the agent registry validates against the same list. Re-export,
-// never re-list.
+// The shared runtime vocabulary also validates interactive-agent overrides.
 export { KNOWN_RUNTIME_IDS, type RuntimeId } from "../core/wire.ts";
 
 const RuntimeIdSchema = z.enum(KNOWN_RUNTIME_IDS);
@@ -309,10 +302,6 @@ export type ServerPreviewConfig = z.infer<typeof ServerPreviewConfigSchema>;
 export type StaticPreviewConfig = z.infer<typeof StaticPreviewConfigSchema>;
 export type PreviewConfig = z.infer<typeof PreviewConfigSchema>;
 
-// warren-a63d: per-run USD spend cap, shared by the trigger entry and the
-// project-wide default below so both sites can never validate differently.
-const MaxCostUsdSchema = z.number().positive("maxCostUsd must be positive").finite();
-
 // warren-fabb: per-project override of the agent image the container runtimes
 // (DockerProvider + K8sProvider) launch each run in — a Python mirror pins a
 // stack-specific image without redeploying warren. Precedence: this project
@@ -323,8 +312,6 @@ const AgentImageSchema = z
 	.min(1, "agentImage must be non-empty if provided")
 	.max(512, "agentImage must be a container image reference (registry/repo:tag)");
 
-// warren-a63d: per-trigger spend cap (USD); folded onto agent frontmatter
-// (trigger > agent) and enforced mid-run by the bridge. Positive finite.
 const CronTriggerSchema = z
 	.object({
 		id: TriggerIdSchema,
@@ -334,11 +321,13 @@ const CronTriggerSchema = z
 		role: RoleNameSchema,
 		timezone: TimezoneSchema.optional(),
 		prompt: PromptSchema.optional(),
-		maxCostUsd: MaxCostUsdSchema.optional(),
 	})
 	.strict();
 
-export const TriggerSchema = z.discriminatedUnion("kind", [CronTriggerSchema]);
+export const TriggerSchema = z.preprocess(
+	omitRetiredCostLimit,
+	z.discriminatedUnion("kind", [CronTriggerSchema]),
+);
 
 export const TriggersConfigSchema = z.array(TriggerSchema).superRefine((list, ctx) => {
 	const seen = new Set<string>();
@@ -358,69 +347,72 @@ export type CronTrigger = z.infer<typeof CronTriggerSchema>;
 export type Trigger = z.infer<typeof TriggerSchema>;
 export type TriggersConfig = z.infer<typeof TriggersConfigSchema>;
 
-export const DefaultsConfigSchema = z
-	.object({
-		defaultRole: RoleNameSchema.optional(),
-		defaultBranch: z.string().min(1, "defaultBranch must be non-empty if provided").optional(),
-		defaultPrompt: PromptSchema.optional(),
-		// warren-618b: free-text provider/model defaults applied at spawn time the
-		// same way per-run overrides are (operator > project default > frontmatter).
-		defaultProvider: z.string().min(1, "defaultProvider must be non-empty if provided").optional(),
-		defaultModel: z.string().min(1, "defaultModel must be non-empty if provided").optional(),
-		// warren-9993: run branch prefix; spawnRun composes `${prefix}/${run.id}`.
-		// Precedence: project default > WARREN_RUN_BRANCH_PREFIX env > built-in
-		// default ("warren"; warren-2de0 flipped the legacy "burrow" default).
-		runBranchPrefix: RunBranchPrefixSchema.optional(),
-		deploy: DeployConfigSchema.optional(),
-		// warren-fabb: per-project agent image override for the container
-		// runtimes (docker + k8s). Precedence: project override >
-		// WARREN_DOCKER_AGENT_IMAGE / WARREN_K8S_AGENT_IMAGE env > default.
-		agentImage: AgentImageSchema.optional(),
-		// warren-7be9 / docs/design/preview-environments.md: per-run preview environments (R-19). Canonical
-		// home is `.warren/preview.yaml` (post-warren-5840); this nested field is
-		// still accepted for migration — when both exist, `preview.yaml` wins.
-		preview: PreviewConfigSchema.optional(),
-		// warren-8f4c: per-project agent-runtime knobs (only `skipGitHooks`
-		// today). Missing block → defaults apply.
-		agent: AgentConfigSchema.optional(),
-		// warren-b802: override of the burrow runtime backing interactive built-in
-		// agents. Precedence: config override > agent frontmatter.runtime > name.
-		interactiveAgents: InteractiveAgentsConfigSchema.optional(),
-		// warren-ac7a / pl-829f step 14: K8s pod resource + network defaults
-		// (design §3.1). Absent → the pod-spec builder uses DEFAULT_K8S_* constants.
-		resources: ResourcesConfigSchema.optional(),
-		// warren-b6f2: per-project admission control (K8s, design §3.3).
-		admission: AdmissionConfigSchema.optional(),
-		// Per-run fallback cap: dispatch override > agent frontmatter > project.
-		// resolveCapOverride owns precedence; the event bridge observes usage.
-		maxCostUsd: MaxCostUsdSchema.optional(),
-		planRunBudget: PlanRunBudgetConfigSchema.optional(),
-		// warren-05ea: opt-in polling CI-fixer; missing block → poller skips it.
-		ciFixer: CiFixerConfigSchema.optional(),
-		// warren-3db0: opt-in closed-loop healer; missing block → intake skips it.
-		healer: HealerConfigSchema.optional(),
-		acceptance: AcceptanceConfigSchema.optional(),
-		qualityGate: z.string().min(1, "qualityGate must be non-empty if provided").optional(),
-		// warren-540f: free-text per-project onboarding context injected into
-		// every dispatched agent's prompt by composeDispatchPrompt. This is where
-		// "this is a Python repo, the gate is pytest -q, there is no tracker here"
-		// lives for a mirror you do not control. Capped at 8 KiB so a runaway
-		// blob cannot silently eat the prompt budget; bytes are counted in the
-		// dispatch-context `prompt_bytes`.
-		repoContext: z
-			.string()
-			.min(1, "repoContext must be non-empty if provided")
-			.max(8192, "repoContext must be at most 8192 characters")
-			.optional(),
-		// warren-d3a9: external tracker container (warren-tracker/v1). Absent →
-		// the boot-resolved default tracker (SeedsTracker today).
-		tracker: TrackerConfigSchema.optional(),
-		// warren-6c5a / pl-92a3 step 4: opt-in PR auto-merge (pr-config.ts).
-		pr: PrConfigSchema.optional(),
-		// warren-4371: in-sandbox migration repair guidance (migrations-config.ts).
-		migrations: MigrationsConfigSchema.optional(),
-	})
-	.strict();
+export const DefaultsConfigSchema = z.preprocess(
+	omitRetiredCostLimit,
+	z
+		.object({
+			defaultRole: RoleNameSchema.optional(),
+			defaultBranch: z.string().min(1, "defaultBranch must be non-empty if provided").optional(),
+			defaultPrompt: PromptSchema.optional(),
+			// warren-618b: free-text provider/model defaults applied at spawn time the
+			// same way per-run overrides are (operator > project default > frontmatter).
+			defaultProvider: z
+				.string()
+				.min(1, "defaultProvider must be non-empty if provided")
+				.optional(),
+			defaultModel: z.string().min(1, "defaultModel must be non-empty if provided").optional(),
+			// warren-9993: run branch prefix; spawnRun composes `${prefix}/${run.id}`.
+			// Precedence: project default > WARREN_RUN_BRANCH_PREFIX env > built-in
+			// default ("warren"; warren-2de0 flipped the legacy "burrow" default).
+			runBranchPrefix: RunBranchPrefixSchema.optional(),
+			deploy: DeployConfigSchema.optional(),
+			// warren-fabb: per-project agent image override for the container
+			// runtimes (docker + k8s). Precedence: project override >
+			// WARREN_DOCKER_AGENT_IMAGE / WARREN_K8S_AGENT_IMAGE env > default.
+			agentImage: AgentImageSchema.optional(),
+			// warren-7be9 / docs/design/preview-environments.md: per-run preview environments (R-19). Canonical
+			// home is `.warren/preview.yaml` (post-warren-5840); this nested field is
+			// still accepted for migration — when both exist, `preview.yaml` wins.
+			preview: PreviewConfigSchema.optional(),
+			// warren-8f4c: per-project agent-runtime knobs (only `skipGitHooks`
+			// today). Missing block → defaults apply.
+			agent: AgentConfigSchema.optional(),
+			// warren-b802: override of the burrow runtime backing interactive built-in
+			// agents. Precedence: config override > agent frontmatter.runtime > name.
+			interactiveAgents: InteractiveAgentsConfigSchema.optional(),
+			// warren-ac7a / pl-829f step 14: K8s pod resource + network defaults
+			// (design §3.1). Absent → the pod-spec builder uses DEFAULT_K8S_* constants.
+			resources: ResourcesConfigSchema.optional(),
+			// warren-b6f2: per-project admission control (K8s, design §3.3).
+			admission: AdmissionConfigSchema.optional(),
+			planRunBudget: PlanRunBudgetConfigSchema.optional(),
+			// warren-05ea: opt-in polling CI-fixer; missing block → poller skips it.
+			ciFixer: CiFixerConfigSchema.optional(),
+			// warren-3db0: opt-in closed-loop healer; missing block → intake skips it.
+			healer: HealerConfigSchema.optional(),
+			acceptance: AcceptanceConfigSchema.optional(),
+			qualityGate: z.string().min(1, "qualityGate must be non-empty if provided").optional(),
+			// warren-540f: free-text per-project onboarding context injected into
+			// every dispatched agent's prompt by composeDispatchPrompt. This is where
+			// "this is a Python repo, the gate is pytest -q, there is no tracker here"
+			// lives for a mirror you do not control. Capped at 8 KiB so a runaway
+			// blob cannot silently eat the prompt budget; bytes are counted in the
+			// dispatch-context `prompt_bytes`.
+			repoContext: z
+				.string()
+				.min(1, "repoContext must be non-empty if provided")
+				.max(8192, "repoContext must be at most 8192 characters")
+				.optional(),
+			// warren-d3a9: external tracker container (warren-tracker/v1). Absent →
+			// the boot-resolved default tracker (SeedsTracker today).
+			tracker: TrackerConfigSchema.optional(),
+			// warren-6c5a / pl-92a3 step 4: opt-in PR auto-merge (pr-config.ts).
+			pr: PrConfigSchema.optional(),
+			// warren-4371: in-sandbox migration repair guidance (migrations-config.ts).
+			migrations: MigrationsConfigSchema.optional(),
+		})
+		.strict(),
+);
 
 export type DefaultsConfig = z.infer<typeof DefaultsConfigSchema>;
 

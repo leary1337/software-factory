@@ -7,21 +7,17 @@
  */
 
 import { NotFoundError, ValidationError } from "../../core/errors.ts";
-import { resolveRunCostBasis } from "../../core/providers.ts";
 import { withProjectCloneLock } from "../../projects/clone-lock.ts";
 import { refreshProject } from "../../projects/manage.ts";
 import {
 	readProviderFrontmatter,
 	readRuntimeId,
-	withMaxCostUsdOverride,
 	withProviderOverrides,
 } from "../../registry/schema.ts";
-import { runtimeCostBasis } from "../../runtime/adapters/index.ts";
 import type { RunHandle, RunSpec, RuntimeProvider } from "../../runtime/contract.ts";
 import { interactiveRuntimeOverride } from "../../warren-config/schema.ts";
 import { composeRunBranch, resolveRunBranchPrefix } from "../branch.ts";
 import { parseBurrowConfig } from "../burrow-config.ts";
-import { resolveCapOverride } from "../cost-cap.ts";
 import { lifecycleBus } from "../lifecycle-bus.ts";
 import { buildSeedFiles } from "../seed.ts";
 import { validateTargetBranch } from "../target-branch.ts";
@@ -109,7 +105,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// refresh ref so the local clone is checked out to the parent branch tip
 	// before burrow forks the new run branch off it. The parent link is also
 	// recorded on the new run row below so the UI can render a chain indicator
-	// and chain cost/token totals are derivable by walking the link.
+
 	const baseRef = input.baseCommit ?? (await resolveContinuationRef(input, project, pushTarget));
 
 	// warren-232d: a baseCommit dispatch NEVER moves the host clone's HEAD.
@@ -151,29 +147,14 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		projectDefaults?.defaultProvider,
 	);
 	const effectiveModel = resolveOverride(input.modelOverride, projectDefaults?.defaultModel);
-	// warren-a63d: fold the per-dispatch spend cap on top. The full chain
-	// (override > agent frontmatter > project default, with malformed agent
-	// values still failing open) lives in resolveCapOverride — cost-cap.ts
-	// owns the semantics, this site only feeds it the three sources.
-	const capOverride = resolveCapOverride({
-		ceilingUsd: input.reviewRemainingCostUsd,
-		...(input.maxCostUsdOverride !== undefined ? { overrideUsd: input.maxCostUsdOverride } : {}),
-		frontmatter: baseAgent.frontmatter,
-		...(projectDefaults?.maxCostUsd !== undefined
-			? { projectDefaultUsd: projectDefaults.maxCostUsd }
-			: {}),
-	});
 	// warren-cb46: gate tracker/mulch prompt fragments on the project's real
 	// capabilities before anything freezes the agent (prompt-capabilities.ts).
 	const agent = gateAgentPrompts(
 		withMulchArm(
-			withMaxCostUsdOverride(
-				withProviderOverrides(baseAgent, {
-					...(effectiveProvider !== undefined ? { providerOverride: effectiveProvider } : {}),
-					...(effectiveModel !== undefined ? { modelOverride: effectiveModel } : {}),
-				}),
-				capOverride,
-			),
+			withProviderOverrides(baseAgent, {
+				...(effectiveProvider !== undefined ? { providerOverride: effectiveProvider } : {}),
+				...(effectiveModel !== undefined ? { modelOverride: effectiveModel } : {}),
+			}),
 			input.mulchArm,
 		),
 		projectAfterRefresh,
@@ -212,14 +193,6 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		renderedAgentJson: agent,
 		...(declaredProvider !== undefined ? { provider: declaredProvider } : {}),
 		...(declaredModel !== undefined ? { model: declaredModel } : {}),
-		// warren-f3c3: freeze how the run's cost will be priced. A run whose
-		// anthropic credential is CLAUDE_CODE_OAUTH_TOKEN (subscription auth)
-		// gets `subscription_estimate` so costUsd reads as an estimate, not a
-		// bill. Resolved beside the provider env registry (core/providers.ts).
-		costBasis:
-			runtimeCostBasis(
-				readRuntimeId(agent, interactiveRuntimeOverride(agent.name, projectDefaults)),
-			) ?? resolveRunCostBasis(declaredProvider, input.serverEnv ?? process.env),
 		trigger: input.trigger ?? "manual",
 		...(input.seedId !== undefined ? { seedId: input.seedId } : {}),
 		...(input.mode !== undefined ? { mode: input.mode } : {}),

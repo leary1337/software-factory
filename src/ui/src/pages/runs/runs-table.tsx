@@ -6,7 +6,6 @@ import {
 	branchLabelOf,
 	formatDuration,
 	projectLabel,
-	runCostLabel,
 	shortSha,
 	startedAtOf,
 	truncateRuntimeHandle,
@@ -245,9 +244,7 @@ function RunsTableRow({
 			<td className="w-[54px] px-2.5 py-1.5 text-right align-middle font-mono text-(--color-text-2) text-[10px] leading-3">
 				{formatDuration(row, now)}
 			</td>
-			<td className="w-[54px] px-2.5 py-1.5 text-right align-middle font-mono text-(--color-text-2) text-[10px] leading-3">
-				{runCostLabel(row)}
-			</td>
+
 			<td className="px-2.5 py-1.5 align-middle">
 				<DeliveryCell row={row} />
 			</td>
@@ -304,9 +301,6 @@ export function RunsTable({
 						<Th width="56px">Started</Th>
 						<Th width="54px" className="text-right">
 							Duration
-						</Th>
-						<Th width="54px" className="text-right">
-							Cost
 						</Th>
 						<Th>Delivery</Th>
 					</tr>

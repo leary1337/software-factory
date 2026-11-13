@@ -26,7 +26,6 @@ const FAILED_ROWS = 8;
 
 const UNJUDGED_REASON_LABELS: Record<string, string> = {
 	malformed_verdict: "malformed verdict",
-	budget_exceeded: "judge budget",
 	judge_error: "judge error",
 };
 

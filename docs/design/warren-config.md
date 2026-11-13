@@ -56,33 +56,11 @@ projects migrate via `warren config migrate`. YAML parser is `js-yaml
 entries can land without a breaking schema rev — `mx-3636de`). Cron-token
 validation is intentionally loose (5 or 6 whitespace-separated fields,
 non-empty); R-06 owns full grammar checking when it wires in croner
-(`mx-40fe51`). A cron entry may also carry an optional `maxCostUsd`
-(warren-a63d) — a positive USD spend cap. At dispatch warren folds it
-onto the agent's frontmatter (overriding the agent's own
-`frontmatter.maxCostUsd`, so trigger > agent), freezing a single
-effective cap onto `runs.rendered_agent_json`; the event-bridge cancels
-the run once cumulative cost crosses it (emitting a `budget.exceeded`
-event). A malformed / non-positive value fails OPEN (no cap) so a budget
-typo never silently cancels every run. `config.yaml` and legacy
-`defaults.json` share the same
-schema — `{ defaultRole?, defaultBranch?, defaultPrompt?, defaultProvider?,
-defaultModel?, runBranchPrefix?, agentImage?, preview?, maxCostUsd?, pr? }` — all optional,
-all strict. `maxCostUsd` on `config.yaml` is the project-wide default
-spend cap, the weakest source in the warren-a63d chain: an explicit
-dispatch override (a `POST /runs` `maxCostUsd` body field / `warren run
---max-cost-usd`, or a trigger entry's cap) > the agent's own
-`frontmatter.maxCostUsd` > this project default. The default applies only
-when the agent declares no cap at all — a malformed / non-positive agent
-value keeps the fail-open rule above (no cap, and the unreadable value
-stays visible on the frozen `rendered_agent_json`) rather than being
-silently replaced by the project default. `resolveCapOverride` in
-`src/runs/cost-cap.ts` is the one implementation of this chain.
-Cap semantics for subscription-authenticated runs (warren-f3c3):
-`costUsd` is always priced at API rates, so `maxCostUsd` always enforces
-against that estimated number — it is a runaway brake on estimated usage,
-not a bill. A run whose anthropic credential is `CLAUDE_CODE_OAUTH_TOKEN`
-(no `ANTHROPIC_API_KEY`) is stamped `costBasis: subscription_estimate` at
-dispatch, and the UI renders its cost as an estimate; the cap is unchanged.
+(`mx-40fe51`). `config.yaml` and legacy `defaults.json` share the same
+strict schema. Monetary accounting and limits have been removed; existing
+`maxCostUsd` keys in defaults, triggers and plan-run policies are discarded
+on load. Run counts, execution time and concurrency limits still apply.
+
 `runBranchPrefix` (warren-9993) overrides the prefix warren composes the
 burrow branch from (`${prefix}/${run.id}`); precedence project default >
 `WARREN_RUN_BRANCH_PREFIX` env > built-in `"warren"` (warren-2de0; the
@@ -179,7 +157,7 @@ that merely RENDER config (doctor, `/readyz`, the UI) keep reading
 not. `DefaultsConfigSchema` is `.strict()`, so one unknown key (e.g.
 `admission.maxConcurrentRun`, missing the `s`) rejects the whole document
 — and every guardrail it carried (admission cap, quality gate, resource
-limits, cost caps) used to disappear at once while the dispatch went
+limits) used to disappear at once while the dispatch went
 through uncapped.
 
 `readProjectDefaults` (`src/runs/spawn/agent-cache.ts`) now calls

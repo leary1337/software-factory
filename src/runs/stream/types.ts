@@ -55,42 +55,13 @@ export interface BridgeLogger {
 	child?(bindings: object): BridgeLogger;
 }
 
-/**
- * Session-cumulative cost + token snapshot (warren-a7dc, docs/design/agent-composition.md). Pi
- * v0.74 reports cost in USD computed against the same models.json it
- * dispatched against; warren persists the raw number rather than
- * re-pricing tokens itself (plan alternative #5).
- *
- * Pi emits this shape inline on every `turn_end` envelope (and the
- * matching assistant `message_end`) — see burrow's
- * `src/runtime/parsers/__golden__/pi-v0.74.0-anthropic-*.jsonl`. The
- * bridge's preferred path is to extract these from the event stream it
- * already consumes (warren-17a4); the PiStatsClient out-of-band RPC
- * surface below remains as an override for runtimes that surface stats
- * only via an external fetch.
- */
 export interface SessionStats {
-	readonly costUsd: number;
 	readonly tokensInput: number;
 	readonly tokensOutput: number;
 	readonly tokensCacheRead: number;
 	readonly tokensCacheWrite: number;
 }
 
-/**
- * Transport-agnostic hook for an out-of-band stats fetch. The bridge
- * calls `fetch` at run-start (baseline) and run-end (terminal), then
- * persists the delta via `RunsRepo.attachStats`. Returning `null` signals
- * "stats unavailable" (e.g. RPC channel closed, agent isn't pi) and is
- * treated as best-effort — the column stays null, the bridge keeps going.
- * Throws are caught + logged; same outcome.
- *
- * Most pi runs do NOT need this — the bridge extracts cost from pi's
- * inline `turn_end` envelopes (warren-17a4) without any extra wiring.
- * `PiStatsClient` is the override for sources warren can't observe
- * in-stream (custom dispatchers, harnessed test fixtures, future
- * runtimes). When both paths produce data, the explicit client wins.
- */
 export interface PiStatsClient {
 	fetch(sandboxRunId: string, signal: AbortSignal): Promise<SessionStats | null>;
 }
@@ -164,13 +135,7 @@ export interface BridgeRunStreamInput {
 	 */
 	readonly source?: (signal: AbortSignal) => AsyncIterable<StreamEventView>;
 	readonly logger?: BridgeLogger;
-	/**
-	 * Pi cost-stats consumer (warren-a7dc). Set when the bridged run uses
-	 * the pi runtime; the bridge then snapshots `get_session_stats` at
-	 * run-start + run-end and persists the delta via `RunsRepo.attachStats`.
-	 * Omit for non-pi runs — the stats columns stay null, identical to the
-	 * pre-warren-a7dc behaviour for claude-code runs.
-	 */
+
 	readonly piStats?: PiStatsClient;
 	/**
 	 * Run-state probe override (warren-6596). When unset, the bridge
@@ -192,27 +157,9 @@ export interface BridgeRunStreamInput {
 	 * the bridge's path to terminal/reap.
 	 */
 	readonly streamTeardownMs?: number;
-	/**
-	 * Effective per-run spend cap in USD (warren-a63d). When set, the
-	 * bridge cancels the run once cumulative cost crosses it. Normally
-	 * resolved by the bridge itself from `runs.rendered_agent_json`
-	 * (`resolveCostCapUsd`); tests inject it directly to exercise
-	 * enforcement without seeding a run row.
-	 */
-	readonly costCapUsd?: number;
-	/**
-	 * Override the graceful-cancel seam used when the spend cap trips
-	 * (warren-a63d, tests). Production defaults to a closure over the
-	 * resolved burrow client's `runs.cancel`; tests pass a stub to assert
-	 * the cancel fired without a live burrow.
-	 */
+
 	readonly cancelBurrowRun?: (reason: string) => Promise<void>;
-	/**
-	 * TurnMonitor override (warren-1f85 / warren-74a7, #1242, tests). Default:
-	 * built from the `WARREN_TURN_*` env knobs plus the resolved spend cap. A
-	 * test injects one with a fake clock and tiny thresholds to drive the
-	 * stall / degeneration / in-turn-spend trips deterministically.
-	 */
+
 	readonly turnMonitor?: TurnMonitor;
 }
 
@@ -299,3 +246,5 @@ export interface BridgeRegistry {
 	/** Test/diagnostic surface — number of currently-attached bridges. */
 	size(): number;
 }
+
+export type CancelBurrowRunFn = (reason: string) => Promise<void>;

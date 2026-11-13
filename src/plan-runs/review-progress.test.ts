@@ -16,7 +16,6 @@ function reviewed(open: string[], closed: string[] = []): ReviewStepRecord {
 		reviewedCommit: SHA,
 		gateVerified: true,
 		resultText: `VERDICT: ${open.length ? "CHANGES" : "PASS"}\nREVIEWED_COMMIT: ${SHA}\nQUALITY_GATE: PASS`,
-		costUsd: 0.2,
 		activeMs: 1000,
 		evidenceRequired: true,
 		evidence: {
@@ -113,13 +112,6 @@ describe("review progress", () => {
 			outcome: "broken",
 		});
 	});
-	test("stops at the aggregate cost budget despite verified progress", () => {
-		const steps = [reviewed(["a"]), rework, reviewed(["b"], ["a"])];
-		expect(decideReviewStep(steps, { ...DEFAULT_REVIEW_BUDGET, maxCostUsd: 0.4 })).toMatchObject({
-			kind: "finished",
-			report: expect.stringContaining("cost_budget_exhausted"),
-		});
-	});
 	test("stops on unknown usage, elapsed execution budget and total step limit", () => {
 		const steps = [reviewed(["a"]), rework, reviewed(["b"], ["a"])];
 		for (const budget of [
@@ -130,7 +122,7 @@ describe("review progress", () => {
 				kind: "finished",
 				outcome: "changes_left",
 			});
-		expect(decideReviewStep([{ ...reviewed(["a"]), costUsd: null }])).toMatchObject({
+		expect(decideReviewStep([{ ...reviewed(["a"]), activeMs: null }])).toMatchObject({
 			kind: "finished",
 			report: expect.stringContaining("budget_unknown"),
 		});
@@ -162,8 +154,8 @@ describe("review progress", () => {
 		});
 	});
 	test("validates operator budget settings", () => {
-		expect(loadReviewBudget({ WARREN_REWORK_MAX_COST_USD: "5" }).maxCostUsd).toBe(5);
+		expect(loadReviewBudget({ WARREN_REWORK_MAX_ACTIVE_MS: "5" }).maxActiveMs).toBe(5);
 		for (const invalid of ["", "-1", "NaN", "Infinity"])
-			expect(() => loadReviewBudget({ WARREN_REWORK_MAX_COST_USD: invalid })).toThrow();
+			expect(() => loadReviewBudget({ WARREN_REWORK_MAX_ACTIVE_MS: invalid })).toThrow();
 	});
 });

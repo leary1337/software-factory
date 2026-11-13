@@ -117,7 +117,6 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			const { handle, repo, agentName, projectId } = await open();
 			try {
 				const row = await spawn(repo, agentName, projectId);
-				expect(row.costUsd).toBeNull();
 				expect(row.tokensInput).toBeNull();
 				expect(row.tokensOutput).toBeNull();
 				expect(row.tokensCacheRead).toBeNull();
@@ -132,17 +131,14 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			try {
 				const row = await spawn(repo, agentName, projectId);
 				const tagged = await repo.attachStats(row.id, {
-					costUsd: 0.4567,
 					tokensInput: 1200,
 					tokensOutput: 340,
 				});
-				expect(tagged.costUsd).toBeCloseTo(0.4567);
 				expect(tagged.tokensInput).toBe(1200);
 				expect(tagged.tokensOutput).toBe(340);
 				expect(tagged.tokensCacheRead).toBeNull();
 				expect(tagged.tokensCacheWrite).toBeNull();
 				const reread = await repo.require(row.id);
-				expect(reread.costUsd).toBeCloseTo(0.4567);
 				expect(reread.tokensInput).toBe(1200);
 			} finally {
 				await handle.close();
@@ -153,9 +149,8 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			const { handle, repo, agentName, projectId } = await open();
 			try {
 				const row = await spawn(repo, agentName, projectId);
-				await repo.attachStats(row.id, { costUsd: 0.1, tokensInput: 100 });
-				const merged = await repo.attachStats(row.id, { costUsd: 0.25, tokensOutput: 50 });
-				expect(merged.costUsd).toBeCloseTo(0.25);
+				await repo.attachStats(row.id, { tokensInput: 100 });
+				const merged = await repo.attachStats(row.id, { tokensOutput: 50 });
 				expect(merged.tokensInput).toBe(100);
 				expect(merged.tokensOutput).toBe(50);
 			} finally {
@@ -167,9 +162,9 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			const { handle, repo, agentName, projectId } = await open();
 			try {
 				const row = await spawn(repo, agentName, projectId);
-				await repo.attachStats(row.id, { costUsd: 0.5 });
-				const cleared = await repo.attachStats(row.id, { costUsd: null });
-				expect(cleared.costUsd).toBeNull();
+				await repo.attachStats(row.id, { tokensInput: 100 });
+				const cleared = await repo.attachStats(row.id, { tokensInput: null });
+				expect(cleared.tokensInput).toBeNull();
 			} finally {
 				await handle.close();
 			}
@@ -431,26 +426,6 @@ function suite(dialect: "sqlite" | "postgres"): void {
 			}
 		});
 
-		test("listAll sorts by cost with NULLS LAST in both directions", async () => {
-			const { handle, repo, agentName, projectId } = await open();
-			try {
-				const cheap = await spawn(repo, agentName, projectId);
-				const pricey = await spawn(repo, agentName, projectId);
-				const unbilled = await spawn(repo, agentName, projectId);
-				await repo.attachStats(cheap.id, { costUsd: 0.05 });
-				await repo.attachStats(pricey.id, { costUsd: 1.23 });
-				// `unbilled` has costUsd === null.
-
-				const desc = await repo.listAll({ sort: "cost", dir: "desc" });
-				expect(desc.map((r) => r.id)).toEqual([pricey.id, cheap.id, unbilled.id]);
-
-				const asc = await repo.listAll({ sort: "cost", dir: "asc" });
-				expect(asc.map((r) => r.id)).toEqual([cheap.id, pricey.id, unbilled.id]);
-			} finally {
-				await handle.close();
-			}
-		});
-
 		test("listAll honors limit + offset for pagination", async () => {
 			const { handle, repo, agentName, projectId } = await open();
 			try {
@@ -468,31 +443,6 @@ function suite(dialect: "sqlite" | "postgres"): void {
 				expect(page1.map((r) => r.id)).toEqual(sorted.slice(0, 2));
 				expect(page2.map((r) => r.id)).toEqual(sorted.slice(2, 4));
 				expect(page3.map((r) => r.id)).toEqual(sorted.slice(4, 5));
-			} finally {
-				await handle.close();
-			}
-		});
-
-		test("aggregate sums cost + counts across the full filtered set", async () => {
-			const { handle, repo, agentName, projectId } = await open();
-			try {
-				const a = await spawn(repo, agentName, projectId);
-				const b = await spawn(repo, agentName, projectId);
-				await spawn(repo, agentName, projectId); // unbilled
-				await repo.attachStats(a.id, { costUsd: 0.25 });
-				await repo.attachStats(b.id, { costUsd: 1.5 });
-
-				const all = await repo.aggregate();
-				expect(all.total).toBe(3);
-				expect(all.costPricedCount).toBe(2);
-				expect(all.costTotalUsd).toBeCloseTo(1.75, 6);
-
-				const byProject = await repo.aggregate({ projectId });
-				expect(byProject.total).toBe(3);
-				const byAgent = await repo.aggregate({ agentName });
-				expect(byAgent.total).toBe(3);
-				const other = await repo.aggregate({ projectId: "prj_nope" });
-				expect(other).toEqual({ total: 0, costTotalUsd: 0, costPricedCount: 0 });
 			} finally {
 				await handle.close();
 			}

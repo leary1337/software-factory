@@ -11,7 +11,6 @@ const failed: ReviewStepRecord = {
 	failureReason: "crashed",
 	resultText: null,
 	evidenceRequired: true,
-	costUsd: 0.1,
 	activeMs: 100,
 };
 
@@ -80,11 +79,9 @@ describe("bounded automatic review recovery", () => {
 	test("obeys aggregate budgets and preserves permanent or intentional stops", () => {
 		for (const budget of [
 			{ ...DEFAULT_REVIEW_BUDGET, maxSteps: 1 },
-			{ ...DEFAULT_REVIEW_BUDGET, maxCostUsd: 0.1 },
 			{ ...DEFAULT_REVIEW_BUDGET, maxActiveMs: 100 },
 		])
 			expect(decideReviewStep([failed], budget)).toMatchObject({ kind: "finished" });
-		expect(decideReviewStep([{ ...failed, costUsd: null }])).toMatchObject({ kind: "finished" });
 		for (const reason of [
 			null,
 			"timed_out",
@@ -127,7 +124,6 @@ describe("bounded automatic review recovery", () => {
 					id: "r",
 					state: "failed",
 					failureReason: "crashed",
-					costUsd: 0.1,
 					startedAt: "2026-01-01T00:00:00Z",
 					endedAt: "2026-01-01T00:00:01Z",
 				}),

@@ -46,7 +46,6 @@ function planRunRow(over: Partial<PlanRunRow> = {}): PlanRunRow {
 		ref: null,
 		providerOverride: null,
 		modelOverride: null,
-		maxCostUsd: null,
 		dispatcherHandle: "cli",
 		trigger: "cli",
 		state: "running",
@@ -88,7 +87,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		retryOf: null,
 		cloneKind: null,
 		mode: "batch",
-		costBasis: "api",
 		renderedAgentJson: {},
 		state: "succeeded",
 		failureReason: null,
@@ -117,7 +115,6 @@ function runRow(over: Partial<RunRow> = {}): RunRow {
 		model: null,
 		salvageRef: null,
 		salvagePath: null,
-		costUsd: 0.1234,
 		tokensInput: null,
 		tokensOutput: null,
 		tokensCacheRead: null,
@@ -200,7 +197,7 @@ describe("runPlanStatus", () => {
 		expect(line.children).toHaveLength(1);
 	});
 
-	test("pretty-renders-child-cost-and-duration-from-runs", async () => {
+	test("pretty-renders-child-duration-from-runs", async () => {
 		const { context, out } = captureContext();
 		const detail: PlanRunDetailResponse = {
 			planRun: planRunRow({ state: "succeeded" }),
@@ -216,7 +213,6 @@ describe("runPlanStatus", () => {
 		const text = out.join("");
 		expect(text).toContain("plan-run pr-1 [succeeded]");
 		expect(text).toContain("warren-aaaa");
-		expect(text).toContain("$0.1234");
 		expect(text).toContain("12.5s");
 		expect(text).not.toContain('"planRun"');
 	});

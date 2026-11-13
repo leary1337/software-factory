@@ -78,7 +78,6 @@ function buildReopenPrContent(
 		agentName: run.agentName,
 		...(run.startedAt !== null ? { startedAt: run.startedAt } : {}),
 		...(run.endedAt !== null ? { endedAt: run.endedAt } : {}),
-		...(run.costUsd !== null ? { costUsd: run.costUsd } : {}),
 		...(run.tokensInput !== null ? { tokensInput: run.tokensInput } : {}),
 		...(run.tokensOutput !== null ? { tokensOutput: run.tokensOutput } : {}),
 		...(run.tokensCacheRead !== null ? { tokensCacheRead: run.tokensCacheRead } : {}),

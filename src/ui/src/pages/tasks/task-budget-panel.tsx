@@ -1,6 +1,5 @@
 import type { PlanRunChildRow } from "@/api/types.ts";
 import { Alert } from "@/components/ui/alert.tsx";
-import { formatCostUsd } from "../run-detail-format.ts";
 
 export function TaskBudgetPanel({ child }: { child: PlanRunChildRow }) {
 	const budget = child.budget;
@@ -34,20 +33,12 @@ export function TaskBudgetPanel({ child }: { child: PlanRunChildRow }) {
 									{Math.round(limits.maxActiveMs / 60_000)} min
 								</p>
 							) : null}
-							{limits.maxCostUsd !== undefined ? (
-								<p>
-									Reported cost / estimate: {formatCostUsd(usage.costUsd)}
-									{usage.incomplete || usage.unknownCostRuns > 0 ? " + unknown" : ""} /{" "}
-									{formatCostUsd(limits.maxCostUsd)}
-								</p>
-							) : null}
 						</div>
 					);
 				})}
 			</div>
 			<p className="mt-3 text-xs">
-				Checked before the next run starts. These limits do not interrupt a running step or measure
-				remaining subscription quota.
+				Checked before the next run starts. These limits do not interrupt a running step .
 			</p>
 		</Alert>
 	);

@@ -114,10 +114,6 @@ export interface TickWorkItemSummary {
 
 export interface TickReport {
 	readonly workItems: readonly TickWorkItemSummary[];
-	readonly budget: {
-		readonly capUsdCents: number | null;
-		readonly availableUsdCents: number;
-	};
 	readonly openAttention: number;
 }
 
@@ -282,7 +278,7 @@ async function processWorkItem(ctx: WorkItemContext): Promise<TickOutcome[]> {
 		case "candidate":
 			return admitAndDispatch(ctx);
 		case "admitted":
-			return [await dispatchOutcome(ctx, null)];
+			return [await dispatchOutcome(ctx)];
 		case "dispatched":
 		case "running":
 			return reconcileThenMaybeIntent(ctx);
@@ -313,7 +309,7 @@ async function admitAndDispatch(ctx: WorkItemContext): Promise<TickOutcome[]> {
 	const snapshot = await readIssueSnapshot(ctx.deps.github, ctx.manifest, issueNumber);
 	const issue = issueSnapshotOf(ctx.manifest, snapshot);
 	try {
-		const admission = admitWorkItem(ctx.deps.store, {
+		admitWorkItem(ctx.deps.store, {
 			campaignId: ctx.campaign.id,
 			issue,
 			policy: ctx.deps.policy,
@@ -325,9 +321,9 @@ async function admitAndDispatch(ctx: WorkItemContext): Promise<TickOutcome[]> {
 				stage: "admit",
 				workItemId: ctx.item.id,
 				status: "admitted",
-				detail: { issue: issueNumber, reservationId: admission.reservation.id },
+				detail: { issue: issueNumber },
 			},
-			await dispatchOutcome(ctx, admission.reservation.id),
+			await dispatchOutcome(ctx),
 		];
 	} catch (error) {
 		if (error instanceof AdmissionRefusal) {
@@ -345,10 +341,7 @@ async function admitAndDispatch(ctx: WorkItemContext): Promise<TickOutcome[]> {
 }
 
 /** Stage 3: reserve/journal/POST (or reconcile) one admitted work item. */
-async function dispatchOutcome(
-	ctx: WorkItemContext,
-	reservationId: string | null,
-): Promise<TickOutcome> {
+async function dispatchOutcome(ctx: WorkItemContext): Promise<TickOutcome> {
 	if (ctx.alreadyDispatched) {
 		return { stage: "dispatch", workItemId: ctx.item.id, status: "deferred" };
 	}
@@ -389,14 +382,12 @@ async function dispatchOutcome(
 	const outcome = await ctx.dispatcher.dispatch({
 		campaignId: ctx.campaign.id,
 		workItemId: ctx.item.id,
-		reservationId,
 		request: {
 			project: manifest.warren.project,
 			agent: manifest.warren.agent,
 			prompt: composeDispatchPrompt(manifest.prompt, policy),
 			provider: manifest.warren.provider,
 			model: manifest.warren.model,
-			maxCostUsd: manifest.budget.perRunUsd,
 		},
 	});
 	return {
@@ -451,7 +442,6 @@ async function reconcileOutcome(ctx: WorkItemContext): Promise<TickOutcome> {
 			terminal: reconciled.terminal,
 			settledNow: reconciled.settledNow,
 			branch: reconciled.branch,
-			costUsdCents: reconciled.costUsdCents,
 		},
 	};
 }
@@ -698,7 +688,6 @@ function settleCampaign(store: CampaignStateStore, campaignId: string): Campaign
 }
 
 function buildReport(store: CampaignStateStore, campaignId: string): TickReport {
-	const campaign = store.campaigns.getCampaign(campaignId) as CampaignRow;
 	return {
 		workItems: store.campaigns.listWorkItems(campaignId).map((item) => ({
 			id: item.id,
@@ -706,10 +695,6 @@ function buildReport(store: CampaignStateStore, campaignId: string): TickReport 
 			position: item.position,
 			status: item.status,
 		})),
-		budget: {
-			capUsdCents: campaign.budgetCapUsdCents,
-			availableUsdCents: store.budget.availableUsdCents(campaignId),
-		},
 		openAttention: store.events.listOpenAttention(campaignId).length,
 	};
 }

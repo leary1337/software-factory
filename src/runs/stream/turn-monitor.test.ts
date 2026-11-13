@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { piMessageDelta, piTurnEnd, piTurnStart } from "./test-helpers.ts";
+import { piMessageDelta, piTurnStart } from "./test-helpers.ts";
 import {
 	DEFAULT_TURN_DEGENERATE_MIN_BYTES,
 	DEFAULT_TURN_DEGENERATE_MIN_DELTAS,
@@ -30,7 +30,6 @@ function makeMonitor(
 		stallCheckIntervalMs: 5,
 		degenerateMinDeltas: 3,
 		degenerateMinBytes: null,
-		costCapUsd: null,
 		clock,
 		...overrides,
 	});
@@ -38,25 +37,14 @@ function makeMonitor(
 
 describe("turnMonitorOptionsFromEnv", () => {
 	test("falls back to the built-in defaults when nothing is set", () => {
-		const options = turnMonitorOptionsFromEnv({}, null);
+		const options = turnMonitorOptionsFromEnv({});
 		expect(options.stallMs).toBe(DEFAULT_TURN_STALL_MS);
 		expect(options.degenerateMinDeltas).toBe(DEFAULT_TURN_DEGENERATE_MIN_DELTAS);
 		expect(options.degenerateMinBytes).toBe(DEFAULT_TURN_DEGENERATE_MIN_BYTES);
-		expect(options.costCapUsd).toBeNull();
-	});
-
-	test("disables an arm when the knob is pinned to 0 and threads the spend cap", () => {
-		const options = turnMonitorOptionsFromEnv(
-			{ WARREN_TURN_STALL_MS: "0", WARREN_TURN_DEGENERATE_MIN_DELTAS: "5" },
-			2.5,
-		);
-		expect(options.stallMs).toBeNull();
-		expect(options.degenerateMinDeltas).toBe(5);
-		expect(options.costCapUsd).toBe(2.5);
 	});
 
 	test("throws on a malformed value so a deploy-config typo fails loud", () => {
-		expect(() => turnMonitorOptionsFromEnv({ WARREN_TURN_STALL_MS: "soon" }, null)).toThrow();
+		expect(() => turnMonitorOptionsFromEnv({ WARREN_TURN_STALL_MS: "soon" })).toThrow();
 	});
 });
 
@@ -79,32 +67,6 @@ describe("TurnMonitor", () => {
 			contentIndex: 0,
 		};
 		expect(monitor.observe(skeleton)).toBeNull();
-		expect(monitor.observe(piTurnEnd("run", 3, { input: 1, output: 1, costTotal: 0 }))).toBeNull();
-	});
-
-	test("accounts cumulative spend across turn_end totals and in-flight partials", () => {
-		const monitor = makeMonitor({ costCapUsd: 5 });
-		expect(monitor.cumulativeCostUsd()).toBeNull();
-		monitor.observe(piTurnStart("run", 1));
-		monitor.observe(piMessageDelta("run", 2, { delta: "a", costTotal: 0.4 }));
-		expect(monitor.cumulativeCostUsd()).toBe(0.4);
-		// turn_end's authoritative total replaces the partial, then a new turn
-		// starts accruing on top of it.
-		monitor.observe(piTurnEnd("run", 3, { input: 1, output: 1, costTotal: 0.5 }));
-		expect(monitor.cumulativeCostUsd()).toBe(0.5);
-		monitor.observe(piTurnStart("run", 4));
-		monitor.observe(piMessageDelta("run", 5, { delta: "b", costTotal: 0.2 }));
-		expect(monitor.cumulativeCostUsd()).toBe(0.7);
-		monitor.observe(piTurnEnd("run", 6, { input: 1, output: 1, costTotal: 0.3 }));
-		expect(monitor.cumulativeCostUsd()).toBe(0.8);
-	});
-
-	test("trips spend only past the cap (strict-greater)", () => {
-		const monitor = makeMonitor({ costCapUsd: 1 });
-		monitor.observe(piTurnStart("run", 1));
-		expect(monitor.observe(piMessageDelta("run", 2, { delta: "a", costTotal: 1 }))).toBeNull();
-		const trip = monitor.observe(piMessageDelta("run", 3, { delta: "b", costTotal: 1.01 }));
-		expect(trip).toMatchObject({ kind: "spend", costUsd: 1.01, capUsd: 1 });
 	});
 
 	test("fires the stall timer only while a turn is open, and only once", async () => {

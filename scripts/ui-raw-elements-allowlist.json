@@ -12,11 +12,11 @@
 			},
 			"src/ui/src/pages/dispatch-plan/walk-form.tsx": {
 				"tracker": "warren-23b5",
-				"max": 14
+				"max": 13
 			},
 			"src/ui/src/pages/dispatch/dispatch-form.tsx": {
 				"tracker": "warren-23b5",
-				"max": 10
+				"max": 9
 			},
 			"src/ui/src/pages/event-explorer-mobile-filter-strip.tsx": {
 				"tracker": "warren-23b5",
@@ -77,10 +77,6 @@
 				"max": 6
 			},
 			"src/ui/src/pages/runs/runs-table.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
-			"src/ui/src/pages/telemetry/economics-panels.tsx": {
 				"tracker": "warren-23b5",
 				"max": 1
 			},

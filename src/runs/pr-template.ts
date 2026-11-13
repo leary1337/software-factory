@@ -1,29 +1,3 @@
-/**
- * PR-body template fragments + project override parser (warren-bd49).
- *
- * `buildPrContent` (src/runs/pr.ts) composes its body from the named
- * fragments below. Projects override individual fragments via a
- * `.warren/pr-template.md` file: each `## <fragment_name>` H2 in that
- * file replaces the default body for that fragment. Fragments the
- * project doesn't list keep their defaults — partial-override is the
- * point, so a project can ship a custom `trailer` without re-stating
- * every other section.
- *
- * The fragment registry is the load-bearing piece: the body comes
- * from `composeBody(fragments, ctx)`, never from inline string
- * concatenation. The `preview_url_or_placeholder` fragment is one
- * entry in the registry, not a special case — the R-19 reap-time
- * preview launcher still works the same way because the fragment
- * default emits the same `<!-- warren:preview-start -->…-end -->`
- * markers `annotatePrPreview` (src/runs/pr-annotate.ts) patches.
- *
- * V1 keeps the format simple: project overrides are literal markdown
- * — NO variable interpolation. A project that wants per-run dynamic
- * data (commits, cost, seed link) keeps the default fragment; an
- * override replaces with static text. Doctor warns on unknown
- * fragment names so typos surface loudly (acceptance #4).
- */
-
 import { PREVIEW_FRAGMENT_END, PREVIEW_FRAGMENT_START, type PrCommit, type PrSeed } from "./pr.ts";
 
 /**
@@ -100,7 +74,6 @@ export interface PrFragmentContext {
 	readonly seed?: PrSeed;
 	readonly startedAt?: string;
 	readonly endedAt?: string;
-	readonly costUsd?: number;
 	readonly tokensInput?: number;
 	readonly tokensOutput?: number;
 	readonly tokensCacheRead?: number;
@@ -356,8 +329,8 @@ function defaultRun(ctx: PrFragmentContext): string {
 	}
 	const duration = formatDuration(ctx.startedAt, ctx.endedAt);
 	if (duration !== null) lines.push(`- **Duration:** ${duration}`);
-	const cost = formatCostLine(ctx);
-	if (cost !== null) lines.push(`- **Cost:** ${cost}`);
+	const tokens = formatTokenLine(ctx);
+	if (tokens !== null) lines.push(`- **Tokens:** ${tokens}`);
 	return lines.join("\n");
 }
 
@@ -455,26 +428,13 @@ function formatDuration(startedAt: string | undefined, endedAt: string | undefin
 	return `${h}h ${m % 60}m ${s}s`;
 }
 
-function formatCostLine(ctx: PrFragmentContext): string | null {
-	const parts: string[] = [];
-	if (ctx.costUsd !== undefined) parts.push(formatCostUsd(ctx.costUsd));
+function formatTokenLine(ctx: PrFragmentContext): string | null {
 	const tokens: string[] = [];
 	if (ctx.tokensInput !== undefined) tokens.push(`${formatTokens(ctx.tokensInput)} in`);
 	if (ctx.tokensOutput !== undefined) tokens.push(`${formatTokens(ctx.tokensOutput)} out`);
-	if (ctx.tokensCacheRead !== undefined && ctx.tokensCacheRead > 0) {
+	if (ctx.tokensCacheRead !== undefined && ctx.tokensCacheRead > 0)
 		tokens.push(`${formatTokens(ctx.tokensCacheRead)} cache-r`);
-	}
-	if (tokens.length > 0) {
-		const joined = tokens.join(" / ");
-		parts.push(parts.length === 0 ? joined : `(${joined})`);
-	}
-	return parts.length === 0 ? null : parts.join(" ");
-}
-
-function formatCostUsd(cost: number): string {
-	if (cost >= 1) return `$${cost.toFixed(2)}`;
-	if (cost === 0) return "$0.00";
-	return `$${cost.toFixed(3)}`;
+	return tokens.length > 0 ? tokens.join(" / ") : null;
 }
 
 function formatTokens(n: number): string {

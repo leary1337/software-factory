@@ -71,12 +71,7 @@ export interface ClassAssignment {
 	readonly note?: string;
 }
 
-/**
- * Provenance block (§12.3). Mandatory because a verdict is an interpretation:
- * which judge, under which rubric, when, and at what cost. `rubricVersion`
- * is a hash of prompt + taxonomy, so a query can refuse to mix rubric
- * versions on a trend line.
- */
+
 export interface VerdictProvenance {
 	/** Judge provider id (e.g. "anthropic"); never hardcoded to one vendor. */
 	readonly provider: string;
@@ -86,8 +81,6 @@ export interface VerdictProvenance {
 	readonly rubricVersion: string;
 	/** ISO 8601 timestamp of when the judgment was produced. */
 	readonly judgedAt: string;
-	/** USD cost of producing this judgment. */
-	readonly costUsd: number;
 	/**
 	 * Events pages the judge read (across retries). Absent on judgments
 	 * produced by rubric versions predating the page-cap mechanics.
@@ -182,7 +175,7 @@ function parseAssignment(value: unknown, where: string): ClassAssignment {
 
 function parseProvenance(value: unknown): VerdictProvenance {
 	if (!isRecord(value)) fail("provenance: must be an object and is mandatory");
-	const { provider, model, rubricVersion, judgedAt, costUsd } = value;
+	const { provider, model, rubricVersion, judgedAt } = value;
 	if (typeof provider !== "string" || provider.length === 0) {
 		fail("provenance.provider: must be a non-empty string");
 	}
@@ -194,9 +187,6 @@ function parseProvenance(value: unknown): VerdictProvenance {
 	}
 	if (typeof judgedAt !== "string" || Number.isNaN(Date.parse(judgedAt))) {
 		fail("provenance.judgedAt: must be a parseable ISO 8601 timestamp");
-	}
-	if (typeof costUsd !== "number" || !Number.isFinite(costUsd) || costUsd < 0) {
-		fail("provenance.costUsd: must be a finite non-negative number");
 	}
 	const { pagesRead, pageCapHit } = value;
 	if (
@@ -213,7 +203,6 @@ function parseProvenance(value: unknown): VerdictProvenance {
 		model: model as string,
 		rubricVersion: rubricVersion as string,
 		judgedAt: judgedAt as string,
-		costUsd: costUsd as number,
 		...(pagesRead !== undefined ? { pagesRead: pagesRead as number } : {}),
 		...(pageCapHit !== undefined ? { pageCapHit: pageCapHit as boolean } : {}),
 	};

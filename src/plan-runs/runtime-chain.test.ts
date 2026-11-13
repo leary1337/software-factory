@@ -70,7 +70,7 @@ for (const action of ["cancel", "restart"] as const) {
 	test.skipIf(process.platform !== "darwin")(
 		`stops the real reviewer on ${action} and never dispatches the next ticket`,
 		async () => {
-			const h = await runtimeChain(["WAIT"]);
+			const h = await runtimeChain(["WAIT", "WAIT"]);
 			try {
 				await h.advance();
 				await h.drain();
@@ -113,7 +113,13 @@ for (const action of ["cancel", "restart"] as const) {
 					await h.advance();
 				}
 				await h.advance();
-				expect(h.roles).toEqual(["implementer", "reviewer"]);
+				expect(h.roles).toEqual(
+					action === "cancel"
+						? ["implementer", "reviewer"]
+						: ["implementer", "reviewer", "reviewer"],
+				);
+				const children = await h.repos.planRuns.listChildren(h.planRun.id);
+				if (action === "restart") expect(children[1]?.state).toBe("pending");
 				expect(h.forge.merges).toBe(0);
 				await record?.driveDone;
 				expect((await h.repos.runs.require(reviewer.id)).state).toBe(

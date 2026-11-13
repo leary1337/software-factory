@@ -37,8 +37,6 @@ function run(overrides: Partial<RunRow>): RunRow {
 		model: null,
 		salvageRef: null,
 		salvagePath: null,
-		costUsd: null,
-		costBasis: "metered",
 		tokensInput: null,
 		tokensOutput: null,
 		tokensCacheRead: null,

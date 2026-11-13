@@ -11,7 +11,6 @@ interface RecordedSpawn {
 	trigger: string;
 	seedId?: string;
 	metadata?: unknown;
-	maxCostUsd?: number;
 }
 
 function spawnRecorder(
@@ -31,7 +30,6 @@ function spawnRecorder(
 			trigger: input.trigger,
 			...(input.seedId !== undefined ? { seedId: input.seedId } : {}),
 			metadata: input.metadata,
-			...(input.maxCostUsd !== undefined ? { maxCostUsd: input.maxCostUsd } : {}),
 		});
 		const run = await repos.runs.create({
 			agentName: input.agentName,
