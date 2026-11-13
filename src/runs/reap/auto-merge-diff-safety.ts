@@ -1,8 +1,10 @@
 import type { ChangedPaths } from "./auto-merge-policy.ts";
 
-/** Conservative automatic-merge ceilings; larger changes remain available for manual review. */
+/** Conservative ceilings for arming auto-merge before independent review. */
 export const MAX_AUTO_MERGE_FILES = 100;
 export const MAX_AUTO_MERGE_LINES = 3000;
+
+export type AutoMergeDiffMode = "forge-arm" | "reviewed-plan";
 
 interface RawFile {
 	readonly path: string;
@@ -56,8 +58,9 @@ export function assessAutoMergeDiff(
 	paths: readonly string[],
 	raw: string,
 	numstat: string,
+	mode: AutoMergeDiffMode = "forge-arm",
 ): ChangedPaths {
-	if (paths.length > MAX_AUTO_MERGE_FILES)
+	if (mode === "forge-arm" && paths.length > MAX_AUTO_MERGE_FILES)
 		return {
 			kind: "unsafe",
 			reason: "diff_too_large",
@@ -80,7 +83,10 @@ export function assessAutoMergeDiff(
 	const binary = stats.filter((file) => file.lines === null);
 	if (binary.length > 0)
 		return { kind: "unsafe", reason: "binary_diff", paths: binary.map((file) => file.path) };
-	if (stats.reduce((sum, file) => sum + (file.lines ?? 0), 0) > MAX_AUTO_MERGE_LINES)
+	if (
+		mode === "forge-arm" &&
+		stats.reduce((sum, file) => sum + (file.lines ?? 0), 0) > MAX_AUTO_MERGE_LINES
+	)
 		return { kind: "unsafe", reason: "diff_too_large", paths };
 	return { kind: "changed", paths };
 }

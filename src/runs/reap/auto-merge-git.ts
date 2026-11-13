@@ -31,7 +31,7 @@ import { load } from "js-yaml";
 import { AcceptanceConfigSchema } from "../../warren-config/acceptance-config.ts";
 import { warrenConfigRelativePath } from "../../warren-config/config.ts";
 import { type AutoMergeConfig, PrConfigSchema } from "../../warren-config/pr-config.ts";
-import { assessAutoMergeDiff } from "./auto-merge-diff-safety.ts";
+import { type AutoMergeDiffMode, assessAutoMergeDiff } from "./auto-merge-diff-safety.ts";
 import type { ChangedPaths } from "./auto-merge-policy.ts";
 import { qualityGateProtectedPaths } from "./auto-merge-risk-paths.ts";
 import type { ReapExec } from "./types.ts";
@@ -68,6 +68,7 @@ export async function computeAutoMergeChangedPaths(
 	cwd: string,
 	baseRef: string,
 	headRef: string,
+	mode?: AutoMergeDiffMode,
 ): Promise<ChangedPaths> {
 	try {
 		const out = await exec.run(
@@ -90,6 +91,7 @@ export async function computeAutoMergeChangedPaths(
 			out.stdout.split("\0").filter((path) => path !== ""),
 			raw.stdout,
 			stats.stdout,
+			mode,
 		);
 	} catch {
 		return { kind: "unreadable" };

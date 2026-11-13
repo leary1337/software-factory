@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createGitFixture, gitFixtureEnv } from "../../workspace/git/test-fixture.ts";
-import { assessAutoMergeDiff, MAX_AUTO_MERGE_LINES } from "./auto-merge-diff-safety.ts";
+import { assessAutoMergeDiff } from "./auto-merge-diff-safety.ts";
 import { computeAutoMergeChangedPaths } from "./auto-merge-git.ts";
 import { decideAutoMerge } from "./auto-merge-policy.ts";
 import type { ReapExec } from "./types.ts";
@@ -31,20 +31,26 @@ describe("assessAutoMergeDiff", () => {
 			[raw("file"), "1\t0\tfile"],
 			["garbage\0file\0", "1\t0\tfile\0"],
 		]) {
-			expect(assessAutoMergeDiff(["file"], files ?? "", stats ?? "")).toEqual({
+			expect(assessAutoMergeDiff(["file"], files ?? "", stats ?? "", "reviewed-plan")).toEqual({
 				kind: "unreadable",
 			});
 		}
 	});
-	test("sends more than one hundred files and binary changes to manual review", () => {
-		expect(
-			assessAutoMergeDiff(
-				Array.from({ length: 101 }, (_, i) => `${i}.ts`),
-				"",
-				"",
-			).kind,
-		).toBe("unsafe");
-		expect(assessAutoMergeDiff(["image"], raw("image"), "-\t-\timage\0")).toEqual({
+	test("enforces the file count ceiling only before independent review", () => {
+		const paths = Array.from({ length: 101 }, (_, i) => `${i}.ts`);
+		const files = paths.map((path) => raw(path)).join("");
+		const stats = paths.map((path) => `1\t0\t${path}\0`).join("");
+		expect(assessAutoMergeDiff(paths, files, stats)).toMatchObject({
+			kind: "unsafe",
+			reason: "diff_too_large",
+		});
+		expect(assessAutoMergeDiff(paths, files, stats, "reviewed-plan")).toEqual({
+			kind: "changed",
+			paths,
+		});
+	});
+	test("requires manual merge for binary changes even after independent review", () => {
+		expect(assessAutoMergeDiff(["image"], raw("image"), "-\t-\timage\0", "reviewed-plan")).toEqual({
 			kind: "unsafe",
 			reason: "binary_diff",
 			paths: ["image"],
@@ -60,7 +66,7 @@ describe("assessAutoMergeDiff", () => {
 });
 
 describe("structural auto-merge safety against Git", () => {
-	test.each(["symlink", "submodule", "large diff"])("refuses a real %s diff", async (kind) => {
+	test.each(["symlink", "submodule", "large diff"])("checks a real %s change", async (kind) => {
 		const fixture = await createGitFixture({ prefix: "factory-diff-risk-", initCommit: "base" });
 		try {
 			const git = async (...args: string[]) => {
@@ -76,11 +82,21 @@ describe("structural auto-merge safety against Git", () => {
 			} else if (kind === "submodule") {
 				await git("update-index", "--add", "--cacheinfo", `160000,${base},vendor/library`);
 			} else {
-				await writeFile(join(fixture.path, "large.txt"), "line\n".repeat(MAX_AUTO_MERGE_LINES + 1));
+				await writeFile(join(fixture.path, "large.txt"), "line\n".repeat(25_000));
 				await git("add", "large.txt");
 			}
 			await git("commit", "-qm", kind);
 			const changedPaths = await computeAutoMergeChangedPaths(exec, fixture.path, base, "HEAD");
+			const reviewedPaths = await computeAutoMergeChangedPaths(
+				exec,
+				fixture.path,
+				base,
+				"HEAD",
+				"reviewed-plan",
+			);
+			expect(reviewedPaths).toEqual(
+				kind === "large diff" ? { kind: "changed", paths: ["large.txt"] } : changedPaths,
+			);
 			expect(changedPaths.kind).toBe("unsafe");
 			const result = decideAutoMerge({
 				config: { method: "squash", protectedPaths: [] },

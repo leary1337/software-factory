@@ -5,6 +5,7 @@ import { mintGitCredential } from "../../forge/credentials.ts";
 import type { AutoMergeConfig } from "../../warren-config/pr-config.ts";
 import { authenticatedCloneUrl } from "../../workspace/git/clone-url.ts";
 import type { RunAutoMergeArmInput } from "./auto-merge-arm.ts";
+import type { AutoMergeDiffMode } from "./auto-merge-diff-safety.ts";
 import { computeAutoMergeChangedPaths, readBaseAutoMergeConfig } from "./auto-merge-git.ts";
 import type { ChangedPaths } from "./auto-merge-policy.ts";
 import type { ReapExec } from "./types.ts";
@@ -28,6 +29,7 @@ export interface AutoMergeSnapshot {
  */
 export async function readAutoMergeSnapshot(
 	input: RunAutoMergeArmInput,
+	mode?: AutoMergeDiffMode,
 ): Promise<AutoMergeSnapshot> {
 	let config: AutoMergeConfig | undefined;
 	const cwd = await mkdtemp(join(dirname(input.project.localPath), ".warren-auto-merge-"));
@@ -46,7 +48,7 @@ export async function readAutoMergeSnapshot(
 			headCommit: head,
 			baseCommit: base,
 			baseIsAncestor: await includesBase(exec, cwd, base, head),
-			changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head),
+			changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head, mode),
 		};
 	} catch {
 		// Never expose fetch errors: their text can contain the minted credential.
