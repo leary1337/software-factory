@@ -43,10 +43,10 @@ function MobileIdentityChip({ stats }: { stats: ConsoleStats }) {
 				)}
 				aria-hidden
 			/>
-			<span className="font-medium text-(--color-text) text-[11px] leading-[14px]">
+			<span className="font-medium text-(--color-text) text-xs leading-4">
 				{isOperator ? "operator" : "read-only"}
 			</span>
-			<span className="text-(--color-text-3) text-[10px] leading-3" aria-hidden>
+			<span className="text-(--color-text-3) text-xs leading-4" aria-hidden>
 				⌄
 			</span>
 		</span>
@@ -81,7 +81,7 @@ export function ConsoleShell() {
 						className="flex items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4"
 					>
 						<WarrenLogo className="h-5 w-5 shrink-0" />
-						<span className="font-semibold text-(--color-text) text-[13px] leading-4 tracking-[-0.02em]">
+						<span className="font-semibold text-(--color-text) text-sm leading-4 tracking-[-0.02em]">
 							warren
 						</span>
 					</Link>
@@ -122,7 +122,7 @@ export function ConsoleShell() {
 						className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-(--color-border) border-r bg-(--color-sidebar) shadow-lg md:hidden"
 					>
 						<DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
-						<div className="relative">
+						<div className="relative flex min-h-0 flex-1 flex-col">
 							<ConsoleSidebarBody stats={stats} onNavigate={() => setMobileNavOpen(false)} />
 						</div>
 						<DialogPrimitive.Close asChild>

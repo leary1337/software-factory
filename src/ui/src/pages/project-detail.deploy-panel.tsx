@@ -15,21 +15,21 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { formatError } from "@/lib/format-error.ts";
-import { relativeTime } from "@/lib/utils.ts";
+import { cn, relativeTime } from "@/lib/utils.ts";
 
 const PANEL =
 	"flex min-w-0 flex-col rounded-xl border border-(--color-border) bg-(--color-surface)";
 const PANEL_HEAD =
 	"flex min-h-10 shrink-0 flex-wrap items-center gap-2.5 border-b border-b-(--color-border) px-3.5 py-2";
 const MONO = "font-mono text-xs leading-4";
-const NOTE = "font-mono text-xs leading-3 text-(--color-text-3)";
+const NOTE = "font-mono text-xs leading-4 text-(--color-text-3)";
 
 function behindLabel(overview: ProjectDeployOverview): string {
 	if (overview.currentState === "unknown") return "Текущий Release неизвестен";
 	if (overview.current === null) return "Ещё не опубликовано";
 	if (overview.behind === null) return "Нет данных";
 	if (overview.behind.count === 0) return "Deployed";
-	return `Ready to deploy · ${overview.behind.count} commits`;
+	return `Ready to deploy · ${overview.behind.count} ${overview.behind.count === 1 ? "commit" : "commits"}`;
 }
 
 function releaseLabel(overview: ProjectDeployOverview): string {
@@ -97,6 +97,33 @@ function ConfirmDeploy(props: {
 	);
 }
 
+function ReleaseHistory({ overview }: { overview: ProjectDeployOverview }) {
+	const { history } = overview;
+	return (
+		<details open>
+			<summary className="cursor-pointer text-sm">Состав Release и история</summary>
+			<div className="mt-3 space-y-3">
+				<ChangeList overview={overview} />
+				{history.length > 0 ? (
+					<ul className="flex flex-col gap-1 border-t border-t-(--color-border) pt-2.5">
+						{history.map((deploy) => (
+							<li
+								key={`${deploy.sha}-${deploy.createdAt}`}
+								className={`${NOTE} flex justify-between gap-3`}
+							>
+								<span>
+									{deploy.sha.slice(0, 7)} · {relativeTime(deploy.createdAt)}
+								</span>
+								<span>{deploy.state}</span>
+							</li>
+						))}
+					</ul>
+				) : null}
+			</div>
+		</details>
+	);
+}
+
 function Overview({
 	overview,
 	onDeploy,
@@ -108,22 +135,26 @@ function Overview({
 	compact: boolean;
 	requested: boolean;
 }) {
-	const { activeRun, history, error } = overview;
+	const { activeRun, error } = overview;
 	return (
-		<div className="flex flex-col gap-3 p-3.5">
+		<div className="flex flex-col gap-3 p-3">
 			{error !== null ? (
 				<Alert className="text-(--color-fg)" variant="warning">
 					{error}
 				</Alert>
 			) : null}
-			<div className="flex flex-wrap items-center justify-between gap-3">
+			<div className={cn("flex items-center justify-between gap-3", !compact && "flex-wrap")}>
 				<div className="flex min-w-0 flex-col gap-0.5">
-					<span className="font-semibold text-sm leading-5">{behindLabel(overview)}</span>
-					<span className="text-(--color-text-2) text-sm">{releaseLabel(overview)}</span>
-					<span className="text-(--color-text-3) text-xs">
-						Следующий Release · {overview.candidateSha?.slice(0, 7) ?? "SHA неизвестен"} ·{" "}
-						{overview.branch}
+					<span className={cn("font-semibold leading-5", compact ? "text-xs" : "text-sm")}>
+						{behindLabel(overview)}
 					</span>
+					<span className="text-(--color-text-2) text-xs">{releaseLabel(overview)}</span>
+					{!compact ? (
+						<span className="text-(--color-text-3) text-xs">
+							Следующий Release · {overview.candidateSha?.slice(0, 7) ?? "SHA неизвестен"} ·{" "}
+							{overview.branch}
+						</span>
+					) : null}
 				</div>
 				{activeRun !== null ? (
 					<a
@@ -137,6 +168,8 @@ function Overview({
 				) : (
 					<OperatorOnly capability="dispatch">
 						<Button
+							size={compact ? "sm" : "default"}
+							className="shrink-0"
 							onClick={onDeploy}
 							disabled={
 								requested ||
@@ -150,7 +183,7 @@ function Overview({
 					</OperatorOnly>
 				)}
 			</div>
-			{activeRun === null && overview.latestRun?.status === "completed" ? (
+			{!compact && activeRun === null && overview.latestRun?.status === "completed" ? (
 				<a
 					className={`${MONO} text-(--color-primary)`}
 					href={overview.latestRun.url}
@@ -160,27 +193,7 @@ function Overview({
 					Workflow · {overview.latestRun.conclusion ?? "completed"} ↗
 				</a>
 			) : null}
-			<details open={compact ? undefined : true}>
-				<summary className="cursor-pointer text-sm">Состав Release и история</summary>
-				<div className="mt-3 space-y-3">
-					<ChangeList overview={overview} />
-					{history.length > 0 ? (
-						<ul className="flex flex-col gap-1 border-t border-t-(--color-border) pt-2.5">
-							{history.map((deploy) => (
-								<li
-									key={`${deploy.sha}-${deploy.createdAt}`}
-									className={`${NOTE} flex justify-between gap-3`}
-								>
-									<span>
-										{deploy.sha.slice(0, 7)} · {relativeTime(deploy.createdAt)}
-									</span>
-									<span>{deploy.state}</span>
-								</li>
-							))}
-						</ul>
-					) : null}
-				</div>
-			</details>
+			{!compact ? <ReleaseHistory overview={overview} /> : null}
 		</div>
 	);
 }
@@ -235,7 +248,7 @@ export function DeployPanel({
 			<section className={PANEL} aria-label="Production">
 				<div className={PANEL_HEAD}>
 					<h2 className="font-semibold text-(--color-text) text-sm leading-5">{title}</h2>
-					{data?.configured ? (
+					{data?.configured && !compact ? (
 						<span className={`${NOTE} break-all`}>
 							{data.environment} · {data.workflow}
 						</span>

@@ -1,11 +1,18 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Columns3, LayoutDashboard, LogIn, LogOut, Rocket, Settings } from "lucide-react";
+import {
+	ChevronRight,
+	Columns3,
+	LayoutDashboard,
+	LogIn,
+	LogOut,
+	Rocket,
+	Settings,
+} from "lucide-react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { metaApi, setApiToken } from "@/api/client.ts";
 import {
 	ALL_NAV_SECTIONS,
 	type ConsoleNavItem,
-	DOCUMENTATION_URL,
 	INSTANCE_NAV_ITEM,
 	SETUP_NAV_ITEM,
 } from "@/components/console/console-nav.ts";
@@ -16,6 +23,9 @@ import { WarrenLogo } from "@/components/warren-logo.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
 import { useWorkspaceLink } from "@/pages/workspace/project-scope.tsx";
+
+const SIDEBAR_ROW =
+	"flex h-11 w-full shrink-0 items-center justify-start gap-3 px-3 font-normal text-sm";
 
 function NavRow({ item, onNavigate }: { item: ConsoleNavItem; onNavigate?: () => void }) {
 	const scopedLink = useWorkspaceLink();
@@ -31,15 +41,17 @@ function NavRow({ item, onNavigate }: { item: ConsoleNavItem; onNavigate?: () =>
 			onClick={onNavigate}
 			className={({ isActive }) =>
 				cn(
-					"flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm",
+					SIDEBAR_ROW,
 					isActive
-						? "bg-(--color-primary)/10 font-medium text-(--color-text)"
+						? "bg-(--color-primary)/10 font-medium text-(--color-primary)"
 						: "text-(--color-text-2) hover:bg-(--color-surface-raised)",
 				)
 			}
 		>
-			{Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-			{item.label}
+			<span className="h-4 w-4 shrink-0" aria-hidden>
+				{Icon ? <Icon className="h-4 w-4" /> : null}
+			</span>
+			<span>{item.label}</span>
 		</NavLink>
 	);
 }
@@ -49,40 +61,30 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
 	const qc = useQueryClient();
 	const navigate = useNavigate();
 	return (
-		<div className="space-y-2 border-(--color-border) border-t p-3">
+		<div className="shrink-0 space-y-1 border-(--color-border) border-t p-3">
 			<NavRow item={INSTANCE_NAV_ITEM} onNavigate={onNavigate} />
-			<a
-				href={DOCUMENTATION_URL}
-				target="_blank"
-				rel="noreferrer"
-				className="block px-3 py-2 text-(--color-text-3) text-sm"
-			>
-				Documentation ↗
-			</a>
-			<div className="flex flex-wrap items-center gap-2">
-				{caps.can("readOperator") ? (
-					<Button
-						variant="ghost"
-						className="text-(--color-text-3)"
-						onClick={() => {
-							setApiToken(null);
-							qc.clear();
-							navigate("/login", { replace: true });
-						}}
-					>
-						<LogOut className="mr-2 h-4 w-4" />
-						Log out
-					</Button>
-				) : (
-					<Button variant="ghost" asChild>
-						<Link to="/login">
-							<LogIn className="mr-2 h-4 w-4" />
-							Log in
-						</Link>
-					</Button>
-				)}
-				<ThemeToggle />
-			</div>
+			{caps.can("readOperator") ? (
+				<Button
+					variant="ghost"
+					className={cn(SIDEBAR_ROW, "text-(--color-text-2)")}
+					onClick={() => {
+						setApiToken(null);
+						qc.clear();
+						navigate("/login", { replace: true });
+					}}
+				>
+					<LogOut className="h-4 w-4 shrink-0" aria-hidden />
+					<span>Log out</span>
+				</Button>
+			) : (
+				<Button variant="ghost" className={cn(SIDEBAR_ROW, "text-(--color-text-2)")} asChild>
+					<Link to="/login">
+						<LogIn className="h-4 w-4 shrink-0" aria-hidden />
+						<span>Log in</span>
+					</Link>
+				</Button>
+			)}
+			<ThemeToggle className={cn(SIDEBAR_ROW, "text-(--color-text-2)")} />
 		</div>
 	);
 }
@@ -130,12 +132,21 @@ export function ConsoleSidebarBody({
 							open={
 								section.items.some((item) => location.pathname.startsWith(item.to)) || undefined
 							}
-							className="pt-5"
+							className="group pt-5"
 						>
-							<summary className="cursor-pointer px-3 py-3 text-(--color-text-3) text-sm">
-								More
+							<summary
+								className={cn(
+									SIDEBAR_ROW,
+									"cursor-pointer list-none text-(--color-text-2) hover:bg-(--color-surface-raised)",
+								)}
+							>
+								<ChevronRight
+									className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90"
+									aria-hidden
+								/>
+								<span>More</span>
 							</summary>
-							{rows}
+							<div className="mt-1 space-y-1">{rows}</div>
 						</details>
 					) : (
 						<div key={section.heading} className="space-y-1">

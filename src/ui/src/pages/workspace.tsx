@@ -16,14 +16,17 @@ export function WorkspacePage({ view }: { view: "Overview" | "Kanban" }) {
 	const data = useWorkspaceData(project);
 	const { params, update } = useListParams();
 	const search = params.get("q") ?? "";
-	const tasks = data.tasks.filter((task) =>
-		task.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+	const attentionOnly = params.get("attention") === "1";
+	const tasks = data.tasks.filter(
+		(task) =>
+			task.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+			(!attentionOnly || task.attention),
 	);
 	const selected = data.tasks.find((task) => task.key === params.get("task"));
 	const projects = data.projects.filter((p) => !project || p.id === project);
 	const openTask = (task: { key: string }) => update({ task: task.key });
 	return (
-		<div className="min-h-full space-y-7 px-3.5 py-6 md:px-6">
+		<div className="min-h-full space-y-4 px-3.5 py-4 md:px-6">
 			<WorkspaceHeader
 				title={view}
 				description={
@@ -48,6 +51,11 @@ export function WorkspacePage({ view }: { view: "Overview" | "Kanban" }) {
 				<Spinner label="Загрузка задач" />
 			) : view === "Kanban" ? (
 				<>
+					{attentionOnly ? (
+						<Button variant="outline" onClick={() => update({ attention: null })}>
+							Только обращения · Показать все задачи
+						</Button>
+					) : null}
 					<Input
 						aria-label="Поиск задач"
 						placeholder="Поиск задач"

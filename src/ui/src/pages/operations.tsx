@@ -74,7 +74,7 @@ export function OperationsPage() {
 					<h1 className="font-semibold text-(--color-text) text-[17px] leading-[22px] tracking-[-0.02em] md:text-xl md:leading-6 md:tracking-[-0.025em]">
 						Operations
 					</h1>
-					<p className="text-(--color-text-2) text-[11px] leading-3.5 md:text-[12px] md:leading-4">
+					<p className="text-(--color-text-2) text-xs leading-4.5 md:text-xs md:leading-4">
 						Server health and current run activity.
 					</p>
 				</div>
@@ -93,7 +93,7 @@ export function OperationsPage() {
 									(window === w
 										? "bg-(--color-thead) text-(--color-text)"
 										: "text-(--color-text-3) hover:text-(--color-text)") +
-									"px-2 py-[3px] font-mono text-[9px] uppercase leading-3"
+									"px-2 py-1 font-mono text-xs uppercase leading-4"
 								}
 							>
 								{w.toUpperCase()}
@@ -104,7 +104,7 @@ export function OperationsPage() {
 					<OperatorOnly>
 						<Link
 							to="/dispatch"
-							className="flex items-center gap-1.5 rounded-(--radius-sm) bg-(--color-primary) px-[11px] py-[7px] font-medium text-(--color-primary-ink) text-[11px] leading-3.5 hover:opacity-90 md:h-8 md:px-3 md:py-0"
+							className="flex items-center gap-1.5 rounded-(--radius-sm) bg-(--color-primary) px-[11px] py-[7px] font-medium text-(--color-primary-ink) text-xs leading-4.5 hover:opacity-90 md:h-8 md:px-3 md:py-0"
 						>
 							<span className="md:hidden">＋ Dispatch</span>
 							<span className="hidden md:inline">＋ Dispatch run</span>

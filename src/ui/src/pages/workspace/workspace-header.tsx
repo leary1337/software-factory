@@ -24,8 +24,8 @@ export function WorkspaceHeader({
 	return (
 		<>
 			<header className="flex flex-wrap items-start justify-between gap-4">
-				<div className="space-y-2">
-					<h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
+				<div className="space-y-1">
+					<h1 className="font-bold text-2xl tracking-tight">{title}</h1>
 					<p className="text-(--color-text-2) text-sm">{description}</p>
 				</div>
 				<div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">

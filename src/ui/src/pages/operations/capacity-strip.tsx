@@ -38,7 +38,7 @@ function CapacityCell({
 				className,
 			)}
 		>
-			<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px] tracking-[0.08em] sm:leading-3 sm:tracking-[0.07em]">
+			<span className="font-mono text-(--color-text-3) text-xs leading-4 tracking-[0.08em] sm:leading-4 sm:tracking-[0.07em]">
 				{label}
 			</span>
 			<span className="flex items-baseline gap-1 sm:gap-[7px]">
@@ -46,12 +46,12 @@ function CapacityCell({
 					{value}
 				</span>
 				{unit ? (
-					<span className="w-max shrink-0 font-mono text-(--color-text-3) text-[10px] leading-3">
+					<span className="w-max shrink-0 font-mono text-(--color-text-3) text-xs leading-4">
 						{unit}
 					</span>
 				) : null}
 			</span>
-			<span className="font-mono text-(--color-text-3) text-[9px] leading-[11px] sm:leading-3">
+			<span className="font-mono text-(--color-text-3) text-xs leading-4 sm:leading-4">
 				{detail}
 			</span>
 		</div>
@@ -72,7 +72,7 @@ export function CapacityStrip({
 }) {
 	if (overview === undefined) {
 		return (
-			<div className="rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3.5 py-3 font-mono text-(--color-text-3) text-[10px] leading-3">
+			<div className="rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-3.5 py-3 font-mono text-(--color-text-3) text-xs leading-4">
 				loading snapshot…
 			</div>
 		);

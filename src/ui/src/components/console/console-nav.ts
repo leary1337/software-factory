@@ -32,7 +32,6 @@ export const SETUP_NAV_ITEM: ConsoleNavItem = {
 	to: "/setup",
 	capability: "admin",
 };
-export const DOCUMENTATION_URL = "https://github.com/leary1337/software-factory#readme";
 export const MOBILE_BOTTOM_NAV_ITEMS = WORKLOADS_NAV;
 export const ALL_NAV_SECTIONS = [
 	{ heading: "FACTORY", items: WORKLOADS_NAV },
