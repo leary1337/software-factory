@@ -1,5 +1,4 @@
 import type { PlanRunChildRow, PlanRunRow } from "@/api/types.ts";
-import { formatPlanRunFailureReason } from "../../lib/labels.ts";
 import { hasVerifiedRelease } from "./task-evidence.ts";
 
 export type TaskGroup =
@@ -152,7 +151,22 @@ function terminalStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus | n
 }
 
 function failureDetail(child: PlanRunChildRow): string | undefined {
-	if (child.failureReason) return formatPlanRunFailureReason(child.failureReason);
+	if (child.failureReason) return taskFailureMessage(child.failureReason);
 	const latest = child.reviewSteps?.at(-1)?.summary;
 	return latest && latest.status !== "passed" ? (latest.reason ?? undefined) : undefined;
+}
+
+function taskFailureMessage(reason: string): string {
+	const category = reason.split(":")[0]?.trim().replaceAll(" ", "_");
+	if (category === "linked_run_failed")
+		return reason.includes("provider_error")
+			? "The agent service returned an error before the task finished."
+			: "The executor stopped before completing the task.";
+	if (category === "dispatch_failed") return "The execution environment could not start the task.";
+	if (category === "child_seed_not_found")
+		return "The planned task could not be found in the project.";
+	if (category === "pr_closed_without_merge") return "The pull request was closed without merging.";
+	if (category === "parent_pr_merge_timeout")
+		return "The previous task's merge did not finish in time.";
+	return "The task could not finish. Open its diagnostics to inspect the recorded cause.";
 }

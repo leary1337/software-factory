@@ -6,6 +6,9 @@ const { fixture, cases } = harnessCases();
 for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 	test.describe(`factory-09 ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
+		test.afterEach(async ({ page }) => {
+			await page.unrouteAll({ behavior: "wait" });
+		});
 		test("omits empty-description placeholders from task cards", async ({ page }) => {
 			await openCase(page, c, fixture);
 			await expect(

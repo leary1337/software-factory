@@ -7,6 +7,7 @@ import {
 	type TaskItem,
 	taskExecutionId,
 } from "../tasks/task-attempts.ts";
+import { hasVerifiedRelease } from "../tasks/task-evidence.ts";
 import { taskStatus } from "../tasks/task-status.ts";
 
 export const TASK_COLUMNS = [
@@ -42,7 +43,7 @@ export function projectName(project: ProjectRow): string {
 
 function planColumn(task: TaskItem): TaskColumn {
 	const { child, detail } = task.current;
-	if (child.productionVerification) return "Production";
+	if (hasVerifiedRelease(child)) return "Production";
 	if (child.prMergedAt || child.state === "merged") return "Merged";
 	const status = taskStatus(child, detail.planRun);
 	if (status.group === "closed" || status.group === "stopped") return "Stopped";

@@ -20,13 +20,13 @@ location, timestamps, and assertions. No global installation is replaced.
 
 ## Recorded result
 
-The check passed from 18:16:20 to 18:16:31 UTC on 2026-11-14. Its source HEAD was
-`6b743586fb0bff200d10429137e3ee7e438a59a0` with uncommitted redesign changes.
-The individual file hashes identify those changes precisely; HEAD alone does not.
+The latest evidence JSON records the source HEAD, start and finish times, and the
+number of files checked. The source includes uncommitted redesign changes; individual
+file hashes identify that snapshot precisely, while HEAD alone does not.
 
 | Check | Observed result |
 | --- | --- |
-| Package contents | 2,187 files matched source hashes |
+| Package contents | Every packed file matched its source hash; exact count is in the report |
 | Production dependency installation | Fresh dependencies under the temporary package |
 | CLI bootstrap | Packaged `prime` completed |
 | Runtime | Local; Codex and Claude Code adapters available |
@@ -53,8 +53,9 @@ Both new-project entry points consume that helper.
 
 Machine evidence is stored locally at
 `.scratch/factory-redesign/evidence/37-clean-install.json` with its adjacent
-`37-clean-install.hashes.json`. The manifest hash in the recorded result is
-`c18ead044c3760c5ec8bb1816da18cf9bb88b5742c3abedb218b2a62ec106c27`.
+`37-clean-install.hashes.json`. The report contains the SHA-256 of that complete
+manifest and the SHA-512 integrity of the tarball. Keeping those values in the machine
+report avoids a self-reference when this document is included in the package.
 
 This check covers packaging, installation, bootstrap, materialization and isolation.
 It does not call a model, contact MCP services, verify a user's GitHub permissions,
@@ -70,8 +71,8 @@ rules. Repeat the check when packaged inputs change; do not treat this snapshot 
 proof for a later artifact.
 
 The approved redesign UI also received a measured bundle baseline through the
-repository's supported update command. JavaScript measured 776,262 bytes raw and
-225,724 bytes gzip, compared with earlier ceilings of 740,082 and 216,380 bytes.
+repository's supported update command. JavaScript measured 777,350 bytes raw and
+226,091 bytes gzip, compared with earlier ceilings of 740,082 and 216,380 bytes.
 This covers the new project settings, plan approval/revisions, toolkit and readiness
 controls without a new heavy UI dependency. The budget file records the explicit
 feature allowance and the tool's standard headroom.

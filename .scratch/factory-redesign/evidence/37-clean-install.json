@@ -1,12 +1,12 @@
 {
-  "sourceHead": "6b743586fb0bff200d10429137e3ee7e438a59a0",
+  "sourceHead": "ab664b0c894f2f5c242598ca12cac33e00060280",
   "snapshotKind": "working-tree snapshot; not a release commit",
-  "startedAt": "2026-11-14T18:16:20.347Z",
+  "startedAt": "2026-11-14T18:47:47.105Z",
   "package": {
     "filename": "os-eco-warren-cli-0.19.3.tgz",
-    "integrity": "sha512-ylNSHah3fOhXe7CUg+aFPFGb3TgNW/ZgMm2e5f7IB8IDmxXoTS9roRzYfNeReVBDjQGpnQ3S6KzeYepXDe9z1g==",
-    "count": 2187,
-    "manifestSha256": "c18ead044c3760c5ec8bb1816da18cf9bb88b5742c3abedb218b2a62ec106c27",
+    "integrity": "sha512-km1sopnabdegaD3BNRZScIQeVx7yoyW2wHuMA5YzYK1PnFj/JNKK1Cn5Dzm1fC8UdT3VqzMEJqYNaLngLiekAQ==",
+    "count": 2190,
+    "manifestSha256": "98c2b07e4e7cdfbfdcf5039c7462779f0f1d5da34a395bf5a46e54799c5cc110",
     "manifest": "/Users/leary/Prog/software-factory/.scratch/factory-redesign/evidence/37-clean-install.hashes.json"
   },
   "productionDependencies": [
@@ -25,7 +25,7 @@
     "factorySkills": 59,
     "codexCount": 59,
     "claudeCount": 59,
-    "skillVersion": "782e9cdc968ba0b4520cd11c85f5cc5ec2603bc32a872cf586a113c520af5395",
+    "skillVersion": "96b96b44c2c5e37cff7730193a6ec62ee3d8c9895acc7c3b630d948341710f5f",
     "runtimes": [
       "claude-code",
       "codex"
@@ -38,7 +38,7 @@
     ]
   },
   "server": {
-    "url": "http://127.0.0.1:61389",
+    "url": "http://127.0.0.1:65154",
     "health": {
       "ok": true
     },
@@ -52,7 +52,7 @@
       "rework"
     ],
     "runtime": "local",
-    "toolkitVersion": "e1e379a20e351483596d6564a0b0b076363c287216787335d27d6877b5f9ccf0",
+    "toolkitVersion": "96f58585836e654d370ff45fd70fae3ef501ad515a969b5a014536e19c2499aa",
     "uiAssetCount": 2,
     "freshQueue": true
   },
@@ -60,6 +60,6 @@
   "codexAuthenticationAccessed": false,
   "agentExecution": "Not performed in ticket 37. Ticket 38 owns real preparation, Codex execution and independent gate evidence; this report does not claim those checks passed.",
   "status": "passed",
-  "finishedAt": "2026-11-14T18:16:31.652Z",
-  "artifacts": "/private/var/folders/kz/9y0bgw2j0637kt58vyzvr5bm0000gn/T/factory-clean-install-4XZeI5"
+  "finishedAt": "2026-11-14T18:48:54.632Z",
+  "artifacts": "/private/var/folders/kz/9y0bgw2j0637kt58vyzvr5bm0000gn/T/factory-clean-install-I3QL07"
 }

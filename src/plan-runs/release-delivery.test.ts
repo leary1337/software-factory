@@ -156,7 +156,7 @@ describe("approved release delivery", () => {
 		scenarioUrl: "https://example.test/scenario",
 		expectedText: "works",
 	};
-	async function approve(boundary = false) {
+	async function approve(boundary = false, artifactName?: string) {
 		await repos.planApprovals.save({
 			id: "approval",
 			commandKey: "release-test",
@@ -197,7 +197,7 @@ describe("approved release delivery", () => {
 						autoDeploy: true,
 						shaInput: "factory_sha",
 						smokeUrl: "https://example.test/health",
-						verification,
+						verification: { ...verification, ...(artifactName ? { artifactName } : {}) },
 						rollback: {
 							workflow: "rollback.yml",
 							shaInput: "factory_sha",
@@ -256,6 +256,86 @@ describe("approved release delivery", () => {
 		expect(
 			(await repos.events.listByRun(input.run.id)).some(
 				(e) => e.kind === "plan_run.deployment_verified",
+			),
+		).toBe(false);
+	});
+	test("freezes a verified onboarding workflow anchor and reuses it after restart", async () => {
+		await approve(true, "proof");
+		const previousSha = "b".repeat(40);
+		const before = new Date(NOW.getTime() - 60000).toISOString();
+		let rollback = false;
+		let completed = false;
+		let baselineReads = 0;
+		const row = (id: number, release: string, createdAt: string) => ({
+			id,
+			status: "completed",
+			conclusion: "success",
+			sha: "c".repeat(40),
+			displayTitle: `Factory deploy ${release}`,
+			createdAt,
+			url: `https://example.test/${id}`,
+		});
+		deploys.listRuns = async (_ref, workflow) => {
+			if (workflow === "rollback.yml") {
+				const restored = {
+					...row(3, previousSha, NOW.toISOString()),
+					status: completed ? "completed" : "in_progress",
+				};
+				return { ok: true, value: rollback ? [restored] : [] };
+			}
+			const runs = [row(7, previousSha, before)];
+			if (dispatches) runs.push(row(1, SHA, NOW.toISOString()));
+			return { ok: true, value: runs };
+		};
+		deploys.dispatch = async (_ref, workflow) => {
+			dispatches++;
+			if (workflow === "rollback.yml") rollback = true;
+			return { ok: true, value: undefined };
+		};
+		deploys.readVerificationArtifact = async (_ref, id) => {
+			if (id === 7 && ++baselineReads > 1)
+				throw new Error("Historical proof is no longer accessible");
+			return {
+				ok: true,
+				value: {
+					schemaVersion: 1,
+					sha: previousSha,
+					workflowRunId: id,
+					checkedAt: id === 7 ? before : NOW.toISOString(),
+					readOnly: true,
+					platform: { sha: previousSha },
+					health: { url: "https://example.test/health", status: 200 },
+					version: { url: verification.versionUrl, sha: previousSha },
+					scenario: {
+						url: verification.scenarioUrl,
+						expectedText: verification.expectedText,
+						passed: true,
+					},
+				},
+			};
+		};
+		expect(await gate(input)).toEqual({ kind: "waiting" });
+		expect(await gate(input)).toEqual({ kind: "waiting" });
+		const saved = (await repos.events.listByRun(input.run.id)).find(
+			(event) => event.kind === "plan_run.rollback_attempt",
+		);
+		expect(saved?.payloadJson).toMatchObject({
+			expectedSha: previousSha,
+			anchor: {
+				workflowRunId: 7,
+				checkedAt: before,
+				workflow: "deploy.yml",
+				artifactName: "proof",
+			},
+		});
+		gate = createDeploymentGate({ repos, forge });
+		completed = true;
+		expect(await gate(input)).toMatchObject({ kind: "repair", restoredSha: previousSha });
+		expect(baselineReads).toBe(1);
+		expect(dispatches).toBe(2);
+		expect(
+			(await repos.events.listByRun(input.run.id)).some(
+				(event) => event.kind === "plan_run.deployment_verified",
 			),
 		).toBe(false);
 	});

@@ -29,9 +29,11 @@ export function TaskCardFrame({
 					{title}
 				</Link>
 			</h3>
-			<p className="wrap-anywhere whitespace-pre-line text-(--color-text-2) text-sm">
-				{description}
-			</p>
+			{description && description !== "Description not provided." ? (
+				<p className="wrap-anywhere whitespace-pre-line text-(--color-text-2) text-sm">
+					{description}
+				</p>
+			) : null}
 			<TaskStatusMessage status={status} />
 			{children}
 			<Link to={href} className="inline-block font-medium text-(--color-primary) text-sm">

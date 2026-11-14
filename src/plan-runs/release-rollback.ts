@@ -1,6 +1,4 @@
 import { formatError } from "../core/errors.ts";
-import type { ReleaseVerification } from "../core/release.ts";
-import type { Repos } from "../db/repos/index.ts";
 import type { ForgeDeploys, RepoRef } from "../forge/contract.ts";
 import { loadDeploymentHistory } from "../projects/deploy.ts";
 import { DEFAULT_DEPLOYMENT_ADMISSION } from "../projects/deployment-admission.ts";
@@ -13,13 +11,8 @@ import type {
 	DeploymentInput,
 } from "./deployment-contract.ts";
 import { reconcileEffect } from "./effects.ts";
+import { previousRelease, type VerifiedRelease, workflowReleaseAnchor } from "./release-anchor.ts";
 
-interface VerifiedRelease {
-	expectedSha: string;
-	verificationPolicy: ReleaseVerification;
-	smokeUrl: string;
-	smokeTimeoutMs: number;
-}
 interface RollbackAttempt extends VerifiedRelease {
 	workflow: string;
 	shaInput: string;
@@ -29,41 +22,6 @@ interface RollbackAttempt extends VerifiedRelease {
 	previousRunIds: number[];
 	timeoutMs: number;
 	reason: string;
-}
-function verified(payload: unknown, environment: string): payload is VerifiedRelease {
-	if (!payload || typeof payload !== "object") return false;
-	const p = payload as Record<string, unknown>;
-	const evidence = p.verification as Record<string, unknown> | undefined;
-	return (
-		p.environment === environment &&
-		typeof p.expectedSha === "string" &&
-		/^[a-f0-9]{40}$/.test(p.expectedSha) &&
-		Boolean(p.verificationPolicy) &&
-		typeof p.smokeUrl === "string" &&
-		evidence?.availability === true &&
-		evidence.version === true &&
-		evidence.scenario === true
-	);
-}
-/** Find a durable verified release; a platform-only success is not a rollback anchor. */
-async function previousRelease(
-	repos: Pick<Repos, "runs" | "events">,
-	projectId: string,
-	environment: string,
-): Promise<VerifiedRelease | null> {
-	let latest: { ts: string; release: VerifiedRelease } | undefined;
-	for (let offset = 0; ; offset += 100) {
-		const runs = await repos.runs.listByProject(projectId, { offset, limit: 100 });
-		const events = await repos.events.listByRunIds(runs.map((run) => run.id));
-		const found = events
-			.filter(
-				(e) => e.kind === "plan_run.deployment_verified" && verified(e.payloadJson, environment),
-			)
-			.sort((a, b) => b.ts.localeCompare(a.ts))[0];
-		if (found && (!latest || found.ts > latest.ts))
-			latest = { ts: found.ts, release: found.payloadJson as unknown as VerifiedRelease };
-		if (runs.length < 100) return latest?.release ?? null;
-	}
 }
 async function prepare(
 	deps: DeploymentGateDeps,
@@ -78,7 +36,13 @@ async function prepare(
 		throw new Error(
 			"Rollback is not approved as compatible with current data; owner intervention required",
 		);
-	const previous = await previousRelease(deps.repos, input.planRun.projectId, failed.environment);
+	const previous =
+		(await previousRelease(
+			deps.repos,
+			input.planRun.projectId,
+			failed.environment,
+			failed.startedAt,
+		)) ?? (await workflowReleaseAnchor(deploys, ref, failed, input.now()));
 	if (!previous)
 		throw new Error("No previously verified application version is available for rollback");
 	if (previous.expectedSha === failed.expectedSha)

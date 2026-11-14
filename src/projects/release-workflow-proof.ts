@@ -8,6 +8,7 @@ export interface WorkflowProofContext {
 	runId: number;
 	startedAt: string;
 	now: Date;
+	checkedBefore?: string;
 }
 const ProofSchema = z
 	.object({
@@ -57,7 +58,11 @@ export async function verifyWorkflowRelease(input: {
 	)
 		throw new Error("Workflow evidence does not match the approved application checks");
 	const checkedAt = Date.parse(proof.checkedAt);
-	if (checkedAt < Date.parse(workflow.startedAt) || checkedAt > workflow.now.getTime() + 60_000)
+	if (
+		checkedAt < Date.parse(workflow.startedAt) ||
+		checkedAt > workflow.now.getTime() + 60_000 ||
+		(workflow.checkedBefore !== undefined && checkedAt >= Date.parse(workflow.checkedBefore))
+	)
 		throw new Error("Workflow application evidence is stale");
 	return {
 		sha: input.sha,
@@ -65,5 +70,6 @@ export async function verifyWorkflowRelease(input: {
 		version: true,
 		scenario: true,
 		workflowRunId: workflow.runId,
+		checkedAt: proof.checkedAt,
 	};
 }

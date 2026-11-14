@@ -11,10 +11,15 @@ for (const c of cases.filter((entry) => entry.page.id === "plan-run-detail")) {
 		}) => {
 			const current = snapshot();
 			let sent: RevisePlanApproval | undefined;
-			await page.route(/\/plan-runs\/[^/?]+$/, async (route) => {
-				const response = await route.fetch();
-				const body = await response.json();
-				await route.fulfill({
+			const response = await page.request.get(
+				`${fixture.baseUrl}/plan-runs/${fixture.ids.planRun.id}`,
+				{
+					headers: { Authorization: `Bearer ${fixture.token}` },
+				},
+			);
+			const body = await response.json();
+			await page.route(/\/plan-runs\/[^/?]+$/, (route) => {
+				return route.fulfill({
 					json: {
 						...body,
 						planRun: { ...body.planRun, state: "running" },

@@ -61,6 +61,7 @@ describe("workflow application proof", () => {
 			version: true,
 			scenario: true,
 			workflowRunId: 7,
+			checkedAt: proof.checkedAt,
 		});
 	});
 	test("rejects a success claim for the wrong revision, run, time or scenario", async () => {

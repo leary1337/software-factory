@@ -19,14 +19,15 @@ import type {
 	RepoRef,
 } from "../forge/contract.ts";
 import { loadWarrenConfig, type WarrenConfigCache } from "../warren-config/index.ts";
-
 import {
 	DEFAULT_DEPLOYMENT_ADMISSION,
 	type DeploymentAdmission,
 	ensureDeploymentAdmission,
 } from "./deployment-admission.ts";
+import { loadEffectiveProjectConfig } from "./settings.ts";
 export interface ProjectDeployDeps {
-	readonly repos: Pick<Repos, "projects" | "planRuns" | "events">;
+	readonly repos: Pick<Repos, "projects" | "planRuns" | "events"> &
+		Partial<Pick<Repos, "projectSettings">>;
 	readonly deploymentAdmission?: DeploymentAdmission;
 	readonly forge?: Forge;
 	readonly warrenConfigs?: WarrenConfigCache;
@@ -74,10 +75,15 @@ function explain(error: ForgeError): string {
 
 async function resolveTarget(deps: ProjectDeployDeps, id: string): Promise<DeployTarget | null> {
 	const project = await deps.repos.projects.require(id);
-	const loaded =
-		deps.warrenConfigs === undefined
-			? await loadWarrenConfig({ projectPath: project.localPath })
-			: await deps.warrenConfigs.get(project.id, project.localPath);
+	const loaded = deps.repos.projectSettings
+		? await loadEffectiveProjectConfig({
+				project,
+				settings: deps.repos.projectSettings,
+				warrenConfigs: deps.warrenConfigs,
+			})
+		: deps.warrenConfigs
+			? await deps.warrenConfigs.get(project.id, project.localPath)
+			: await loadWarrenConfig({ projectPath: project.localPath });
 	if (loaded.errors.length > 0)
 		throw new ValidationError("Project deployment configuration could not be read.");
 	const forge: Forge | undefined = deps.forge;

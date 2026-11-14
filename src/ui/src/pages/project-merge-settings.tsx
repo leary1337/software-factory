@@ -17,7 +17,7 @@ export function ProjectMergeSettingsFields({
 	const id = useId();
 	const policy = value.autoMerge;
 	return (
-		<fieldset className="space-y-3 rounded-md border border-(--color-border) p-3">
+		<fieldset className="min-w-0 space-y-3 rounded-md border border-(--color-border) p-3">
 			<legend className="px-1 font-medium text-sm">Merge policy</legend>
 			<label htmlFor={`${id}-policy`} className="block space-y-1 text-sm">
 				<span>Verify before merging</span>

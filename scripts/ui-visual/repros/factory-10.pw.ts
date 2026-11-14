@@ -8,6 +8,9 @@ for (const c of cases.filter(
 )) {
 	test.describe(`factory-10 ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
+		test.afterEach(async ({ page }) => {
+			await page.unrouteAll({ behavior: "wait" });
+		});
 		if (c.page.id === "project-detail") {
 			test("shows existing plan attempts inside their project", async ({ page }) => {
 				await openCase(page, c, fixture);
@@ -66,6 +69,9 @@ for (const c of cases.filter(
 for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 	test.describe(`factory-10 legacy proof ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
+		test.afterEach(async ({ page }) => {
+			await page.unrouteAll({ behavior: "wait" });
+		});
 		test("does not promote a legacy availability receipt to verified Production", async ({
 			page,
 		}) => {

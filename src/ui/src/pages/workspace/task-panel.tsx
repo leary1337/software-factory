@@ -15,6 +15,7 @@ import { TaskHistory } from "../plan-run-detail/task-history.tsx";
 import { EventTail } from "../run-detail/event-tail.tsx";
 import { taskUrl } from "../tasks/task-attempts.ts";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
+import { hasVerifiedRelease } from "../tasks/task-evidence.ts";
 import { taskStatus } from "../tasks/task-status.ts";
 import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
 import { PlanActions } from "./plan-actions.tsx";
@@ -91,12 +92,17 @@ function TaskAttention({ task }: { task: WorkspaceTask }) {
 	);
 }
 
+function verifiedReceipt(task: WorkspaceTask) {
+	const child = task.currentPlan?.child;
+	return child && hasVerifiedRelease(child) ? child.productionVerification : null;
+}
+
 export function TaskPanel({ task, onClose }: { task: WorkspaceTask; onClose: () => void }) {
 	const current = task.currentPlan;
 	const implementation =
 		current?.detail.runs.find((run) => run.id === current.child.runId) ??
 		task.runs.find((run) => run.id === task.runId);
-	const receipt = current?.child.productionVerification;
+	const receipt = verifiedReceipt(task);
 	return (
 		<Dialog
 			open
