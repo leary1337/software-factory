@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { FinalizeResult } from "../contract.ts";
-import { FinalizeCoordinator } from "./finalize-coordinator.ts";
-import { IN_POD_FINALIZE_WIRE_VERSION, type InPodFinalizeIntent } from "./finalize-wire.ts";
+import { FinalizeCoordinator } from "./coordinator.ts";
+import { FINALIZE_CALLBACK_WIRE_VERSION, type FinalizeCallbackIntent } from "./wire.ts";
 
-function intent(): Omit<InPodFinalizeIntent, "attemptId"> {
+function intent(): Omit<FinalizeCallbackIntent, "attemptId"> {
 	return {
-		version: IN_POD_FINALIZE_WIRE_VERSION,
+		version: FINALIZE_CALLBACK_WIRE_VERSION,
 		branch: "warren/run_x",
 		push: true,
 		artifacts: ["mulch", "seeds"],

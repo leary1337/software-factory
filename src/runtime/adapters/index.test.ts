@@ -17,7 +17,8 @@ describe("adapter registry (warren-c80e)", () => {
 			// `adapterFor` silently answer for another harness.
 			expect(adapterFor(id).runtimeId).toBe(id);
 		}
-		expect(allAdapters()).toHaveLength(KNOWN_RUNTIME_IDS.length);
+		expect(allAdapters().map((adapter) => adapter.runtimeId)).toEqual(["claude-code", "codex"]);
+		expect(adapterFor("pi").buildSpawnCommand).toBeUndefined();
 	});
 
 	test("every declared prefix is directory-shaped or an exact filename (warren-8dc8)", () => {

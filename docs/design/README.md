@@ -38,7 +38,7 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 | [TypeSafe judge backend and routing exploration](./typesafe-judge.md) | `proposal` | `proposed` | `unscheduled` | 2026-09-17 |
 | [Judge on-demand evaluation](./judge-on-demand-evaluation.md) | `proposal` | `proposed` | `unscheduled` | 2026-10-08 |
 | [Extensions](./extensions.md) | `direction` | `proposed` | `mixed` | 2026-08-04 |
-| [Agent composition and Pi runtime](./agent-composition.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
+| [Agent composition and runtime compatibility](./agent-composition.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
 | [Automatic run admission](./automatic-run-admission.md) | `contract` | `proposed` | `unscheduled` | 2026-10-02 |
 | [UI design review rubric](./ui-design-review.md) | `contract` | `approved` | `mixed` | 2026-10-08 |
 | [UI visual gate and baseline approval](./ui-visual-gate.md) | `contract` | `approved` | `mixed` | 2026-10-08 |

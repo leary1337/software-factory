@@ -104,9 +104,9 @@ describe("spawnRun: end-to-end", () => {
 			method: "POST",
 			path: "/sandboxes/bur_aaaaaaaaaaaa/runs",
 			body: {
-				agentId: "pi",
+				agentId: "codex",
 				prompt: "be a refactor agent\n\n---\n\nfix the flaky test",
-				metadata: { frontmatter: {} },
+				metadata: { frontmatter: { runtime: "codex" } },
 			},
 		});
 
@@ -118,7 +118,7 @@ describe("spawnRun: end-to-end", () => {
 		};
 		expect(upBody.projectRoot).toBe("/data/projects/x/y");
 		expect(upBody.originUrl).toBe("https://github.com/x/y.git");
-		expect(upBody.agents).toEqual(["pi"]);
+		expect(upBody.agents).toEqual(["codex"]);
 		const seededPaths = (upBody.seed?.files ?? []).map((f) => f.path);
 		expect(seededPaths).toContain(".warren/agent.json");
 
@@ -183,15 +183,15 @@ describe("spawnRun: burrow_config + runtime + metadata", () => {
 				projectRoot: "/data/projects/x/y",
 				originUrl: "https://github.com/x/y.git",
 				network: "restricted",
-				// refactor-bot pins no runtime → pi default (warren-16f8).
-				agents: ["pi"],
+				// refactor-bot pins no runtime → Codex default (warren-16f8).
+				agents: ["codex"],
 			},
 		});
 		expect(calls[1]).toMatchObject({
 			method: "POST",
 			path: "/sandboxes/bur_aaaaaaaaaaaa/runs",
 			body: {
-				agentId: "pi",
+				agentId: "codex",
 				prompt: "s\n\n---\n\np",
 				metadata: { runByOperator: "alice", frontmatter: {} },
 			},
@@ -233,9 +233,9 @@ describe("spawnRun: burrow_config + runtime + metadata", () => {
 		]);
 	});
 
-	test("dispatch falls back to the pi default when frontmatter.runtime is unset (warren-16f8)", async () => {
-		// pi is the preferred default: an agent that pins no runtime
-		// resolves to `pi` via readRuntimeId rather than its canopy name.
+	test("dispatch falls back to the Codex default when frontmatter.runtime is unset (warren-16f8)", async () => {
+		// Codex is the preferred default: an agent that pins no runtime
+		// resolves to `codex` via readRuntimeId rather than its canopy name.
 		await repos.agents.upsert({
 			name: "refactor-bot",
 			renderedJson: makeAgentJson({ frontmatter: {} }),
@@ -249,7 +249,7 @@ describe("spawnRun: burrow_config + runtime + metadata", () => {
 			prompt: "p",
 		});
 		const dispatch = calls.find((c) => c.path === "/sandboxes/bur_aaaaaaaaaaaa/runs");
-		expect((dispatch?.body as { agentId: string } | undefined)?.agentId).toBe("pi");
+		expect((dispatch?.body as { agentId: string } | undefined)?.agentId).toBe("codex");
 	});
 
 	// warren-c4be: a legacy row whose runtime id predates registration-time
@@ -276,11 +276,11 @@ describe("spawnRun: burrow_config + runtime + metadata", () => {
 		expect(calls.find((c) => c.path === "/sandboxes")).toBeUndefined();
 	});
 
-	test("forwards agent.frontmatter as burrow run metadata so piRuntime gets provider/model (warren-d34e)", async () => {
+	test("forwards agent.frontmatter as burrow run metadata so the adapter gets provider/model (warren-d34e)", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				frontmatter: { source: "builtin", provider: "anthropic", model: "claude-opus-4-7" },
 			}),
 		});
@@ -288,7 +288,7 @@ describe("spawnRun: burrow_config + runtime + metadata", () => {
 		await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "p",
 		});
@@ -303,17 +303,17 @@ describe("spawnRun: burrow_config + runtime + metadata", () => {
 
 	test("dispatch metadata frontmatter reflects per-run + project-default overrides (warren-d34e)", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
-				frontmatter: { provider: "pi", model: "pi-default" },
+				name: "codex",
+				frontmatter: { provider: "codex", model: "codex-default" },
 			}),
 		});
 		const { client, calls } = makeSandboxClient();
 		await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "p",
 			providerOverride: "openai",

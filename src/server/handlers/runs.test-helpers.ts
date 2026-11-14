@@ -85,7 +85,7 @@ export async function depsFor(
 	provider: FakeProvider,
 	bridges?: BridgeRegistry,
 	extras?: {
-		finalizeCoordinator?: import("../../runtime/container/finalize-coordinator.ts").FinalizeCoordinator;
+		finalizeCoordinator?: import("../../runtime/finalization/coordinator.ts").FinalizeCoordinator;
 		/** Event-stream concurrency caps (warren-25f6). Omitted ⇒ uncapped. */
 		streamLimiter?: import("../stream-limits.ts").EventStreamLimiter;
 		/** Salvage-bundle intake dir (warren-cd3b). Omitted ⇒ the route 500s. */

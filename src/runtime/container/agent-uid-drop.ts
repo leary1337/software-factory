@@ -62,6 +62,10 @@
  * root" would invert the split.
  */
 
+import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../launch-errors.ts";
+
+export { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../launch-errors.ts";
+
 /** Agent-container env the pod-spec stamps (values: decimal uid/gid). */
 export const ENV_AGENT_RUN_AS_UID = "WARREN_AGENT_RUN_AS_UID";
 export const ENV_AGENT_RUN_AS_GID = "WARREN_AGENT_RUN_AS_GID";
@@ -196,15 +200,6 @@ export async function applyAgentUidDrop<TCommand extends { readonly argv: string
 	const wrapped = { ...command, argv: wrapArgvForUidDrop(command.argv, drop) };
 	return { ok: true, command: wrapped as TCommand };
 }
-
-/**
- * The stable prefix every preflight-failure system event starts with. Reap's
- * failure classifier keys on it (`src/runs/reap/state.ts`, warren-950d) to
- * finalize the run `spawn_failed` — an infrastructure fault — instead of
- * letting it collapse into `no_model_response` (which reads as a
- * credential/provider fault). Keep it stable; the matcher does `startsWith`.
- */
-export const UID_DROP_PREFLIGHT_ERROR_PREFIX = "agent-entrypoint: uid-drop preflight failed";
 
 /** The system-event message for a failed preflight (kept here so the wording stays next to the probe). */
 export function uidDropPreflightErrorMessage(probeExit: number): string {

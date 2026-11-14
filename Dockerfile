@@ -53,7 +53,7 @@ FROM oven/bun:1.2
 # (warren-a82b): per-run JS dev servers (`pnpm dev`, `npm run dev`, `next`,
 # `vite`, etc.) shell out through node_modules/.bin/* shell stubs whose
 # shebang is `#!/usr/bin/env node`. Until this layer landed, that resolved
-# to a bun-shim symlink installed below for pi compat, and Bun's built-in
+# to a Bun shim in older images, and Bun's built-in
 # module coverage drift (e.g. missing `node:sqlite` on v1.2.23) crashed any
 # Next.js / Remix project on startup. NodeSource ships a recent LTS — bookworm's
 # stock `nodejs` package is too old (18.19) for current frontend stacks.
@@ -105,7 +105,6 @@ RUN bun install -g \
     @os-eco/seeds-cli@0.5.13 \
     @os-eco/mulch-cli@0.10.7 \
     @anthropic-ai/claude-code@2.1.150 \
-    @earendil-works/pi-coding-agent@0.84.2 \
     pnpm@11.1.2
 
 # bun install -g skips lifecycle scripts by default, so claude-code's
@@ -113,18 +112,6 @@ RUN bun install -g \
 # run. Invoke it explicitly so /usr/local/bin/claude is wired up before
 # a run tries to spawn it.
 RUN bun run /usr/local/install/global/node_modules/@anthropic-ai/claude-code/install.cjs
-
-# Pi ships dist/cli.js with a `#!/usr/bin/env node` shebang. Historically we
-# satisfied this by symlinking /usr/local/bin/node → the oven/bun-node-fallback
-# shim, but that double-purposed the global `node` for non-pi consumers (npm
-# stubs, dev-server shell-wrappers) which then loaded under Bun and crashed
-# on Bun-missing built-ins like `node:sqlite` (warren-a82b). Now that real
-# Node is installed in the apt layer above, /usr/local/bin/node IS real Node.
-# Patch pi's shebang in-place so it runs under bun directly, bypassing the
-# `node` binary entirely. Without this pi would launch under real Node — which
-# pi does not target — and break on the first bun-only API it touches.
-RUN sed -i '1s|^#!/usr/bin/env node|#!/usr/bin/env bun|' \
-        /usr/local/install/global/node_modules/@earendil-works/pi-coding-agent/dist/cli.js
 
 WORKDIR /app
 

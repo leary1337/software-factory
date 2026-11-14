@@ -8,8 +8,8 @@
 import { describe, expect, test } from "bun:test";
 import { fakeExec, fakeFs } from "../runs/reap/test-helpers.ts";
 import { collectFinalizeResult, type FinalizeGitRunner } from "./container/finalize-collect.ts";
-import { IN_POD_FINALIZE_WIRE_VERSION } from "./container/finalize-wire.ts";
 import type { FinalizeIntent } from "./contract.ts";
+import { FINALIZE_CALLBACK_WIRE_VERSION } from "./finalization/wire.ts";
 import { finalizeLocalWorkspace } from "./local/finalize.ts";
 import { MULCH_USAGE_EVENT } from "./mulch-usage.ts";
 
@@ -60,7 +60,7 @@ describe("LocalProvider finalize — mulch usage", () => {
 describe("K8s in-pod finalize — mulch usage", () => {
 	const git: FinalizeGitRunner = async () => ({ exitCode: 0, stdout: "", stderr: "" });
 	const intent = {
-		version: IN_POD_FINALIZE_WIRE_VERSION,
+		version: FINALIZE_CALLBACK_WIRE_VERSION,
 		attemptId: "fin_abcdefghjkmn",
 		branch: "warren/run_x",
 		push: false,

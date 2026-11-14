@@ -19,6 +19,9 @@ describe("codexAdapter", () => {
 		expect(command?.argv).not.toContain("private task");
 		expect(command?.env).toMatchObject({ OPENAI_API_KEY: "", CODEX_API_KEY: "" });
 		expect(command?.stdin).toContain("[STEERING] (high) write tests");
+		expect(command?.stdin).toContain("approved acceptance criteria and verification seams");
+		expect(command?.stdin).toContain("no person available for an interview");
+		expect(command?.stdin).toContain("Never infer authorization for protected changes");
 	});
 	test("accepts a model without a price table", () => {
 		const command = codexAdapter.buildSpawnCommand?.({

@@ -54,7 +54,7 @@ flowchart TD
 | `reviewer` | Песочница Warren | GPT-6.1 Sol | Независимо проверить PR | Сверяет diff с тикетом и стандартами, пытается сломать код, ищет дефекты безопасности, ничего не меняет | `code-review`, `interrogate`, `blast-radius` |
 | `rework` | Песочница Warren | GPT-6.1 Sol | Закрыть замечания ревью | Подтверждает каждое замечание и вносит минимальную правку в ту же ветку. Запускается не больше 2 раз на PR | `diagnosing-bugs`, `go-best-practices` |
 
-Остальные роли Warren (`claude-code`, `pi`, `planner`, `pr-fixer`, `healer`, `nightwatch`, `bugwatch`) есть в реестре, но в цепочке не участвуют. `planner`, `pr-fixer`, `healer`, `nightwatch` и `bugwatch` тоже настроены на Codex. Роли `pi` и `claude-code` сохраняют собственные адаптеры.
+Остальные роли Warren (`claude-code`, `planner`, `pr-fixer`, `healer`, `nightwatch`, `bugwatch`) есть в реестре, но в цепочке не участвуют. `planner`, `pr-fixer`, `healer`, `nightwatch` и `bugwatch` тоже настроены на Codex. Роль `claude-code` сохраняет собственный адаптер. Pi недоступен для новых запусков. Его прежние журналы остаются читаемыми.
 
 ## Запуск
 

@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { ValidationError } from "../../core/errors.ts";
 import type { FinalizeResult } from "../contract.ts";
 import {
-	IN_POD_FINALIZE_WIRE_VERSION,
+	FINALIZE_CALLBACK_WIRE_VERSION,
 	parseFinalizeResultEnvelope,
 	parseSalvageEnvelope,
 	validateFinalizeResult,
-} from "./finalize-wire.ts";
+} from "./wire.ts";
 
 function fullResult(): FinalizeResult {
 	return {
@@ -110,7 +110,7 @@ describe("validateFinalizeResult", () => {
 describe("parseFinalizeResultEnvelope", () => {
 	test("parses a well-formed envelope", () => {
 		const env = parseFinalizeResultEnvelope({
-			version: IN_POD_FINALIZE_WIRE_VERSION,
+			version: FINALIZE_CALLBACK_WIRE_VERSION,
 			attemptId: "fin_abcdefghjkmn",
 			result: fullResult(),
 		});
@@ -126,7 +126,10 @@ describe("parseFinalizeResultEnvelope", () => {
 
 	test("rejects a missing attemptId", () => {
 		expect(() =>
-			parseFinalizeResultEnvelope({ version: IN_POD_FINALIZE_WIRE_VERSION, result: fullResult() }),
+			parseFinalizeResultEnvelope({
+				version: FINALIZE_CALLBACK_WIRE_VERSION,
+				result: fullResult(),
+			}),
 		).toThrow(ValidationError);
 	});
 });
@@ -134,7 +137,7 @@ describe("parseFinalizeResultEnvelope", () => {
 describe("parseSalvageEnvelope (warren-cd3b)", () => {
 	function fullSalvage(): Record<string, unknown> {
 		return {
-			version: IN_POD_FINALIZE_WIRE_VERSION,
+			version: FINALIZE_CALLBACK_WIRE_VERSION,
 			trigger: "push_failed",
 			rescueRef: "warren/rescue/run_x",
 			bundleBase64: "YnVuZGxl",

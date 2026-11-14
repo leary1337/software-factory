@@ -113,7 +113,7 @@ describe("scan", () => {
 	});
 
 	test("exempts an allowlisted file", () => {
-		withFixtureRepo({ "src/registry/builtins/pi.ts": 'runtime: "pi",\n' }, (dir) => {
+		withFixtureRepo({ "src/registry/builtins/claude-code.ts": 'runtime: "pi",\n' }, (dir) => {
 			expect(scan(dir)).toEqual([]);
 		});
 	});
@@ -121,15 +121,18 @@ describe("scan", () => {
 
 describe("staleAllowEntries", () => {
 	test("reports an allowlisted file that no longer writes a literal", () => {
-		withFixtureRepo({ "src/registry/builtins/pi.ts": "export const NOTHING = 1;\n" }, (dir) => {
-			expect(staleAllowEntries(dir)).toContain("src/registry/builtins/pi.ts");
-		});
+		withFixtureRepo(
+			{ "src/registry/builtins/claude-code.ts": "export const NOTHING = 1;\n" },
+			(dir) => {
+				expect(staleAllowEntries(dir)).toContain("src/registry/builtins/claude-code.ts");
+			},
+		);
 	});
 });
 
 describe("isAllowed", () => {
 	test("covers both allowlist buckets", () => {
-		expect(isAllowed("src/registry/builtins/pi.ts")).toBe(true);
+		expect(isAllowed("src/registry/builtins/claude-code.ts")).toBe(true);
 		expect(isAllowed("src/runtime/local/profile.ts")).toBe(true);
 		expect(isAllowed("src/runs/somewhere-new.ts")).toBe(false);
 	});

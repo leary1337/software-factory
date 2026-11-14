@@ -70,21 +70,12 @@ export interface AgentDefinition {
  * Well-known optional frontmatter fields the multi-provider surface reads:
  *
  *   provider — the runtime-side provider id (e.g. "anthropic", "openai",
- *              "google", "deepseek"). Free-form string; burrow's piRuntime
- *              maps it onto pi's --provider flag, claude-code ignores it.
+ *              "google", "deepseek"). Free-form string interpreted by the selected adapter.
  *   model    — provider-specific model id (e.g. "claude-sonnet-4-6",
  *              "gpt-4o", "gemini-2.0-pro"). Free-form string; the runtime
  *              decides how to interpret it.
- *   runtime  — burrow runtime id this canopy agent dispatches onto
- *              (e.g. "claude-code", "pi"). When unset,
- *              warren falls back to `DEFAULT_RUNTIME_ID` ("pi") —
- *              the multi-provider runtime is the preferred default
- *              (warren-16f8). claude-code stays available but is now
- *              opt-in: pin it via this field. Built-in agents that
- *              want a non-pi runtime (claude-code) declare
- *              it here explicitly; interactive system-prompt-only
- *              agents like `brainstorm` / `planner` (warren-ebca) do
- *              the same so they compose onto a real burrow runtime.
+ *   runtime  — the harness for new work. Unspecified definitions use Codex;
+ *              explicit historical runtime IDs are preserved when reading.
  *   auto_plan_run — boolean (warren-a32a). When true and the agent's run
  *              succeeds, reap diffs `.seeds/plans.jsonl` to detect new
  *              plans created during execution and auto-dispatches a
@@ -206,7 +197,7 @@ function coerceToolFlag(value: unknown, label: string, agentName: string): boole
  * `AgentSchemaError` on a malformed declaration so it surfaces at registry
  * refresh / spawn time rather than silently dropping a read-only guarantee.
  * The returned object is canonical (string arrays, real booleans) so burrow's
- * `buildPiArgv` reads a stable shape regardless of how the author authored it.
+ * historical definitions retain a stable shape regardless of their authored form.
  */
 export function readToolsFrontmatter(
 	frontmatter: Readonly<Record<string, unknown>>,
@@ -257,7 +248,7 @@ function assignToolFlag(
 	if (flag !== undefined) policy[key] = flag;
 }
 
-export const DEFAULT_RUNTIME_ID = "pi";
+export const DEFAULT_RUNTIME_ID = "codex";
 
 /**
  * Resolve the burrow runtime id this canopy agent should dispatch onto.
@@ -269,8 +260,8 @@ export const DEFAULT_RUNTIME_ID = "pi";
  *      specific runtime (claude-code) or compose a system
  *      prompt onto an existing runtime (planner,
  *      warren-ebca)
- *   3. `DEFAULT_RUNTIME_ID` ("pi") — the preferred default when
- *      nothing pins a runtime; claude-code is opt-in
+ *   3. `DEFAULT_RUNTIME_ID` ("codex") — the default for new work when
+ *      nothing pins a runtime
  */
 export function readRuntimeId(agent: AgentDefinition, configOverride?: string): AcceptedRuntimeId {
 	if (typeof configOverride === "string" && configOverride.length > 0) {

@@ -9,11 +9,8 @@
 import { NotFoundError, ValidationError } from "../../core/errors.ts";
 import { withProjectCloneLock } from "../../projects/clone-lock.ts";
 import { refreshProject } from "../../projects/manage.ts";
-import {
-	readProviderFrontmatter,
-	readRuntimeId,
-	withProviderOverrides,
-} from "../../registry/schema.ts";
+import { readRunnableRuntimeId } from "../../registry/runtime-availability.ts";
+import { readProviderFrontmatter, withProviderOverrides } from "../../registry/schema.ts";
 import type { RunHandle, RunSpec, RuntimeProvider } from "../../runtime/contract.ts";
 import { interactiveRuntimeOverride } from "../../warren-config/schema.ts";
 import { composeRunBranch, resolveRunBranchPrefix } from "../branch.ts";
@@ -149,7 +146,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	const effectiveModel = resolveOverride(input.modelOverride, projectDefaults?.defaultModel);
 	// warren-cb46: gate tracker/mulch prompt fragments on the project's real
 	// capabilities before anything freezes the agent (prompt-capabilities.ts).
-	const agent = gateAgentPrompts(
+	const promptedAgent = gateAgentPrompts(
 		withMulchArm(
 			withProviderOverrides(baseAgent, {
 				...(effectiveProvider !== undefined ? { providerOverride: effectiveProvider } : {}),
@@ -160,6 +157,13 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		projectAfterRefresh,
 		input.issueTracker,
 	);
+	const runtimeOverride = interactiveRuntimeOverride(promptedAgent.name, projectDefaults);
+	const runtimeId = readRunnableRuntimeId(promptedAgent, runtimeOverride);
+	// Persist the actual choice so historical readers never infer a new default.
+	const agent = {
+		...promptedAgent,
+		frontmatter: { ...promptedAgent.frontmatter, runtime: runtimeId },
+	};
 	// warren-bad5: validate only after the override > project default >
 	// agent frontmatter chain has been fully resolved.
 	const { provider: declaredProvider, model: declaredModel } = readProviderFrontmatter(
@@ -168,7 +172,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	assertNoKnownProviderModelMismatch(declaredProvider, declaredModel);
 
 	// Build the seed payload BEFORE creating the warren row so a malformed
-	// expertise_seed / pi_skills / pi_prompts section surfaces as a clean
+	// expertise_seed section surfaces as a clean
 	// `RunSpawnError` with no half-spawned row to garbage-collect. Anything
 	// burrow rejects later still rolls back via the try/catch below.
 	const seedResult = buildSeedFiles(agent);
@@ -244,10 +248,6 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	);
 
 	const runEnv = composeRunEnv(run.id, projectDefaults?.qualityGate, input.serverEnv);
-
-	// warren-b802: per-project runtime override (planner stays 'builtin').
-	const runtimeOverride = interactiveRuntimeOverride(agent.name, projectDefaults);
-	const runtimeId = readRuntimeId(agent, runtimeOverride);
 
 	// warren-9ce3: read dispatcherHandle + dispatchOrigin (were dropped silently).
 	const log = bindRunLogger(input.logger, run.id, {

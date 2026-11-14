@@ -19,8 +19,11 @@
 
 import { fileShapeFor } from "../../core/file-shape.ts";
 import { toolShapeFor } from "../../core/tool-shape.ts";
-import { isKnownRuntimeId, type RuntimeId } from "../../core/wire.ts";
-import { DEFAULT_RUNTIME_ID } from "../../registry/schema.ts";
+import {
+	HISTORICAL_DEFAULT_RUNTIME_ID,
+	isKnownRuntimeId,
+	type RuntimeId,
+} from "../../core/wire.ts";
 
 /** Structured fields extracted from one `tool_use` event payload. */
 export interface ToolUseExtraction {
@@ -111,5 +114,5 @@ export function runtimeFromRenderedAgent(renderedAgentJson: unknown): RuntimeId 
 			if (isKnownRuntimeId(r)) return r;
 		}
 	}
-	return DEFAULT_RUNTIME_ID;
+	return HISTORICAL_DEFAULT_RUNTIME_ID;
 }

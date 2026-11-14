@@ -51,7 +51,7 @@ describe("withGatedPromptFragments", () => {
 	});
 
 	test("composes only the admitted fragment (tracker without mulch)", () => {
-		const system = withGatedPromptFragments(builtin("pi"), TRACKER_ONLY).sections.system;
+		const system = withGatedPromptFragments(builtin("claude-code"), TRACKER_ONLY).sections.system;
 		expect(system).toContain(".seeds/issues.jsonl");
 		expect(system).not.toContain(".mulch");
 	});
@@ -74,8 +74,9 @@ describe("withGatedPromptFragments", () => {
 		}
 		// The neutral chain itself: env var → AGENTS.md/CLAUDE.md → discover
 		// the project's own commands.
-		const pi = withGatedPromptFragments(builtin("pi"), ALL_PROMPT_CAPABILITIES).sections.system;
-		expect(pi).toContain("$WARREN_QUALITY_GATE");
-		expect(pi).toContain("discover the project's own test and lint commands");
+		const prompt = withGatedPromptFragments(builtin("claude-code"), ALL_PROMPT_CAPABILITIES)
+			.sections.system;
+		expect(prompt).toContain("$WARREN_QUALITY_GATE");
+		expect(prompt).toContain("discover the project's own test and lint commands");
 	});
 });

@@ -57,9 +57,9 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 
 	test("plain api dispatch writes exactly one context row with chosen action + queue", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				frontmatter: { provider: "anthropic", model: "claude-sonnet-4" },
 				sections: {
 					system: "sys",
@@ -71,7 +71,7 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "fix the flaky test",
 			trigger: "manual",
@@ -246,8 +246,8 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 
 	test("project-default provider/model/cap sources stamp project_default", async () => {
 		await repos.agents.upsert({
-			name: "pi",
-			renderedJson: makeAgentJson({ name: "pi", frontmatter: {} }),
+			name: "codex",
+			renderedJson: makeAgentJson({ name: "codex", frontmatter: {} }),
 		});
 		const warrenConfigs = createWarrenConfigCache({
 			load: async () => ({
@@ -266,7 +266,7 @@ describe("spawnRun: dispatch-context writer (warren-d6ca)", () => {
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "p",
 			warrenConfigs,

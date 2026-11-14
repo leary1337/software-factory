@@ -195,6 +195,28 @@ describe("runDoctor", () => {
 		expect(result.exitCode).toBe(0);
 	});
 
+	test("skips sandbox probes for explicit macOS process execution", async () => {
+		const { context } = captureContext({
+			WARREN_API_TOKEN: "tok",
+			WARREN_LOCAL_EXECUTION: "process",
+		});
+		const result = await runDoctor(
+			context,
+			{
+				platform: "darwin",
+				existsSync: () => true,
+				probeLocalRuntime: async () => undefined,
+				probeSandboxGit: async () => {
+					throw new Error("sandbox probe must not run");
+				},
+			},
+			{},
+		);
+		expect(result.exitCode).toBe(0);
+		expect(result.checks.map((check) => check.name)).not.toContain("sandbox_git");
+		expect(result.checks.map((check) => check.name)).not.toContain("bwrap");
+	});
+
 	// warren-1219: the sandbox git preflight check runs only on the local
 	// topology, only when a probe is wired (main.ts wires the real one).
 	test("sandbox_git check reports ok for a passing probe", async () => {

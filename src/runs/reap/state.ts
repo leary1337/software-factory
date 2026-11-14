@@ -1,6 +1,6 @@
 import type { Repos } from "../../db/repos/index.ts";
 import type { RunFailureReason, RunTerminalState } from "../../db/schema.ts";
-import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../../runtime/container/agent-uid-drop.ts";
+import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../../runtime/launch-errors.ts";
 import { backfillTerminalUsage } from "../usage-hydrate.ts";
 
 export function isTerminal(state: string): boolean {
@@ -99,7 +99,7 @@ function isSpawnExecErrorEvent(ev: EventRowLike): boolean {
 /**
  * True for the K8s entrypoint's uid-drop preflight refusal (warren-950d).
  * The in-pod entrypoint emits it on `stream=system` before ever spawning the
- * agent (`src/runtime/container/agent-uid-drop.ts`), so the run has zero model
+ * agent, so the historical run has zero model
  * turns and — without this arm — collapsed into `no_model_response`, which
  * reads as a credential/provider fault. It is a spawn-class infrastructure
  * failure: the agent process was never started. Anchored to the system

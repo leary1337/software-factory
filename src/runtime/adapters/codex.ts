@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { FACTORY_SKILL_POLICY } from "../local/skill-catalog.ts";
 import { materializeCodexSkillPack } from "../local/skill-pack.ts";
 import { CODEX_DEFAULT_MODEL } from "./codex-config.ts";
 import { prepareCodexCredentials, recoverCodexCredentials } from "./codex-credentials.ts";
@@ -52,6 +53,7 @@ export const codexAdapter: AgentRuntimeAdapter = {
 				OPENAI_API_KEY: "",
 			},
 			stdin: [
+				FACTORY_SKILL_POLICY,
 				ctx.prompt,
 				...ctx.pendingMessages.map((message) => `[STEERING] (${message.priority}) ${message.body}`),
 			].join("\n\n"),

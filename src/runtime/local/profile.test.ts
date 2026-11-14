@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { KNOWN_PROVIDER_NAMES, PROVIDER_ENV_REGISTRY } from "../../core/providers.ts";
 import { makePrivateGitFixture } from "../../sandbox/git-scope.test-helpers.ts";
 import { resolvePrivateGitScope } from "../../sandbox/git-scope.ts";
 import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
@@ -10,7 +9,6 @@ import type { RunSpec } from "../contract.ts";
 import {
 	buildLocalSandboxProfile,
 	DEFAULT_ALLOWED_DOMAINS,
-	PI_PROVIDER_ENV_KEYS,
 	parseSandboxSection,
 	readLocalSandboxConfig,
 	resolveEnvPassthrough,
@@ -47,56 +45,8 @@ describe("resolveEnvPassthrough", () => {
 		expect(resolveEnvPassthrough("claude-code", undefined)).toContain("CLAUDE_CODE_OAUTH_TOKEN");
 	});
 
-	test("returns the pi base allowlist with no provider override", () => {
-		expect(resolveEnvPassthrough("pi", undefined)).toEqual([
-			"ANTHROPIC_API_KEY",
-			"ANTHROPIC_AUTH_TOKEN",
-			"ANTHROPIC_BASE_URL",
-			"EXA_API_KEY",
-		]);
-	});
-
-	test("unions the provider key delta for a non-anthropic pi provider", () => {
-		expect(resolveEnvPassthrough("pi", { provider: "openai" })).toContain("OPENAI_API_KEY");
-		expect(resolveEnvPassthrough("pi", { provider: "google" })).toContain("GEMINI_API_KEY");
-		// case-insensitive, matching burrow's normalization
-		expect(resolveEnvPassthrough("pi", { provider: "OpenAI" })).toContain("OPENAI_BASE_URL");
-	});
-
-	test("forwards OPENCODE_API_KEY for an opencode-go pi run", () => {
-		const passthrough = resolveEnvPassthrough("pi", { provider: "opencode-go" });
-		expect(passthrough).toContain("OPENCODE_API_KEY");
-		expect(passthrough).toContain("ANTHROPIC_API_KEY");
-	});
-
-	test("warren-81e0: forwards the openrouter key set for an openrouter pi run", () => {
-		// Regression: a project `defaultProvider: openrouter` (e.g. warren's own
-		// `.warren/config.yaml`) folds onto the pi argv as `--provider openrouter`,
-		// but the burrow-inherited PI_PROVIDER_ENV_KEYS lacked openrouter, so the
-		// key never entered the sandbox/container and pi died with
-		// "No API key found for openrouter" despite the operator holding it.
-		const passthrough = resolveEnvPassthrough("pi", { provider: "openrouter" });
-		expect(passthrough).toContain("OPENROUTER_API_KEY");
-		expect(passthrough).toContain("OPENROUTER_BASE_URL");
-		expect(passthrough).toContain("ANTHROPIC_API_KEY"); // base rides along
-	});
-
-	test("warren-81e0: PI_PROVIDER_ENV_KEYS covers the canonical provider registry", () => {
-		// Drift guard: every non-anthropic provider in PROVIDER_ENV_REGISTRY
-		// (src/core/providers.ts) must contribute its full key set here, so the
-		// local/docker passthrough can never again lag dispatch-time vocabulary.
-		for (const name of KNOWN_PROVIDER_NAMES) {
-			if (name === "anthropic") continue;
-			const registration = PROVIDER_ENV_REGISTRY[name];
-			for (const key of [...registration.envKeys, ...registration.optionalEnvKeys]) {
-				expect(PI_PROVIDER_ENV_KEYS[name]).toContain(key);
-			}
-		}
-	});
-
-	test("keeps the pi base for the default provider and unknown providers", () => {
-		expect(resolveEnvPassthrough("pi", { provider: "anthropic" })).not.toContain("OPENAI_API_KEY");
-		expect(resolveEnvPassthrough("pi", { provider: "mystery" })).not.toContain("OPENAI_API_KEY");
+	test("forwards no credentials to retired Pi", () => {
+		expect(resolveEnvPassthrough("pi", { provider: "openai" })).toEqual([]);
 	});
 
 	test("returns no passthrough for an unknown runtime", () => {
@@ -371,7 +321,7 @@ describe("buildLocalSandboxProfile", () => {
 		}
 	});
 
-	test("resolves the pi provider env delta off the run frontmatter", async () => {
+	test("omits retired Pi provider credentials", async () => {
 		const profile = await buildLocalSandboxProfile({
 			spec: makeSpec({ runtimeId: "pi" }),
 			env: {},
@@ -379,7 +329,7 @@ describe("buildLocalSandboxProfile", () => {
 			homePath: "/tmp/home",
 			frontmatter: { provider: "groq" },
 		});
-		expect(profile.envPassthrough).toContain("GROQ_API_KEY");
+		expect(profile.envPassthrough).toEqual([]);
 	});
 });
 

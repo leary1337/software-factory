@@ -60,9 +60,9 @@ describe("spawnRun: repoContext (warren-540f)", () => {
 
 	test("injects project repoContext into the dispatched prompt", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				sections: { system: "you are a refactor agent" },
 			}),
 		});
@@ -70,7 +70,7 @@ describe("spawnRun: repoContext (warren-540f)", () => {
 		await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "fix the flaky test",
 			warrenConfigs: warrenConfigs("python repo; gate is pytest -q; no tracker"),
@@ -86,9 +86,9 @@ describe("spawnRun: repoContext (warren-540f)", () => {
 
 	test("counts repoContext bytes into the dispatch-context prompt_bytes", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				frontmatter: { provider: "anthropic", model: "claude-sonnet-4" },
 			}),
 		});
@@ -97,7 +97,7 @@ describe("spawnRun: repoContext (warren-540f)", () => {
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "fix the flaky test",
 			warrenConfigs: warrenConfigs(repoContext),

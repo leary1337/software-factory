@@ -20,6 +20,7 @@
 import type { DiagnosticCheck } from "../../../diagnostics/checks.ts";
 import type { RuntimeProvider } from "../../contract.ts";
 import { resolveRuntimeProvider } from "../../registry.ts";
+import { resolveLocalExecutionMode } from "../execution-mode.ts";
 import { LocalSidecarRegistry } from "../preview/registry.ts";
 import { createLocalSidecarsResolver, type LocalSidecarsResolver } from "../preview/sidecars.ts";
 import { LocalRunStore } from "../run-store.ts";
@@ -70,7 +71,10 @@ export async function doctorLocalRuntimeCheck(
 		const value = env[name];
 		return value !== undefined && value !== "";
 	});
-	const base = "in-process sandbox engine (no co-tenanted burrow daemon)";
+	const base =
+		resolveLocalExecutionMode(env) === "process"
+			? "local Codex process on macOS (no OS sandbox or enforced resource/network limits)"
+			: "in-process sandbox engine (no co-tenanted burrow daemon)";
 	if (stale.length === 0) {
 		return { name: "local_runtime", ok: true, message: base };
 	}

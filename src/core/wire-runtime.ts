@@ -46,3 +46,11 @@ export function isKnownRuntimeId(value: unknown): value is RuntimeId {
  * literals themselves may not be written outside the adapter registry.
  */
 export type AcceptedRuntimeId = RuntimeId | string;
+
+/** Historical runtime IDs remain readable but cannot receive new work. */
+export function isRetiredRuntimeId(value: unknown): boolean {
+	return value === "pi";
+}
+
+/** Runs created before explicit snapshot pinning used Pi when runtime was absent. */
+export const HISTORICAL_DEFAULT_RUNTIME_ID: RuntimeId = "pi";

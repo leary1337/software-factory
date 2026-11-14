@@ -18,6 +18,7 @@
 
 import type { ReapExec, ReapFs } from "../../runs/reap/types.ts";
 import type { EnvLike } from "../../runs/spawn/callback-env.ts";
+import { CODEX_RUNTIME_ID } from "../adapters/codex.ts";
 import type {
 	FinalizeIntent,
 	FinalizeResult,
@@ -35,6 +36,8 @@ import type {
 } from "../contract.ts";
 import type { DriveDeps } from "./drive.ts";
 import { LocalEngine, type SidecarCascade } from "./engine.ts";
+import { type LocalExecutionMode, resolveLocalExecutionMode } from "./execution-mode.ts";
+import { resolveCodexExecutable } from "./process-spawn.ts";
 import type { LocalRunStore } from "./run-store.ts";
 
 /** Dependencies the provider methods wrap. */
@@ -85,18 +88,35 @@ export const LOCAL_PROVIDER_CAPABILITIES: RuntimeCapabilities = Object.freeze({
 });
 
 export class LocalProvider implements RuntimeProvider {
-	readonly capabilities: RuntimeCapabilities = LOCAL_PROVIDER_CAPABILITIES;
+	readonly capabilities: RuntimeCapabilities;
+	private readonly executionMode: LocalExecutionMode;
 	readonly kind = "local" as const;
 
 	private readonly engine: LocalEngine;
 
 	constructor(deps: LocalProviderDeps = {}) {
+		const env = deps.serverEnv ?? process.env;
+		this.executionMode = resolveLocalExecutionMode(env);
+		const isProcess = this.executionMode === "process";
+		const codexBin = isProcess ? resolveCodexExecutable(env) : undefined;
+		this.capabilities = isProcess
+			? Object.freeze({
+					...LOCAL_PROVIDER_CAPABILITIES,
+					previewPorts: false,
+					networkPolicy: "none",
+					enforcedResourceLimits: false,
+				})
+			: LOCAL_PROVIDER_CAPABILITIES;
+		const drive: DriveDeps = {
+			...deps.drive,
+			...(isProcess ? { hostProcess: { codexBin } } : {}),
+		};
 		this.engine = new LocalEngine({
 			...(deps.serverEnv !== undefined ? { serverEnv: deps.serverEnv } : {}),
 			...(deps.store !== undefined ? { store: deps.store } : {}),
 			...(deps.fs !== undefined ? { fs: deps.fs } : {}),
 			...(deps.exec !== undefined ? { exec: deps.exec } : {}),
-			...(deps.drive !== undefined ? { drive: deps.drive } : {}),
+			drive,
 			...(deps.sidecars !== undefined ? { sidecars: deps.sidecars } : {}),
 		});
 	}
@@ -106,6 +126,13 @@ export class LocalProvider implements RuntimeProvider {
 	 * and start the drive loop (`./engine.ts`).
 	 */
 	create(spec: RunSpec): Promise<RunHandle> {
+		if (this.executionMode === "process") {
+			if (spec.runtimeId !== CODEX_RUNTIME_ID)
+				throw new Error("Local process mode currently supports only Codex");
+			if (spec.network === "none")
+				throw new Error("Local process mode cannot enforce network=none");
+			return this.engine.create({ ...spec, network: "open" });
+		}
 		return this.engine.create(spec);
 	}
 

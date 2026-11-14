@@ -14,11 +14,11 @@
  *      posture). `RunSpec.resources` wins over the file when both speak.
  *   3. The warren-owned env allowlist (`resolveEnvPassthrough`) — the
  *      per-runtime host-env names forwarded into the sandbox, lifted from
- *      burrow's runtime registries (claude-code.ts / pi.ts). warren-fb8d
+ *      burrow's runtime registries (claude-code.ts / codex.ts). warren-fb8d
  *      formalizes this into a provider→env registry; until then this module
  *      is the single home.
  *
- * Toolchain paths make bare-name binaries (`claude`, `pi`, `git`, `bun`)
+ * Toolchain paths make bare-name binaries (`claude`, `codex`, `git`, `bun`)
  * resolvable inside the bwrap sandbox: the production image installs every
  * agent under `/usr/local` (covered by bwrap's SYSTEM_RO_MOUNTS but NOT by
  * the `/usr/bin:/bin` PATH fallback), so each resolved binary's bin dir is
@@ -30,7 +30,6 @@ import { existsSync, realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { KNOWN_PROVIDER_NAMES, PROVIDER_ENV_REGISTRY } from "../../core/providers.ts";
 import type { AcceptedRuntimeId } from "../../core/wire.ts";
 import { WARREN_SANDBOX_GIT_ENV } from "../../sandbox/git-preflight.ts";
 import type { PrivateGitScope } from "../../sandbox/git-scope.ts";
@@ -54,56 +53,12 @@ export const CLAUDE_CODE_ENV_PASSTHROUGH: readonly string[] = [
 	"CLAUDE_CODE_OAUTH_TOKEN",
 ];
 
-/** pi's base allowlist — burrow's `PI_ENV_PASSTHROUGH`. */
-export const PI_ENV_PASSTHROUGH: readonly string[] = [
-	"ANTHROPIC_API_KEY",
-	"ANTHROPIC_AUTH_TOKEN",
-	"ANTHROPIC_BASE_URL",
-	"EXA_API_KEY",
-];
-
-/**
- * pi's per-provider key delta (burrow's `PI_PROVIDER_ENV_KEYS`, burrow-6f3f):
- * when `frontmatter.provider` selects a non-anthropic provider, the matching
- * key(s) ride in addition to the anthropic base.
- *
- * Derived from the canonical `PROVIDER_ENV_REGISTRY` (warren-fb8d,
- * `src/core/providers.ts`) so the local/docker allowlist can never drift
- * behind the dispatch-time provider vocabulary again: warren-81e0 was
- * exactly that drift — the registry (and the K8s pod-env seam) knew
- * `openrouter`, this hand-maintained table did not, so a run dispatched
- * with `provider: openrouter` (e.g. via a project's `.warren/config.yaml`
- * `defaultProvider`) reached the sandbox without `OPENROUTER_API_KEY` and
- * pi died with "No API key found for openrouter" despite the operator
- * holding the key. Each entry is the provider's required `envKeys` plus
- * its `optionalEnvKeys` (base-URL overrides); `anthropic` is omitted
- * because the base allowlist already carries it.
- */
-export const PI_PROVIDER_ENV_KEYS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
-	KNOWN_PROVIDER_NAMES.filter((name) => name !== "anthropic").map((name) => {
-		const registration = PROVIDER_ENV_REGISTRY[name];
-		return [name, [...registration.envKeys, ...registration.optionalEnvKeys]];
-	}),
-);
-
-/**
- * Resolve the host-env names forwarded into the sandbox for a run. Keyed off
- * the runtime id + the run's frontmatter (pi's provider override), matching
- * burrow's up-time (base) + dispatch-time (provider delta) union in one pass.
- */
+/** Resolve host credentials only for the executable harness that needs them. */
 export function resolveEnvPassthrough(
 	runtimeId: AcceptedRuntimeId,
-	frontmatter: Record<string, unknown> | undefined,
+	_frontmatter: Record<string, unknown> | undefined,
 ): string[] {
-	if (runtimeId === "claude-code") return [...CLAUDE_CODE_ENV_PASSTHROUGH];
-	if (runtimeId !== "pi") return [];
-	const provider =
-		typeof frontmatter?.provider === "string" ? frontmatter.provider.toLowerCase() : "";
-	const extra = PI_PROVIDER_ENV_KEYS[provider];
-	if (provider === "" || provider === "anthropic" || extra === undefined) {
-		return [...PI_ENV_PASSTHROUGH];
-	}
-	return [...PI_ENV_PASSTHROUGH, ...extra];
+	return runtimeId === "claude-code" ? [...CLAUDE_CODE_ENV_PASSTHROUGH] : [];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -116,7 +71,6 @@ const SYSTEM_RO_PREFIXES = ["/usr", "/etc", "/lib", "/lib64", "/bin", "/sbin", "
 /** Binaries probed per runtime — the agent CLI plus the tools every run needs. */
 const AGENT_BINARIES: Readonly<Record<string, readonly string[]>> = {
 	"claude-code": ["claude"],
-	pi: ["pi"],
 	codex: ["codex"],
 };
 const COMMON_BINARIES: readonly string[] = ["git", "bun", "node"];

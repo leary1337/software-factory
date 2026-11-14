@@ -1,6 +1,6 @@
 {
 	"source": "src/registry/builtins/index.ts (BUILTIN_AGENTS)",
-	"count": 10,
+	"count": 9,
 	"agents": [
 		{
 			"name": "bugwatch",
@@ -21,10 +21,6 @@
 		{
 			"name": "nightwatch",
 			"role": "Code patrol agent — scans repos for quality issues and files a seeds plan to fix them."
-		},
-		{
-			"name": "pi",
-			"role": "Multi-provider coding-agent runtime (@earendil-works/pi-coding-agent); warren's default runtime."
 		},
 		{
 			"name": "planner",

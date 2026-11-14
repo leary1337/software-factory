@@ -55,6 +55,7 @@ import {
 	settleCancelledIfNeeded,
 } from "./drive-prepare.ts";
 import { createStdinController, type StdinController, startMidRunSteering } from "./drive-stdin.ts";
+import { runHostProcess } from "./process-spawn.ts";
 import { runIndependentQualityGate } from "./quality-gate.ts";
 import { preserveFailedReviewUsage, recordFailedGateReview } from "./quality-gate-failure.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
@@ -65,6 +66,8 @@ export const MID_RUN_INBOX_POLL_MS = 200;
 export type StartProxyFn = (opts: StartProxyOptions) => Promise<ProxyHandle>;
 
 export interface DriveDeps {
+	/** Explicit macOS process mode; keep one recovery marker across agent and gate children. */
+	readonly hostProcess?: { readonly codexBin?: string };
 	/** Spawn seam — defaults to `runSandboxed` (tests inject a fake child). */
 	readonly spawn?: (profile: SandboxProfile, command: SpawnCommand) => Promise<SpawnResult>;
 	/**
@@ -221,7 +224,12 @@ async function drivePrepared(
 	const spawn =
 		deps.spawn ??
 		((profile: SandboxProfile, command: SpawnCommand) =>
-			runSandboxed(profile, command, { lifecyclePath: `${record.homePath}.lifecycle.json` }));
+			deps.hostProcess
+				? runHostProcess(profile, command, {
+						...deps.hostProcess,
+						lifecyclePath: `${record.homePath}.lifecycle.json`,
+					})
+				: runSandboxed(profile, command, { lifecyclePath: `${record.homePath}.lifecycle.json` }));
 	let proc: SpawnResult;
 	try {
 		proc = await spawn(runProfile, runCommand);

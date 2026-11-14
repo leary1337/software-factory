@@ -191,12 +191,12 @@ export interface ServerDeps {
 	/** Preview sidecar resolver (warren-e24d), gated on `previewPorts`. The local
 	 * backend's combined facade resolver satisfies both preview consumer seams. */
 	readonly previewSidecars?: import("../runtime/local/preview/sidecars.ts").LocalSidecarsResolver;
-	/** K8s in-pod finalize correlation registry (warren-0d35); defaults to the
+	/** Runtime finalize callback correlation registry (warren-0d35); defaults to the
 	 * shared singleton, so prod needs no wiring — tests inject a private instance. */
-	readonly finalizeCoordinator?: import("../runtime/container/finalize-coordinator.ts").FinalizeCoordinator;
+	readonly finalizeCoordinator?: import("../runtime/finalization/coordinator.ts").FinalizeCoordinator;
 	/**
 	 * Durable salvage-bundle directory (warren-cd3b). The `POST /runs/:id/salvage`
-	 * intake writes pod-captured git bundles here (`<runId>.bundle`); boot wires
+	 * intake writes runtime-captured git bundles here (`<runId>.bundle`); boot wires
 	 * `<dataDir>/salvage`. Absent ⇒ the intake refuses with a 500 rather than
 	 * silently dropping the run's only recoverable copy.
 	 */

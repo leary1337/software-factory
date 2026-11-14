@@ -4,8 +4,8 @@
  *
  * ## The bug
  *
- * Warren seeds the rendered agent envelope to `.warren/agent.json` (plus `.pi/`
- * skill/prompt/extension drops and `.seeds/workflow.txt`). In a project that
+ * Warren seeds the rendered agent envelope to `.warren/agent.json` and
+ * `.seeds/workflow.txt`. In a project that
  * itself TRACKS one of those paths, the seed overwrites a tracked file, leaving
  * the worktree dirty. A broad agent commit (`git add -A` / `git commit -a`) then
  * carries the seeded artifact into the run branch. warren's own repo no longer
@@ -34,7 +34,7 @@ export interface SeededResetPath {
 
 /**
  * Rebuild the warren-seeded artifact list from the run's stored agent envelope
- * and return the PURE-CONTEXT drops (agent envelope + `.pi/**` + `.seeds/workflow.txt`),
+ * and return the PURE-CONTEXT drops (agent envelope + `.seeds/workflow.txt`),
  * excluding the mirror-managed `.mulch/expertise/` family. Defensive: a missing
  * or malformed `renderedAgentJson` (or a seed builder throw) yields `[]` so reap
  * degrades to its pre-warren-8d95 behavior rather than failing the run.

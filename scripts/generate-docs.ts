@@ -272,7 +272,6 @@ const BUILTIN_AGENT_ROLES: Readonly<Record<string, string>> = {
 		"Closed-loop repair agent — diagnoses production alerts and opens a fresh fix branch + PR.",
 	nightwatch:
 		"Code patrol agent — scans repos for quality issues and files a seeds plan to fix them.",
-	pi: "Multi-provider coding-agent runtime (@earendil-works/pi-coding-agent); warren's default runtime.",
 	planner: "Interactive planning agent that turns a finalized intent into a structured seeds plan.",
 	"pr-fixer":
 		"CI-repair agent — fixes failing checks on warren-opened PRs directly on the PR branch.",

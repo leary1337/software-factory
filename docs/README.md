@@ -1,6 +1,10 @@
 # Software Factory documentation
 
-For this personal fork, start with [PLAN.md](PLAN.md), [FACTORY-BACKLOG.md](FACTORY-BACKLOG.md), and [codex-runtime.md](codex-runtime.md). The supported factory path runs from a checkout on macOS.
+For this personal fork, start with the [approved local factory plan](factory-cleanup-plan.md).
+The [factory specification](factory-redesign-spec.md) defines behavior and acceptance tests.
+[FACTORY-BACKLOG.md](FACTORY-BACKLOG.md) tracks delivery. [PLAN.md](PLAN.md) preserves the previous plan.
+[codex-runtime.md](codex-runtime.md) describes the current implementation. The verified factory path still runs from a checkout on macOS.
+VPS deployment is deferred. The current scope keeps execution on the owner's Mac.
 
 The remaining documents describe the inherited Warren substrate. Historical Docker/Linux and platform design records are not evidence of a tested factory distribution.
 
@@ -67,3 +71,5 @@ Docs paths are a public surface (warren-d602). When maintainers delete or move a
 
 - `docs/RUNBOOK-K8S.md` -> [the supported runtime](codex-runtime.md). Kubernetes was removed from this fork.
 - `docs/design/k8s-migration.md` -> [the fork plan](PLAN.md). The migration does not apply to this fork.
+
+- [Общий каталог навыков](shared-skills.md): версия, личная установка и защита посторонних файлов.

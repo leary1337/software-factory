@@ -35,6 +35,35 @@ describe("materializeSkillPack", () => {
 		write(pack, "mattpocock/skills/tdd/SKILL.md", "tdd");
 		write(pack, "factory/skills/go-best-practices/SKILL.md", "go");
 		write(pack, "rules/pstack-models.md", "models");
+		write(
+			pack,
+			"catalog.json",
+			JSON.stringify({
+				schemaVersion: 1,
+				groups: ["pstack", "mattpocock", "factory"].map((source) => ({
+					source,
+					directory: `${source}/skills`,
+					audiences: ["factory"],
+				})),
+				overrides: {},
+				resources: ["rules"],
+			}),
+		);
+		write(
+			pack,
+			"LOCK.json",
+			JSON.stringify(
+				Object.fromEntries(
+					["pstack", "mattpocock"].map((source) => [
+						source,
+						{
+							repository: `https://example.com/${source}`,
+							commit: "a".repeat(40),
+						},
+					]),
+				),
+			),
+		);
 
 		await materializeSkillPack(home, pack);
 
@@ -59,6 +88,9 @@ describe("the committed pack", () => {
 		await materializeCodexSkillPack(home);
 		expect(existsSync(join(home, ".agents/skills/tdd/SKILL.md"))).toBe(true);
 		expect(existsSync(join(home, ".agents/skills/go-best-practices/SKILL.md"))).toBe(true);
+		expect(existsSync(join(home, ".agents/skills/grilling/SKILL.md"))).toBe(false);
+		expect(existsSync(join(home, ".agents/skills/automate-me/SKILL.md"))).toBe(false);
+		expect(existsSync(join(home, ".agents/pstack/skills/reflect/SKILL.md"))).toBe(false);
 		expect(existsSync(join(home, ".agents/pstack/docs/harness/codex.md"))).toBe(true);
 		expect(existsSync(join(home, ".claude"))).toBe(false);
 	});

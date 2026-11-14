@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type WarrenDb } from "../../db/client.ts";
 import { createRepos, type Repos } from "../../db/repos/index.ts";
-import { PI_BUILTIN } from "../../registry/builtins/index.ts";
+import { CLAUDE_CODE_BUILTIN } from "../../registry/builtins/index.ts";
 import type { IssueTracker } from "../../tracker/contract.ts";
 import { spawnRun } from "./index.ts";
 import { makeProvider, makeSandboxClient } from "./test-helpers.ts";
@@ -30,7 +30,7 @@ describe("spawnRun: prompt-fragment gating (warren-cb46)", () => {
 
 	beforeEach(async () => {
 		({ db, repos } = await openTestDb());
-		await repos.agents.upsert({ name: "pi", renderedJson: PI_BUILTIN });
+		await repos.agents.upsert({ name: "claude-code", renderedJson: CLAUDE_CODE_BUILTIN });
 		clonePath = mkdtempSync(join(tmpdir(), "warren-prompt-gating-"));
 	});
 
@@ -51,7 +51,7 @@ describe("spawnRun: prompt-fragment gating (warren-cb46)", () => {
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "claude-code",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "fix it",
 			issueTracker: GIT_NATIVE_TRACKER,
@@ -86,7 +86,7 @@ describe("spawnRun: prompt-fragment gating (warren-cb46)", () => {
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "claude-code",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "fix it",
 			issueTracker: GIT_NATIVE_TRACKER,

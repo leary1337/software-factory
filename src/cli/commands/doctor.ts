@@ -38,6 +38,7 @@ import { loadPreviewPortRangeFromEnv, PreviewPortAllocator } from "../../preview
 import { loadProjectsConfigFromEnv } from "../../projects/config.ts";
 import { loadWorkspaceGcConfigFromEnv } from "../../runs/reap/gc.ts";
 import { doctorLocalRuntimeCheck } from "../../runtime/local/diagnostics/local-runtime.ts";
+import { resolveLocalExecutionMode } from "../../runtime/local/execution-mode.ts";
 import { resolveRuntimeKind } from "../../runtime/registry.ts";
 import type { SandboxGitPreflightResult } from "../../sandbox/git-preflight.ts";
 import type { CliContext, EnvLike } from "../output.ts";
@@ -130,7 +131,7 @@ export async function runDoctor(
 
 	checks.push(projectsRootCheck(context.env, exists));
 
-	if (isLocalTopology) {
+	if (isLocalTopology && resolveLocalExecutionMode(context.env, deps.platform) === "sandbox") {
 		checks.push(
 			await checkBwrap({
 				spawn: context.spawn,
