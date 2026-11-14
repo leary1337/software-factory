@@ -9,16 +9,22 @@ describe("graph cache ownership", () => {
 		const root = await mkdtemp(join(tmpdir(), "graph-lock-"));
 		const events: string[] = [];
 		try {
-			await Promise.all([
-				withGraphLock(root, async () => {
-					events.push("start");
-					await Bun.sleep(25);
-					events.push("end");
-				}),
-				withGraphLock(root, async () => {
-					events.push("next");
-				}),
-			]);
+			const entered = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const first = withGraphLock(root, async () => {
+				events.push("start");
+				entered.resolve();
+				await release.promise;
+				events.push("end");
+			});
+			await entered.promise;
+			const second = withGraphLock(root, async () => {
+				events.push("next");
+			});
+			await Bun.sleep(25);
+			expect(events).toEqual(["start"]);
+			release.resolve();
+			await Promise.all([first, second]);
 			expect(events).toEqual(["start", "end", "next"]);
 			await expect(
 				withGraphLock(root, async () => {
