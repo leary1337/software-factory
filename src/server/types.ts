@@ -139,6 +139,8 @@ export interface Logger {
  * — a fresh spawn registers one, shutdown aborts them all.
  */
 export interface ServerDeps {
+	/** Readiness Git I/O seam, independent of clone refresh in test embeddings. */
+	readonly readinessSpawn?: import("../projects/clone.ts").SpawnFn;
 	readonly repos: Repos;
 	/**
 	 * Live db handle — used by the `/readyz` `db_reachable` probe (R-13 pl-f17e

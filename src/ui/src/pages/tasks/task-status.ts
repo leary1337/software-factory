@@ -1,7 +1,15 @@
 import type { PlanRunChildRow, PlanRunRow } from "@/api/types.ts";
 import { formatPlanRunFailureReason } from "../../lib/labels.ts";
+import { hasVerifiedRelease } from "./task-evidence.ts";
 
-export type TaskGroup = "attention" | "active" | "waiting" | "complete" | "closed" | "stopped";
+export type TaskGroup =
+	| "attention"
+	| "active"
+	| "waiting"
+	| "complete"
+	| "closed"
+	| "stopped"
+	| "history";
 
 export type TaskPhase = "Implementation" | "Review" | "Delivery" | "Complete";
 export interface TaskStatus {
@@ -20,7 +28,7 @@ export function taskStatus(child: PlanRunChildRow, plan: PlanState) {
 }
 
 function taskPhase(child: PlanRunChildRow): TaskPhase | null {
-	if (child.state === "merged") return "Complete";
+	if (child.state === "merged") return hasVerifiedRelease(child) ? "Complete" : "Delivery";
 	if (child.state === "skipped" || child.state === "pending") return null;
 	if (child.reviewMerge || child.prMergedAt || child.failureReason === "deployment_incident")
 		return "Delivery";
@@ -70,7 +78,7 @@ function resolveTaskStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus 
 		return {
 			group: "waiting",
 			label: "Queued",
-			action: "Starts when the preceding task has been delivered.",
+			action: "Starts when its dependencies are complete and an executor is available.",
 		};
 	return {
 		group: "active",
@@ -84,6 +92,7 @@ export const TASK_GROUPS: { key: TaskGroup; title: string }[] = [
 	{ key: "attention", title: "Needs attention" },
 	{ key: "waiting", title: "Waiting" },
 	{ key: "complete", title: "Completed" },
+	{ key: "history", title: "Earlier tasks" },
 	{ key: "closed", title: "Previously closed" },
 	{ key: "stopped", title: "Stopped attempts" },
 ];
@@ -102,7 +111,18 @@ function mergeStatus(child: PlanRunChildRow): TaskStatus | null {
 
 function terminalStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus | null {
 	if (child.state === "merged")
-		return { group: "complete", label: "Completed", action: "The change has been delivered." };
+		return hasVerifiedRelease(child)
+			? {
+					group: "complete",
+					label: "Release verified",
+					action: "The published version and user scenario were verified.",
+				}
+			: {
+					group: "waiting",
+					label: "Release not verified",
+					detail: "Code is merged. Release verification has not been recorded.",
+					action: "Open the project to check delivery.",
+				};
 	if (child.state === "skipped")
 		return {
 			group: "closed",

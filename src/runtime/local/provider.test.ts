@@ -55,10 +55,10 @@ describe("LocalProvider", () => {
 		expect(provider.capabilities).toBe(LOCAL_PROVIDER_CAPABILITIES);
 		expect(provider.capabilities).toEqual({
 			previewPorts: true,
-			networkPolicy: "domain-allowlist",
+			networkPolicy: "none",
 			longLived: true,
 			midRunSteering: true,
-			enforcedResourceLimits: true,
+			enforcedResourceLimits: false,
 			workspaceArchive: true,
 			workspaceGc: true,
 		});

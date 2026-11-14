@@ -1,18 +1,4 @@
-/**
- * `warren doctor` — startup health check.
- *
- * Runs the union of:
- *   - required env vars (WARREN_API_TOKEN),
- *   - bwrap binary reachable (Phase 13),
- *   - projects root resolvable (non-fatal),
- *   - per-project `.warren/` config validity (R-02, pl-5d74 step 6),
- *   - the local runtime is the in-process sandbox engine (warren-9a26).
- *
- * The Phase-13 bwrap probe lives in
- * `src/diagnostics/checks.ts` so `GET /readyz` mirrors it without
- * duplicating logic. Each check returns `{name, ok, message?, hint?}`;
- * the command exits 0 when every check passes and 1 otherwise.
- */
+/** Check local factory configuration, storage and connectivity without OS-sandbox probes. */
 
 import { existsSync } from "node:fs";
 import { ValidationError } from "../../core/errors.ts";
@@ -20,12 +6,10 @@ import type { AnyWarrenDb } from "../../db/client.ts";
 import { DrizzleAdapter } from "../../db/repos/drizzle-adapter.ts";
 import { createRepos } from "../../db/repos/index.ts";
 import {
-	checkBwrap,
 	checkDatabaseReachable,
 	checkGitIdentity,
 	checkPreviewAuthStrength,
 	checkPreviewPortAllocator,
-	checkSandboxGit,
 	checkWarrenConfig,
 	checkWarrenConfigDeprecations,
 	checkWarrenDb,
@@ -38,9 +22,7 @@ import { loadPreviewPortRangeFromEnv, PreviewPortAllocator } from "../../preview
 import { loadProjectsConfigFromEnv } from "../../projects/config.ts";
 import { loadWorkspaceGcConfigFromEnv } from "../../runs/reap/gc.ts";
 import { doctorLocalRuntimeCheck } from "../../runtime/local/diagnostics/local-runtime.ts";
-import { resolveLocalExecutionMode } from "../../runtime/local/execution-mode.ts";
 import { resolveRuntimeKind } from "../../runtime/registry.ts";
-import type { SandboxGitPreflightResult } from "../../sandbox/git-preflight.ts";
 import type { CliContext, EnvLike } from "../output.ts";
 import { writeJsonLine } from "../output.ts";
 
@@ -77,18 +59,6 @@ export interface DoctorDeps {
 	 * and the check degrades to an informational `ok: true`.
 	 */
 	readonly db?: AnyWarrenDb;
-	/**
-	 * Platform seam for the bwrap probe. Production omits it
-	 * (`checkBwrap` reads `process.platform`); tests force `"linux"` so
-	 * the probe path runs identically on macOS dev machines.
-	 */
-	readonly platform?: NodeJS.Platform;
-	/**
-	 * Override the sandbox-git preflight probe (warren-1219). Production
-	 * omits it (the boot-cached real probe runs, host bwrap/sandbox-exec
-	 * included); tests stub the result.
-	 */
-	readonly probeSandboxGit?: () => Promise<SandboxGitPreflightResult>;
 }
 
 export interface DoctorResult {
@@ -130,24 +100,6 @@ export async function runDoctor(
 	);
 
 	checks.push(projectsRootCheck(context.env, exists));
-
-	if (isLocalTopology && resolveLocalExecutionMode(context.env, deps.platform) === "sandbox") {
-		checks.push(
-			await checkBwrap({
-				spawn: context.spawn,
-				...(deps.platform !== undefined ? { platform: deps.platform } : {}),
-			}),
-		);
-		// warren-1219: prove the resolved git EXECUTES inside the composed
-		// sandbox profile — the macOS nix-git dyld failure class, caught at
-		// doctor time instead of as a dropped_commit run failure. Runs only
-		// when a probe is wired: `main.ts` wires the real (boot-cached)
-		// probe, tests stub it — a bare `runDoctor` call stays hermetic
-		// (no host bwrap/sandbox-exec spawn from the unit suite).
-		if (deps.probeSandboxGit !== undefined) {
-			checks.push(await checkSandboxGit({ probe: deps.probeSandboxGit }));
-		}
-	}
 
 	checks.push(
 		await checkWarrenConfig({

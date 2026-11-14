@@ -53,6 +53,19 @@ describe("buildSeedFiles", () => {
 		);
 	});
 
+	test("does not create expertise files when memory is disabled", () => {
+		const agent = makeAgent({
+			sections: { system: "s", expertise_seed: '{"domain":"build","content":"kept in envelope"}' },
+		});
+		const result = buildSeedFiles({
+			...agent,
+			frontmatter: { ...agent.frontmatter, mulch: "off" },
+		});
+		expect(result.mulchDomains).toEqual([]);
+		expect(result.files.some((file) => file.path.startsWith(".mulch/"))).toBe(false);
+		expect(result.files[0]?.contents).toContain("kept in envelope");
+	});
+
 	test("rejects malformed expertise_seed lines with RunSpawnError", () => {
 		expect(() =>
 			buildSeedFiles(makeAgent({ sections: { system: "s", expertise_seed: "not json" } })),

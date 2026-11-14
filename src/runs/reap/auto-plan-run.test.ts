@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { BUGWATCH_BUILTIN } from "../../registry/builtins/bugwatch.ts";
-import { NIGHTWATCH_BUILTIN } from "../../registry/builtins/nightwatch.ts";
 import type { SeedsCliDeps } from "../../seeds-cli/index.ts";
 import type { IssueTracker } from "../../tracker/contract.ts";
 import { SeedsTracker } from "../../tracker/seeds-tracker.ts";
@@ -21,11 +19,13 @@ import {
 /* ----------------------------------------------------------------------- */
 
 describe("auto_plan_run (warren-a32a)", () => {
-	async function setupAutoPlanRun(opts: { frontmatter?: Record<string, unknown> } = {}) {
+	async function setupAutoPlanRun(
+		opts: { frontmatter?: Record<string, unknown>; name?: string } = {},
+	) {
 		const db = await openDatabase({ path: ":memory:" });
 		const repos = createRepos(db);
 		await repos.agents.upsert({
-			name: "patrol-bot",
+			name: opts.name ?? "patrol-bot",
 			renderedJson: { sections: { system: "x" } },
 		});
 		const project = await repos.projects.create({
@@ -35,11 +35,11 @@ describe("auto_plan_run (warren-a32a)", () => {
 			hasSeeds: true,
 		});
 		const run = await repos.runs.create({
-			agentName: "patrol-bot",
+			agentName: opts.name ?? "patrol-bot",
 			projectId: project.id,
 			prompt: "patrol scan",
 			renderedAgentJson: {
-				name: "patrol-bot",
+				name: opts.name ?? "patrol-bot",
 				version: 1,
 				sections: { system: "you are a patrol bot" },
 				resolvedFrom: [],
@@ -131,11 +131,12 @@ describe("auto_plan_run (warren-a32a)", () => {
 		}
 	});
 
-	test.each([BUGWATCH_BUILTIN, NIGHTWATCH_BUILTIN])(
-		"dispatches $name plans to the Codex implementer",
-		async (agent) => {
+	test.each(["bugwatch", "nightwatch"])(
+		"preserves %s history without creating an unsolicited plan run",
+		async (name) => {
 			const ctx = await setupAutoPlanRun({
-				frontmatter: { ...agent.frontmatter },
+				name,
+				frontmatter: { auto_plan_run: true, auto_plan_run_agent: "implementer" },
 			});
 			try {
 				const f = fakeFs({
@@ -155,9 +156,8 @@ describe("auto_plan_run (warren-a32a)", () => {
 					exec: e.exec,
 				});
 
-				expect(result.autoPlanRunCreated).toBe(true);
-				const planRun = await ctx.repos.planRuns.require(result.autoPlanRunId as string);
-				expect(planRun.agentName).toBe("implementer");
+				expect(result.autoPlanRunCreated).toBe(false);
+				expect((await ctx.repos.runs.require(ctx.runId)).agentName).toBe(name);
 			} finally {
 				await ctx.db.close();
 			}

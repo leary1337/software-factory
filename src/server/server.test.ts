@@ -365,7 +365,7 @@ describe("startServer — routes", () => {
 	});
 
 	test("/readyz returns 503 when any mirrored check fails", async () => {
-		// Empty agents + nonexistent canopy clone — readyz should be 503
+		// An empty agent registry makes readyz return 503
 		// and surface the failing checks by name.
 		const dbEmpty = await openDatabase({ path: ":memory:" });
 		const reposEmpty = createRepos(dbEmpty);
@@ -380,7 +380,7 @@ describe("startServer — routes", () => {
 			expect(body.ok).toBe(false);
 			const names = body.checks.map((c) => c.name);
 			expect(names).toContain("agents");
-			expect(names).toContain("bwrap");
+			expect(names).not.toContain("bwrap");
 			expect(names).toContain("warren_config");
 			expect(body.checks.find((c) => c.name === "agents")?.ok).toBe(false);
 		} finally {
@@ -391,7 +391,7 @@ describe("startServer — routes", () => {
 	});
 
 	test("/readyz returns 200 when every mirrored check passes", async () => {
-		// At least one agent registered + bwrap.
+		// At least one agent registered and database checks pass.
 		handle = startServer(await depsFor(repos, undefined, { db }), tcpOpts());
 		const res = await fetch(`${tcpUrl(handle)}/readyz`);
 		expect(res.status).toBe(200);
@@ -406,25 +406,24 @@ describe("startServer — routes", () => {
 		expect(dbCheck?.message).toBe("dialect=sqlite");
 	});
 
-	test("/readyz flags bwrap when the probe fails", async () => {
+	test("/readyz does not depend on retired OS sandbox probes", async () => {
+		const probes: string[] = [];
 		const failBwrap: SpawnFn = async (cmd) => {
-			if (cmd[0]?.endsWith("bwrap")) {
-				return { stdout: "", stderr: "command not found", exitCode: 127 };
-			}
-			return { stdout: "", stderr: "", exitCode: 0 };
+			probes.push(cmd.join(" "));
+			return { stdout: "", stderr: "command not found", exitCode: 127 };
 		};
 		handle = startServer(
-			await depsFor(repos, undefined, { spawn: failBwrap, platform: "linux" }),
+			await depsFor(repos, undefined, { spawn: failBwrap, platform: "darwin" }),
 			tcpOpts(),
 		);
 		const res = await fetch(`${tcpUrl(handle)}/readyz`);
-		expect(res.status).toBe(503);
+		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			ok: boolean;
 			checks: { name: string; ok: boolean; hint?: string }[];
 		};
-		const bwrap = body.checks.find((c) => c.name === "bwrap");
-		expect(bwrap?.ok).toBe(false);
-		expect(bwrap?.hint).toContain("bubblewrap");
+		expect(body.ok).toBe(true);
+		expect(body.checks.some((c) => c.name === "bwrap")).toBe(false);
+		expect(probes).toEqual([]);
 	});
 });

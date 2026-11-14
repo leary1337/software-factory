@@ -106,7 +106,13 @@ describe("spawnRun: end-to-end", () => {
 			body: {
 				agentId: "codex",
 				prompt: "be a refactor agent\n\n---\n\nfix the flaky test",
-				metadata: { frontmatter: { runtime: "codex" } },
+				metadata: {
+					frontmatter: {
+						runtime: "codex",
+						mulch: "off",
+						toolkitVersion: expect.stringMatching(/^[a-f0-9]{64}$/),
+					},
+				},
 			},
 		});
 

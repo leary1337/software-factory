@@ -1,3 +1,5 @@
+import { hasPinnedReleaseCommands } from "./workflow-release-sha.ts";
+
 /** Validate the explicit contract required before dispatching automatic production delivery. */
 function record(value: unknown): Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -12,6 +14,9 @@ export function validateDeploymentWorkflow(source: string, shaInput: string): bo
 	} catch {
 		return false;
 	}
+	if (Object.keys(record(workflow.on)).some((trigger) => trigger !== "workflow_dispatch"))
+		return false;
+	if (!hasPinnedReleaseCommands(workflow, shaInput)) return false;
 	const input = record(record(record(record(workflow.on).workflow_dispatch).inputs)[shaInput]);
 	if (input.required !== true) return false;
 	if (workflow["run-name"] !== `Factory deploy \${{ inputs.${shaInput} }}`) return false;

@@ -40,7 +40,9 @@ export function buildSeedFiles(agent: AgentDefinition): BuildSeedFilesResult {
 		)}\n`,
 	});
 
-	const { domains, files: mulchFiles } = buildExpertiseFiles(agent.sections.expertise_seed);
+	const { domains, files: mulchFiles } = buildExpertiseFiles(
+		agent.frontmatter.mulch === "off" ? undefined : agent.sections.expertise_seed,
+	);
 	files.push(...mulchFiles);
 
 	const workflowFile = buildWorkflowFile(agent.sections.workflow);

@@ -1,0 +1,65 @@
+{
+  "sourceHead": "6b743586fb0bff200d10429137e3ee7e438a59a0",
+  "snapshotKind": "working-tree snapshot; not a release commit",
+  "startedAt": "2026-11-14T18:16:20.347Z",
+  "package": {
+    "filename": "os-eco-warren-cli-0.19.3.tgz",
+    "integrity": "sha512-ylNSHah3fOhXe7CUg+aFPFGb3TgNW/ZgMm2e5f7IB8IDmxXoTS9roRzYfNeReVBDjQGpnQ3S6KzeYepXDe9z1g==",
+    "count": 2187,
+    "manifestSha256": "c18ead044c3760c5ec8bb1816da18cf9bb88b5742c3abedb218b2a62ec106c27",
+    "manifest": "/Users/leary/Prog/software-factory/.scratch/factory-redesign/evidence/37-clean-install.hashes.json"
+  },
+  "productionDependencies": [
+    "@sentry/bun",
+    "commander",
+    "croner",
+    "drizzle-orm",
+    "js-yaml",
+    "pg",
+    "pino",
+    "zod"
+  ],
+  "skills": {
+    "templateIgnoreRules": true,
+    "catalogSkills": 73,
+    "factorySkills": 59,
+    "codexCount": 59,
+    "claudeCount": 59,
+    "skillVersion": "782e9cdc968ba0b4520cd11c85f5cc5ec2603bc32a872cf586a113c520af5395",
+    "runtimes": [
+      "claude-code",
+      "codex"
+    ],
+    "mcpServers": [
+      "factory_exa",
+      "factory_context7",
+      "factory_graphify",
+      "factory_playwright"
+    ]
+  },
+  "server": {
+    "url": "http://127.0.0.1:61389",
+    "health": {
+      "ok": true
+    },
+    "agentNames": [
+      "claude-code",
+      "healer",
+      "implementer",
+      "planner",
+      "pr-fixer",
+      "reviewer",
+      "rework"
+    ],
+    "runtime": "local",
+    "toolkitVersion": "e1e379a20e351483596d6564a0b0b076363c287216787335d27d6877b5f9ccf0",
+    "uiAssetCount": 2,
+    "freshQueue": true
+  },
+  "serverStopped": true,
+  "codexAuthenticationAccessed": false,
+  "agentExecution": "Not performed in ticket 37. Ticket 38 owns real preparation, Codex execution and independent gate evidence; this report does not claim those checks passed.",
+  "status": "passed",
+  "finishedAt": "2026-11-14T18:16:31.652Z",
+  "artifacts": "/private/var/folders/kz/9y0bgw2j0637kt58vyzvr5bm0000gn/T/factory-clean-install-4XZeI5"
+}

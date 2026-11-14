@@ -86,7 +86,8 @@ describe("advancePlanRun — automatic child retry (warren-6de9)", () => {
 		if (result.kind !== "dispatched") throw new Error("expected dispatched");
 		const retryRun = await h.repos.runs.get(result.childRunId);
 		expect(retryRun?.seedId).toBe("warren-a");
-		expect(retryRun?.prompt).toBe("work on sd warren-a");
+		expect(retryRun?.prompt).toContain("work on sd warren-a");
+		expect(retryRun?.prompt).toContain("fresh model session");
 	});
 
 	test("retry succeeds → plan continues (child advances to pr_open)", async () => {

@@ -18,13 +18,13 @@ import {
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
 import { DeployPanel } from "@/pages/project-detail.deploy-panel.tsx";
-import {
-	DispatchDefaultsPanel,
-	ReadyPlansPanel,
-	TriggersPanel,
-} from "@/pages/project-detail.panels.tsx";
+import { DispatchDefaultsPanel, TriggersPanel } from "@/pages/project-detail.panels.tsx";
 import { ProjectFactsPanel, RecentRunsPanel } from "@/pages/project-detail.side-rail.tsx";
 import { mainColumnClasses, sideRailClasses } from "@/pages/project-detail-layout.ts";
+import { ProjectPlanComposer } from "@/pages/project-plan-composer.tsx";
+import { ProjectPlansPanel } from "@/pages/project-plans-panel.tsx";
+import { ProjectReadinessPanel } from "@/pages/project-readiness-panel.tsx";
+import { ProjectSettingsPanel } from "@/pages/project-settings-panel.tsx";
 
 /**
  * Project detail — the Direction C project inspector (warren-8375 /
@@ -79,23 +79,36 @@ export function ProjectDetailPage() {
 			) : (
 				<div className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row">
 					<div className={mainColumnClasses()}>
-						<DeployPanel projectId={id} />
-						<DispatchDefaultsPanel
-							query={warrenConfig.data}
-							isLoading={warrenConfig.isLoading}
-							error={warrenConfig.error}
-						/>
-						{/* Triggers carry executable prompt text and their read is
-						 * still `readOperator` — a spectator gets no panel. */}
 						<OperatorOnly capability="readOperator">
-							<TriggersPanel projectId={id} />
+							<ProjectReadinessPanel projectId={id} />
 						</OperatorOnly>
-						<ReadyPlansPanel projectId={id} />
+						<OperatorOnly capability="dispatch">
+							<ProjectPlanComposer key={id} projectId={id} />
+						</OperatorOnly>
+						<ProjectPlansPanel projectId={id} />
+						<DeployPanel projectId={id} />
+						<OperatorOnly capability="admin">
+							<ProjectSettingsPanel key={id} projectId={id} />
+						</OperatorOnly>
+						<details className="space-y-3">
+							<summary className="cursor-pointer text-sm">Diagnostics</summary>
+							<DispatchDefaultsPanel
+								query={warrenConfig.data}
+								isLoading={warrenConfig.isLoading}
+								error={warrenConfig.error}
+							/>
+							{/* Triggers carry executable prompt text and their read is
+							 * still `readOperator` — a spectator gets no panel. */}
+							<OperatorOnly capability="readOperator">
+								<TriggersPanel projectId={id} />
+							</OperatorOnly>
+						</details>
 					</div>
-					<div className={sideRailClasses()}>
+					<details className={sideRailClasses()}>
+						<summary className="cursor-pointer text-sm">Repository details</summary>
 						<ProjectFactsPanel project={project.data} />
 						<RecentRunsPanel projectId={id} />
-					</div>
+					</details>
 				</div>
 			)}
 		</div>
@@ -132,11 +145,6 @@ function HeaderRow({ project, loading }: { project?: ProjectRow; loading: boolea
 			<h1 className="font-medium font-mono text-(--color-text) text-base leading-5">
 				{repoName(project)}
 			</h1>
-			{project.hasSeeds ? (
-				<span className="inline-flex h-5 items-center rounded-(--radius-xs) border border-(--color-border-strong) px-1.5 font-mono text-(--color-primary) text-xs leading-4">
-					.seeds
-				</span>
-			) : null}
 			{/* Below sm the URL takes its own row and truncates, so the two
 			    actions below it stay together (warren-3de0). */}
 			<span className="w-full min-w-0 truncate font-mono text-(--color-text-3) text-xs leading-4 sm:w-auto">

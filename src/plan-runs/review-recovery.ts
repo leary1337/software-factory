@@ -36,6 +36,7 @@ export function recoverReview(
 	const blocked = reviewBudgetReason(steps, budget);
 	if (blocked) return stoppedReview(blocked, decision.report);
 	if (stalled) {
+		if (budget.stopOnNoProgress) return decision;
 		if (
 			steps.some((step) => step.recoveryReason === STALLED) ||
 			steps.filter((step) => step.step === "rework").length >= (budget.maxReworks ?? Infinity)
@@ -48,5 +49,21 @@ export function recoverReview(
 		MAX_TECHNICAL_RECOVERIES
 	)
 		return decision;
-	return { kind: "spawn", step: "review", recoveryReason: last.failureReason ?? decision.report };
+	return recoverTechnicalStep(steps, last, decision.report);
+}
+function recoverTechnicalStep(
+	steps: readonly ReviewStepRecord[],
+	last: ReviewStepRecord,
+	report: string,
+): ReviewDecision {
+	if (last.step === "rework")
+		return {
+			kind: "spawn",
+			step: "rework",
+			findings:
+				[...steps].reverse().find((step) => step.step === "review" && step.resultText)
+					?.resultText ?? report,
+			recoveryReason: last.failureReason ?? report,
+		};
+	return { kind: "spawn", step: "review", recoveryReason: last.failureReason ?? report };
 }

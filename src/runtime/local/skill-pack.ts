@@ -19,10 +19,12 @@ export function pstackPluginDir(homePath: string): string {
 export async function materializeSkillPack(
 	homePath: string,
 	packDir: string = DEFAULT_SKILL_PACK_DIR,
+	browserCliVersion?: string,
 ): Promise<void> {
 	await installSkillCatalog({
 		homePath,
 		packDir,
+		browserCliVersion,
 		format: "claude",
 		audience: "factory",
 		apply: true,
@@ -33,10 +35,12 @@ export async function materializeSkillPack(
 export async function materializeCodexSkillPack(
 	homePath: string,
 	packDir = DEFAULT_SKILL_PACK_DIR,
+	browserCliVersion?: string,
 ): Promise<void> {
 	await installSkillCatalog({
 		homePath,
 		packDir,
+		browserCliVersion,
 		format: "agents",
 		audience: "factory",
 		apply: true,

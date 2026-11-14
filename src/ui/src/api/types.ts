@@ -666,6 +666,7 @@ export interface CreatePlanRunResponse {
 
 /** Plan details include implementation runs and operator review history. */
 export interface PlanRunDetailResponse {
+	approval?: import("../../../core/plan-approval.ts").PlanApproval;
 	planRun: PlanRunRow;
 	children: PlanRunChildRow[];
 	runs: RunRow[];

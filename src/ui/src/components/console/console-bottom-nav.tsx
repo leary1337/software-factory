@@ -1,12 +1,10 @@
-import { Ellipsis } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { MOBILE_BOTTOM_NAV_ITEMS } from "@/components/console/console-nav.ts";
-import { Button } from "@/components/ui/button.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
 import { useWorkspaceLink } from "@/pages/workspace/project-scope.tsx";
 
-export function ConsoleBottomNav({ onOpenMore }: { readonly onOpenMore: () => void }) {
+export function ConsoleBottomNav() {
 	const caps = useCapabilities();
 	const scopedLink = useWorkspaceLink();
 	return (
@@ -32,14 +30,6 @@ export function ConsoleBottomNav({ onOpenMore }: { readonly onOpenMore: () => vo
 					</NavLink>
 				),
 			)}
-			<Button
-				variant="ghost"
-				onClick={onOpenMore}
-				className="h-auto flex-1 flex-col gap-1 rounded-none text-xs"
-			>
-				<Ellipsis className="h-4 w-4" />
-				More
-			</Button>
 		</nav>
 	);
 }

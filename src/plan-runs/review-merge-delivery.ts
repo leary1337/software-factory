@@ -1,6 +1,7 @@
 import { type ReviewMergeResult, readReviewMergeResult } from "../core/review-merge.ts";
 import type { RunRow } from "../db/schema.ts";
 import type { HandleInFlightInput } from "./in-flight.ts";
+import { reconcileMerge } from "./merge-effect.ts";
 import type { ReviewDelivery } from "./review-delivery.ts";
 import { passedReviewCommit } from "./review-result.ts";
 import { MERGE_WAIT_REASONS } from "./review-warren-merge.ts";
@@ -32,8 +33,12 @@ async function attemptMerge(
 ): Promise<ReviewMergeResult> {
 	try {
 		if (!input.mergePassedPr || !run.branch) throw new Error("merge unavailable");
-		return await input.mergePassedPr(prUrl, run.branch, commit, input.planRun.projectId);
-	} catch {
+		return await input.mergePassedPr(prUrl, run.branch, commit, input.planRun.projectId, {
+			planRunId: input.planRun.id,
+			seq: input.child.seq,
+		});
+	} catch (error) {
+		if (input.repos.planEffects) throw error;
 		// Unclassified failures are not permission to repeat an external mutation.
 		return {
 			kind: "blocked",
@@ -91,7 +96,9 @@ export async function deliverMerge(
 		return blockedDelivery(delivery, stopped);
 	}
 	await input.emit(run.id, "plan_run.review_merge_attempt", { reviewedCommit: commit });
-	const result = await attemptMerge(input, run, prUrl, commit);
+	const result = await reconcileMerge(input, prUrl, commit, () =>
+		attemptMerge(input, run, prUrl, commit),
+	);
 	await input.emit(run.id, "plan_run.review_merge_result", { ...result });
 	if (result.kind === "retry") return null;
 	if (result.kind === "blocked") return blockedDelivery(delivery, result);

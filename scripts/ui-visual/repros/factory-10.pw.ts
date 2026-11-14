@@ -62,3 +62,50 @@ for (const c of cases.filter(
 		}
 	});
 }
+
+for (const c of cases.filter((entry) => entry.page.id === "overview")) {
+	test.describe(`factory-10 legacy proof ${c.name}`, () => {
+		test.use({ viewport: c.size, colorScheme: c.theme });
+		test("does not promote a legacy availability receipt to verified Production", async ({
+			page,
+		}) => {
+			const response = await page.request.get(
+				`${fixture.baseUrl}/plan-runs/${fixture.ids.planRun.id}`,
+				{
+					headers: { Authorization: `Bearer ${fixture.token}` },
+				},
+			);
+			const detail = await response.json();
+			detail.children = [
+				{
+					...detail.children[0],
+					title: "Legacy availability only",
+					state: "merged",
+					prMergedAt: fixture.frozenNow,
+					reviewStage: null,
+					failureReason: null,
+					productionVerification: {
+						sha: "a".repeat(40),
+						environment: "production",
+						verifiedAt: fixture.frozenNow,
+					},
+				},
+			];
+			detail.runs = [];
+			await page.route(/\/runs(?:\?.*)?$/, (route) =>
+				route.fulfill({ json: { runs: [], total: 0 } }),
+			);
+			await page.route(/\/plan-runs(?:\?.*)?$/, (route) =>
+				route.fulfill({ json: { planRuns: [detail.planRun] } }),
+			);
+			await page.route(`**/plan-runs/${detail.planRun.id}`, (route) =>
+				route.fulfill({ json: detail }),
+			);
+			await openCase(page, c, fixture);
+			await page.getByRole("button", { name: "Legacy availability only" }).click();
+			const panel = page.getByRole("dialog");
+			await expect.soft(panel.getByText("Production", { exact: true })).toHaveCount(0);
+			await expect.soft(panel.getByText("Production проверен", { exact: true })).toHaveCount(0);
+		});
+	});
+}

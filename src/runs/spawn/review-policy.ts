@@ -8,7 +8,7 @@ export async function readReviewGate(
 	input: SpawnRunInput,
 	project: ProjectRow,
 ): Promise<NonNullable<RunSpec["qualityGate"]>> {
-	const defaults = await readApprovedDefaults(input, project);
+	const defaults = input.approvedDefaults ?? (await readApprovedDefaults(input, project));
 	if (!defaults.qualityGate) throw new Error("Approved base branch must configure a quality gate.");
 	return {
 		command: defaults.qualityGate,

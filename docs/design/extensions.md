@@ -1,9 +1,15 @@
 # Extensions — kinds, packaging, and the road to a public catalog
 
 **Kind:** direction
-**Design state:** proposed
-**Delivery:** mixed
+**Design state:** retired
+**Delivery:** not-applicable
 **Arrived:** 2026-08-04
+
+> Retired by FACTORY-REDESIGN ticket 08. The judge, campaign-controller,
+> audit-log and tracker-conformance packages are no longer shipped.
+> Built-in run events, history, diagnostics and checks remain available.
+> The rest of this record describes historical designs, not supported setup.
+> See [IssueTracker](./issue-tracker.md) for the internal tracker.
 
 This direction record names the vocabulary and sequencing for warren's
 extension ecosystem. It deliberately does **not** lock a manifest, loader,

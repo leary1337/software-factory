@@ -17,12 +17,8 @@ describe("resolveLocalRunBackend", () => {
 		await backend.close();
 	});
 
-	test("k8s topology resolves a provider with no preview seam and a no-op close", async () => {
-		const backend = resolveLocalRunBackend({ WARREN_RUNTIME: "docker" });
-		expect(backend.runtimeProvider.capabilities.previewPorts).toBe(false);
-		expect(backend.previewSidecars).toBeUndefined();
-		// No sidecar registry work happens under k8s, so close() is a no-op.
-		await backend.close();
+	test("refuses a retired Docker runtime", () => {
+		expect(() => resolveLocalRunBackend({ WARREN_RUNTIME: "docker" })).toThrow();
 	});
 });
 
@@ -43,7 +39,7 @@ describe("doctorLocalRuntimeCheck", () => {
 	test("reports the in-process engine when no retired burrow env vars are set", async () => {
 		const check = await doctorLocalRuntimeCheck({});
 		expect(check.ok).toBe(true);
-		expect(check.message).toContain("in-process sandbox engine");
+		expect(check.message).toContain("local Codex process");
 		expect(check.message).not.toContain("dead config");
 	});
 

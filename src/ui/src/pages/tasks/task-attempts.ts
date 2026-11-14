@@ -1,4 +1,5 @@
 import type { PlanRunChildRow, PlanRunDetailResponse } from "../../api/types.ts";
+import { hasVerifiedRelease } from "./task-evidence.ts";
 import { taskStatus } from "./task-status.ts";
 
 export interface TaskAttempt {
@@ -66,7 +67,7 @@ export function groupTaskAttempts(rows: readonly TaskAttempt[]): TaskItem[] {
 					(row) => taskStatus(row.child, row.detail.planRun).group === "attention",
 				),
 				incidents: attempts.filter((row) => row.child.failureReason === "deployment_incident"),
-				delivered: attempts.find((row) => row.child.state === "merged"),
+				delivered: attempts.find((row) => hasVerifiedRelease(row.child)),
 			},
 		];
 	});

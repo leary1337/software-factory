@@ -14,8 +14,8 @@ test("drains the real server entrypoint on SIGTERM and exits successfully", asyn
 		env: {
 			PATH: process.env.PATH,
 			HOME: root,
-			WARREN_DATA_DIR: root,
-			WARREN_DB_PATH: join(root, "warren.db"),
+			WARREN_DATA_DIR: join(root, "data"),
+			WARREN_DB_PATH: join(root, "data", "warren.db"),
 			WARREN_API_TOKEN: "fixture-token",
 			WARREN_BIND_HOST: "127.0.0.1",
 			WARREN_BIND_PORT: String(port),

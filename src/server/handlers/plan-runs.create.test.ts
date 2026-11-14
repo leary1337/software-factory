@@ -39,6 +39,27 @@ describe("POST /plan-runs", () => {
 		await db.close();
 	});
 
+	test("refuses autonomous launch when readiness no longer matches project settings", async () => {
+		const deps = await depsFor({ repos, sdSpawn: makeSdSpawn([], []) });
+		await repos.projectSettings.compareAndSet(seedyProjectId, 0, { qualityGate: "changed check" });
+		handle = startServer(deps, {
+			transport: { kind: "tcp", hostname: "127.0.0.1", port: 0 },
+			auth: NO_AUTH,
+			logger: silentLogger,
+		});
+		const response = await fetch(`${tcpUrl(handle)}/plan-runs`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				project: seedyProjectId,
+				agent: "claude-code",
+				planId: "pl-not-ready",
+			}),
+		});
+		expect(response.status).toBe(400);
+		expect(await response.text()).toContain("not ready");
+	});
+
 	test("happy path: persists plan_run + children, returns 201", async () => {
 		const calls: SdCall[] = [];
 		const sdSpawn = makeSdSpawn(calls, [

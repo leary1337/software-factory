@@ -1,3 +1,4 @@
+import { MERGE_VERIFICATION_MODES } from "../core/wire-merge.ts";
 /**
  * Per-project PR-delivery config for `.warren/config.yaml`
  * (warren-6c5a, plan pl-92a3 step 4): `pr.autoMerge` opts a project into
@@ -28,6 +29,7 @@
  */
 
 import { z } from "zod";
+import { ROLLBACK_COMPATIBILITIES } from "../core/wire.ts";
 import type { AutoMergeMethod } from "../forge/contract.ts";
 import { AUTO_MERGE_METHODS } from "../forge/contract.ts";
 
@@ -71,7 +73,7 @@ export const AutoMergeConfigSchema = z
 	.object(
 		{
 			method: AutoMergeMethodSchema.default(DEFAULT_AUTO_MERGE_METHOD),
-			verification: z.enum(["forge", "warren"]).optional(),
+			verification: z.enum(MERGE_VERIFICATION_MODES).optional(),
 			requiredChecks: z.array(z.string().trim().min(1).max(256)).min(1).max(100).optional(),
 			reviewedPaths: z.array(ProtectedPathSchema).max(MAX_AUTO_MERGE_PROTECTED_PATHS).optional(),
 			protectedPaths: z
@@ -120,9 +122,33 @@ export const PrConfigSchema = z
 
 export type PrConfig = z.infer<typeof PrConfigSchema>;
 
+const HttpUrlSchema = z.url().refine((value) => /^https?:\/\//.test(value), "Use HTTP or HTTPS");
+const ReleaseVerificationSchema = z
+	.object({
+		artifactName: z
+			.string()
+			.regex(/^[a-zA-Z0-9_-]{1,80}$/)
+			.optional(),
+		versionUrl: HttpUrlSchema,
+		shaField: z.string().min(1).max(128).optional(),
+		scenarioUrl: HttpUrlSchema,
+		expectedText: z.string().min(1).max(8192),
+	})
+	.strict();
+const RollbackPolicySchema = z
+	.object({
+		workflow: z.string().min(1),
+		shaInput: z.string().regex(/^[A-Za-z_][A-Za-z0-9_-]*$/),
+		compatibility: z.enum(ROLLBACK_COMPATIBILITIES),
+		reason: z.string().trim().min(1).max(4096),
+	})
+	.strict();
+
 /** The Production panel. Defaults: deploy.yml, production. */
 export const DeployConfigSchema = z
 	.object({
+		verification: ReleaseVerificationSchema.optional(),
+		rollback: RollbackPolicySchema.optional(),
 		workflow: z.string().min(1).optional(),
 		environment: z.string().min(1).optional(),
 		autoDeploy: z.boolean().default(false),

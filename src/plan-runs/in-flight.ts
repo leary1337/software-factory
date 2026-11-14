@@ -1,3 +1,4 @@
+import { repairFailedRelease } from "./deployment-repair.ts";
 /**
  * In-flight child handling for the PlanRun coordinator (extracted from
  * coordinator.ts to keep that file under its size budget).
@@ -79,6 +80,8 @@ export interface HandleInFlightInput {
  */
 async function fireCloseChildSeed(input: HandleInFlightInput): Promise<void> {
 	if (input.closeChildSeed === undefined) return;
+	const approval = await input.repos.planApprovals?.forRun(input.planRun.id);
+	if (approval?.snapshot.taskSource === "internal") return;
 	await input.closeChildSeed({ planRun: input.planRun, child: input.child });
 }
 
@@ -328,41 +331,12 @@ async function pollMergeState(
 	run: RunRow,
 	effectivePrUrl: string | null,
 ): Promise<HandleInFlightDecision> {
-	const { repos, planRun, child, emit, checkPrMerged, now } = input;
+	const { checkPrMerged } = input;
 	if (effectivePrUrl === null) {
 		return { kind: "result", result: { kind: "noop", reason: `pr_open_without_pr_url:${run.id}` } };
 	}
 	const polled = await checkPrMerged(effectivePrUrl);
-	if (polled.kind === "merged") {
-		const delivery = await resumeReviewDelivery(input, run, effectivePrUrl);
-		if (delivery !== null) return delivery;
-		const deployment = await input.verifyDeployment?.({
-			planRun,
-			child,
-			run,
-			prUrl: effectivePrUrl,
-			emit,
-			now,
-		});
-		if (deployment?.kind === "waiting")
-			return { kind: "result", result: { kind: "waiting_for_merge" } };
-		if (deployment?.kind === "incident")
-			return failChild(input, run, "deployment_incident", { detail: deployment.reason });
-		await repos.planRuns.updateChild({
-			planRunId: planRun.id,
-			seq: child.seq,
-			patch: { state: "merged", prMergedAt: polled.mergedAt, endedAt: now().toISOString() },
-			now: now(),
-		});
-		await emit(run.id, "plan_run.merged", {
-			planRunId: planRun.id,
-			mergedChildSeq: child.seq,
-			prUrl: effectivePrUrl,
-			mergedAt: polled.mergedAt,
-		});
-		await fireCloseChildSeed(input);
-		return { kind: "merged" };
-	}
+	if (polled.kind === "merged") return handleMerged(input, run, effectivePrUrl, polled.mergedAt);
 	if (polled.kind === "open") {
 		const review = await advanceReview(input, run, effectivePrUrl);
 		if (review !== null) return review;
@@ -400,7 +374,18 @@ async function retryChild(
 	const prompt = renderPlanRunPrompt(planRun.promptTemplate, child.seedId);
 	let spawnResult: CoordinatorSpawnResult;
 	try {
-		spawnResult = await spawn({ planRun, child, prompt });
+		const issue = await input.getIssue(planRun.projectId, child.seedId);
+		spawnResult = await spawn({
+			planRun,
+			child,
+			prompt: `${prompt}\n\nRecover the previous interrupted attempt. Start a fresh model session, preserve saved Git work and the original acceptance criteria.\n${issue.title ?? ""}\n${issue.description ?? ""}`,
+			attemptKind: "repair",
+			attemptKey: `${planRun.id}:${child.seq}:recovery:${run.id}`,
+			recoveryOf: run.id,
+			...((run.salvageRef ?? (run.prUrl ? run.branch : null))
+				? { existingBranch: run.salvageRef ?? run.branch ?? undefined }
+				: {}),
+		});
 	} catch (err) {
 		if (err instanceof PlanRunSpawnDeferredError) {
 			return { kind: "result", result: { kind: "noop", reason: err.code } };
@@ -462,4 +447,43 @@ export async function handleInFlight(input: HandleInFlightInput): Promise<Handle
 		return firstObs.decision;
 	}
 	return await pollMergeState(input, run, firstObs.effectivePrUrl);
+}
+
+async function handleMerged(
+	input: HandleInFlightInput,
+	run: RunRow,
+	prUrl: string,
+	mergedAt: string,
+): Promise<HandleInFlightDecision> {
+	const { repos, planRun, child, emit, now } = input;
+	const delivery = await resumeReviewDelivery(input, run, prUrl);
+	if (delivery !== null) return delivery;
+	const deployment = await input.verifyDeployment?.({
+		planRun,
+		child,
+		run,
+		prUrl: prUrl,
+		emit,
+		now,
+	});
+	if (deployment?.kind === "waiting")
+		return { kind: "result", result: { kind: "waiting_for_merge" } };
+	if (deployment?.kind === "repair")
+		return repairFailedRelease(input, run, deployment.reason, deployment.restoredSha);
+	if (deployment?.kind === "incident")
+		return failChild(input, run, "deployment_incident", { detail: deployment.reason });
+	await repos.planRuns.updateChild({
+		planRunId: planRun.id,
+		seq: child.seq,
+		patch: { state: "merged", prMergedAt: mergedAt, endedAt: now().toISOString() },
+		now: now(),
+	});
+	await emit(run.id, "plan_run.merged", {
+		planRunId: planRun.id,
+		mergedChildSeq: child.seq,
+		prUrl: prUrl,
+		mergedAt: mergedAt,
+	});
+	await fireCloseChildSeed(input);
+	return { kind: "merged" };
 }

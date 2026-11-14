@@ -8,18 +8,9 @@ export interface ConsoleNavItem {
 }
 
 export const WORKLOADS_NAV: readonly ConsoleNavItem[] = [
-	{ index: "01", label: "Overview", to: "/overview" },
-	{ index: "02", label: "Kanban", to: "/kanban" },
-	{ index: "03", label: "Production", to: "/production", capability: "readOperator" },
-];
-export const INFRASTRUCTURE_NAV: readonly ConsoleNavItem[] = [
-	{ index: "04", label: "Plans", to: "/plan-runs" },
-	{ index: "05", label: "Projects", to: "/projects" },
-	{ index: "06", label: "Runs", to: "/runs" },
-	{ index: "07", label: "Operations", to: "/operations" },
-	{ index: "08", label: "Agents", to: "/agents" },
-	{ index: "09", label: "Telemetry", to: "/telemetry" },
-	{ index: "10", label: "Events", to: "/events" },
+	{ index: "01", label: "Tasks", to: "/tasks" },
+	{ index: "02", label: "Projects", to: "/projects" },
+	{ index: "03", label: "Settings", to: "/instance" },
 ];
 export const INSTANCE_NAV_ITEM: ConsoleNavItem = {
 	index: "05",
@@ -33,7 +24,4 @@ export const SETUP_NAV_ITEM: ConsoleNavItem = {
 	capability: "admin",
 };
 export const MOBILE_BOTTOM_NAV_ITEMS = WORKLOADS_NAV;
-export const ALL_NAV_SECTIONS = [
-	{ heading: "FACTORY", items: WORKLOADS_NAV },
-	{ heading: "More", items: INFRASTRUCTURE_NAV },
-] as const;
+export const ALL_NAV_SECTIONS = [{ heading: "FACTORY", items: WORKLOADS_NAV }] as const;

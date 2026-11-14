@@ -26,7 +26,6 @@ import { TasksPage } from "@/pages/tasks.tsx";
 import {
 	TelemetryBehaviorTab,
 	TelemetryIndexRedirect,
-	TelemetryJudgeTab,
 	TelemetryLoopTab,
 	TelemetryPage,
 } from "@/pages/telemetry.tsx";
@@ -81,7 +80,7 @@ function LifecycleStreamBridge() {
 	return null;
 }
 
-/** Task-first workspace; technical routes remain available under More. */
+/** Task-first workspace; historical technical routes remain available for diagnostics. */
 export function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -169,7 +168,7 @@ export function App() {
 									<Route index element={<TelemetryIndexRedirect />} />
 									<Route path="loop" element={<TelemetryLoopTab />} />
 									<Route path="behavior" element={<TelemetryBehaviorTab />} />
-									<Route path="judge" element={<TelemetryJudgeTab />} />
+									<Route path="judge" element={<Navigate to="/telemetry/behavior" replace />} />
 								</Route>
 
 								<Route
@@ -181,7 +180,7 @@ export function App() {
 								<Route path="/events" element={<EventExplorerPage />} />
 								<Route path="/instance" element={<InstancePage />} />
 							</Route>
-							<Route path="*" element={<Navigate to="/overview" replace />} />
+							<Route path="*" element={<Navigate to="/tasks" replace />} />
 						</Routes>
 					</HashRouter>
 				</ToastProvider>

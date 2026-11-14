@@ -156,7 +156,14 @@ function sawModelTurnEvent(events: readonly EventRowLike[]): boolean {
  */
 export async function detectSpawnExecFailure(repos: Repos, runId: string): Promise<boolean> {
 	const events = await repos.events.listByRun(runId);
-	return !sawModelTurnEvent(events) && events.some(isSpawnClassFailureEvent);
+	return (
+		!sawModelTurnEvent(events) &&
+		events.some(
+			(event) =>
+				isSpawnClassFailureEvent(event) ||
+				(event.stream === "system" && event.kind === "preparation.failed"),
+		)
+	);
 }
 
 /** Read the text body out of an event payload (string or `{text}` shape). */
@@ -182,6 +189,8 @@ export async function inferFailureReason(
 	// implies the agent was spawned and ran (stdin-held runtimes only arm the
 	// watchdog after a successful spawn), so spawn/sandbox arms can never apply.
 	if (events.some(isStdinHoldTimeoutEvent)) return "agent_died";
+	if (events.some((event) => event.stream === "system" && event.kind === "preparation.failed"))
+		return "spawn_failed";
 	if (sawModelTurnEvent(events)) return "crashed";
 	// warren-4e2a: the spawn-exec arm wins over the sandbox arm — a
 	// spawn that never exec'd is an infra fault one level below a sandbox

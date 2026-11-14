@@ -8,9 +8,6 @@ import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
 import type { RunSpec } from "../contract.ts";
 import {
 	buildLocalSandboxProfile,
-	DEFAULT_ALLOWED_DOMAINS,
-	parseSandboxSection,
-	readLocalSandboxConfig,
 	resolveEnvPassthrough,
 	resolveToolchainPaths,
 } from "./profile.ts";
@@ -58,13 +55,13 @@ describe("resolveToolchainPaths", () => {
 	// The macOS git preflight records a /usr/bin/git substitution on
 	// process.env (warren-1219). Another suite's real preflight can leave it
 	// set, which would leak /usr/bin into these injected-`which` results.
-	const savedSandboxGit = process.env.WARREN_SANDBOX_GIT;
+	const savedSandboxGit = process.env.WARREN_GIT_BIN;
 	beforeEach(() => {
-		delete process.env.WARREN_SANDBOX_GIT;
+		delete process.env.WARREN_GIT_BIN;
 	});
 	afterEach(() => {
-		if (savedSandboxGit === undefined) delete process.env.WARREN_SANDBOX_GIT;
-		else process.env.WARREN_SANDBOX_GIT = savedSandboxGit;
+		if (savedSandboxGit === undefined) delete process.env.WARREN_GIT_BIN;
+		else process.env.WARREN_GIT_BIN = savedSandboxGit;
 	});
 
 	// Empty third arg suppresses the host bun-install auto-grant so these
@@ -110,61 +107,6 @@ describe("resolveToolchainPaths", () => {
 	});
 });
 
-describe("parseSandboxSection", () => {
-	test("parses the [sandbox] scalars and arrays", () => {
-		const config = parseSandboxSection(
-			[
-				"[sandbox]",
-				'allowed_domains = ["api.anthropic.com", "github.com"]',
-				'read_only_paths = ["~/.claude"]',
-				"memory_limit_mb = 4096",
-				"cpu_limit = 2",
-				"timeout_minutes = 30",
-				"",
-				"[env]",
-				'ignored = "yes"',
-			].join("\n"),
-		);
-		expect(config.allowedDomains).toEqual(["api.anthropic.com", "github.com"]);
-		expect(config.readOnlyPaths).toEqual(["~/.claude"]);
-		expect(config.memoryLimitMb).toBe(4096);
-		expect(config.cpuLimit).toBe(2);
-		expect(config.timeoutMs).toBe(30 * 60_000);
-	});
-
-	test("ignores keys outside [sandbox] and malformed values", () => {
-		const config = parseSandboxSection('[other]\nmemory_limit_mb = 1\n[sandbox]\ncpu_limit = "x"');
-		expect(config.memoryLimitMb).toBeUndefined();
-		expect(config.cpuLimit).toBeUndefined();
-	});
-
-	test("returns an empty config for an empty body", () => {
-		expect(parseSandboxSection("")).toEqual({});
-	});
-});
-
-describe("readLocalSandboxConfig", () => {
-	test("reads burrow.toml off the project root", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			writeFileSync(join(root, "burrow.toml"), "[sandbox]\nmemory_limit_mb = 2048\n");
-			const config = await readLocalSandboxConfig(root);
-			expect(config.memoryLimitMb).toBe(2048);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
-	test("yields an empty config when no burrow.toml exists", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			expect(await readLocalSandboxConfig(root)).toEqual({});
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-});
-
 describe("buildLocalSandboxProfile", () => {
 	test("applies the factory runtime deadline when no project or run limit is set", async () => {
 		const profile = await buildLocalSandboxProfile({
@@ -176,14 +118,15 @@ describe("buildLocalSandboxProfile", () => {
 		expect(profile.timeoutMs).toBe(20 * 60_000);
 	});
 
-	test("a project with no burrow.toml gets the default allowlist", async () => {
+	test("uses an open host network without an OS allowlist", async () => {
 		const profile = await buildLocalSandboxProfile({
 			spec: makeSpec({ network: "restricted" }),
 			env: {},
 			workspace: fakeWorkspace(),
 			homePath: "/tmp/home",
 		});
-		expect(profile.allowedDomains).toEqual([...DEFAULT_ALLOWED_DOMAINS]);
+		expect(profile.allowedDomains).toEqual([]);
+		expect(profile.network).toBe("open");
 	});
 
 	test("binds the workspace and the separate writable HOME (warren-c865)", async () => {
@@ -263,48 +206,6 @@ describe("buildLocalSandboxProfile", () => {
 		expect(profile.workspaceGit).toBeUndefined();
 	});
 
-	test("per-run resources win over burrow.toml limits", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			writeFileSync(join(root, "burrow.toml"), "[sandbox]\nmemory_limit_mb = 1024\n");
-			const profile = await buildLocalSandboxProfile({
-				spec: makeSpec({
-					hostClonePathHint: root,
-					resources: { memoryMiB: 8192, cpuMillicores: 1500 },
-				}),
-				env: {},
-				workspace: fakeWorkspace(),
-				homePath: "/tmp/home",
-			});
-			expect(profile.memoryLimitMb).toBe(8192);
-			expect(profile.cpuLimit).toBe(1.5);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
-	test("falls back to burrow.toml limits when the spec is silent", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			writeFileSync(
-				join(root, "burrow.toml"),
-				'[sandbox]\nmemory_limit_mb = 3072\nallowed_domains = ["api.anthropic.com"]\ntimeout_minutes = 5\n',
-			);
-			const profile = await buildLocalSandboxProfile({
-				spec: makeSpec({ hostClonePathHint: root, network: "restricted" }),
-				env: {},
-				workspace: fakeWorkspace(),
-				homePath: "/tmp/home",
-			});
-			expect(profile.memoryLimitMb).toBe(3072);
-			expect(profile.allowedDomains).toEqual(["api.anthropic.com"]);
-			expect(profile.timeoutMs).toBe(300_000);
-			expect(profile.network).toBe("restricted");
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
 	test("spec timeoutMs wins over burrow.toml timeout_minutes", async () => {
 		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
 		try {
@@ -333,8 +234,8 @@ describe("buildLocalSandboxProfile", () => {
 	});
 });
 
-describe("resolveToolchainPaths (WARREN_SANDBOX_GIT override, warren-1219)", () => {
-	const ENV = "WARREN_SANDBOX_GIT";
+describe("resolveToolchainPaths (WARREN_GIT_BIN override, warren-1219)", () => {
+	const ENV = "WARREN_GIT_BIN";
 
 	afterEach(() => {
 		delete process.env[ENV];

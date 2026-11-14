@@ -93,6 +93,7 @@ export interface CreatePlanRunResponse {
 }
 
 export interface PlanRunDetailResponse {
+	approval?: import("../core/plan-approval.ts").PlanApproval;
 	planRun: PlanRunRow;
 	children: PlanRunChildRow[];
 	runs: RunRow[];

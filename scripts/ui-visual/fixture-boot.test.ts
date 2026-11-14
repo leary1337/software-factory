@@ -142,13 +142,6 @@ describe("bootFixture", () => {
 		);
 		expect(behavior.mining.totals.toolUses).toBeGreaterThan(0);
 		expect(behavior.mining.totals.failures).toBeGreaterThan(0);
-		const judge = await fetch(
-			`${fixture.output.baseUrl}/extensions/judge/verdicts.jsonl?limit=500&order=desc`,
-			{ headers: { authorization: `Bearer ${FIXTURE_TOKEN}` } },
-		);
-		expect(judge.status).toBe(200);
-		const rows = (await judge.text()).trim().split("\n");
-		expect(rows.length).toBe(fixture.output.ids.telemetry.judgeRows);
 		await get<Record<string, unknown>>("/ops/overview");
 	});
 

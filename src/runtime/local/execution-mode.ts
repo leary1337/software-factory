@@ -1,14 +1,9 @@
-/** Explicit local rollout switch. Unset installations retain their sandbox behavior. */
-export type LocalExecutionMode = "sandbox" | "process";
-
-export function resolveLocalExecutionMode(
+/** The supported local runtime is a trusted host process on macOS. */
+export function assertLocalProcessPlatform(
 	env: Readonly<Record<string, string | undefined>> = process.env,
 	platform: NodeJS.Platform = process.platform,
-): LocalExecutionMode {
-	const mode = env.WARREN_LOCAL_EXECUTION?.trim() || "sandbox";
-	if (mode !== "sandbox" && mode !== "process")
-		throw new Error(`Unknown WARREN_LOCAL_EXECUTION '${mode}'; use sandbox or process`);
-	if (mode === "process" && platform !== "darwin")
-		throw new Error("WARREN_LOCAL_EXECUTION=process currently requires macOS");
-	return mode;
+): void {
+	if (env.WARREN_LOCAL_EXECUTION?.trim() && env.WARREN_LOCAL_EXECUTION.trim() !== "process")
+		throw new Error("WARREN_LOCAL_EXECUTION sandbox mode was retired; remove the setting");
+	if (platform !== "darwin") throw new Error("Local process execution currently requires macOS");
 }

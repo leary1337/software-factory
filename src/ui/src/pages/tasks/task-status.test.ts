@@ -2,6 +2,12 @@ import { describe, expect, test } from "bun:test";
 import type { PlanRunChildRow, PlanRunRow } from "../../api/types.ts";
 import { taskStatus } from "./task-status.ts";
 
+const verification = {
+	sha: "a".repeat(40),
+	environment: "production",
+	checks: { availability: true, version: true, scenario: true } as const,
+	verifiedAt: "2026-01-01T00:00:00Z",
+};
 const plan = { state: "running" } as PlanRunRow;
 const child = { state: "pr_open", reviewStage: "ready_to_merge" } as PlanRunChildRow;
 
@@ -71,15 +77,19 @@ describe("taskStatus", () => {
 		).toBe("stopped");
 	});
 	test("preserves completed tasks when a later task stops the plan", () => {
-		expect(taskStatus({ ...child, state: "merged" }, { ...plan, state: "failed" }).group).toBe(
-			"complete",
-		);
+		expect(
+			taskStatus(
+				{ ...child, state: "merged", productionVerification: verification },
+				{ ...plan, state: "failed" },
+			).group,
+		).toBe("complete");
 	});
 	test("clears an old merge blocker after delivery is confirmed", () => {
 		const result = taskStatus(
 			{
 				...child,
 				state: "merged",
+				productionVerification: verification,
 				reviewMerge: {
 					kind: "blocked",
 					reason: "protected_path",
@@ -89,7 +99,7 @@ describe("taskStatus", () => {
 			},
 			plan,
 		);
-		expect(result.label).toBe("Completed");
+		expect(result.label).toBe("Release verified");
 		expect(result.phase).toBe("Complete");
 		expect(result.detail).toBeUndefined();
 	});

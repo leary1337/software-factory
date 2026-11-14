@@ -6,6 +6,19 @@ const { fixture, cases } = harnessCases();
 for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 	test.describe(`factory-09 ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
+		test("omits empty-description placeholders from task cards", async ({ page }) => {
+			await openCase(page, c, fixture);
+			await expect(
+				page.getByRole("article").getByText("Description not provided.", { exact: true }),
+			).toHaveCount(0);
+		});
+		test("keeps machine failure reasons in diagnostics", async ({ page }) => {
+			await openCase(page, c, fixture);
+			await expect(
+				page.getByRole("region", { name: "Needs attention", exact: true }),
+			).toBeVisible();
+			await expect(page.getByText(/Linked run failed \(provider_error\)/)).toHaveCount(0);
+		});
 		test("shows a standalone task and description without technical prompt expansion", async ({
 			page,
 		}) => {

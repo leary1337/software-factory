@@ -1,3 +1,5 @@
+import { assertProjectReady } from "../../projects/readiness.ts";
+import { readinessDeps } from "./projects.readiness.ts";
 /**
  * PlanRun HTTP handlers (warren-f923 / pl-a258 step 6).
  *
@@ -92,13 +94,18 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
 		const issues = optionalStringArray(body, "issues");
 
 		const projectId = requireString(body, "project");
+		const readiness = await assertProjectReady(readinessDeps(deps), projectId);
 		// warren-6c4c: mint the pre-dispatch refresh-fetch credential per-spawn
 		// through the boot forge (forge-contract.md §4); no config object
 		// holds a token.
 		const project = await deps.repos.projects.require(projectId);
 		const gitSecret = await mintGitCredential(deps.forge, project.gitUrl);
 		const result = await createPlanRun({
+			readiness,
 			projectId,
+			...(optionalString(body, "commandKey")
+				? { commandKey: optionalString(body, "commandKey") }
+				: {}),
 			...(planId !== undefined ? { planId } : {}),
 			...(issues !== undefined ? { issues } : {}),
 			agentName: requireString(body, "agent"),
@@ -198,6 +205,9 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 			? new Map()
 			: await loadPlanRunBudgetView(deps.repos, planRun);
 		return jsonResponse(200, {
+			approval: isPublicOnly(ctx.actor)
+				? undefined
+				: ((await deps.repos.planApprovals.forRun(id)) ?? undefined),
 			planRun: {
 				...projectPlanRun(planRun, ctx.actor),
 				planName: await planName(deps, planRun.projectId, planRun.planId),

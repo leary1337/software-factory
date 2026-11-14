@@ -48,20 +48,19 @@ HOME запуска с правами 0600, без личной конфигур
 
 ## Обычный процесс на Mac
 
-Новый режим включается явно при старте отдельного экземпляра фабрики:
+Фабрика запускает обычные процессы на текущем Mac:
 
 ```sh
 export WARREN_RUNTIME=local
-export WARREN_LOCAL_EXECUTION=process
 export WARREN_DATA_DIR="$HOME/Library/Application Support/Warren"
 export WARREN_AUTOMATIC_MAX_CONCURRENT_RUNS=1
 bun src/cli/main.ts up
 ```
 
-`WARREN_LOCAL_EXECUTION` без значения сохраняет `sandbox`; неизвестное значение
-останавливает запуск. `process` пока доступен только на macOS и принимает
-только Codex, включая роли исполнителя и ревьюера. Для Claude Code сохраняется
-прежний режим `sandbox`. Linux/VPS этим переключателем не переводится.
+Системный sandbox-режим удалён. Старое значение `WARREN_LOCAL_EXECUTION=sandbox`
+отклоняется с объяснением; `process` можно убрать из окружения. Поддерживается
+macOS и Codex, включая роли исполнителя и ревьюера. Linux/VPS и подключение
+Claude Code отложены; исторические данные остаются доступны.
 
 При необходимости задай `WARREN_CODEX_BIN` абсолютным путём к Codex CLI.
 Без него бинарный файл ищется в PATH, как раньше. Источник ChatGPT-авторизации
@@ -74,11 +73,11 @@ bun src/cli/main.ts up
 группу процессов при отмене, таймауте, выходе агента и потере сервера.
 Повторный запуск автоматически этим режимом не создаётся.
 
-Системной песочницы, принудительных лимитов CPU/RAM и сетевого allowlist в
-`process` нет. Настройка `restricted` исполняется с открытой сетью;
-`network=none` отклоняется. Возможности runtime показывают отсутствие этих
-ограничений. Preview sidecars в этом режиме выключены. `doctor` и подключение
-проекта пропускают проверки bwrap/sandbox-exec, сохраняя остальные проверки.
+Системной песочницы, принудительных лимитов CPU/RAM и сетевого allowlist нет.
+Старые sandbox/network/resource настройки не создают ограничений ОС.
+Preview запускается обычным процессом с отдельным guardian; отмена и удаление
+задачи дожидаются его завершения, не затрагивая процессы других задач.
+`doctor`, `/readyz` и подключение проекта не запускают sandbox-exec/bwrap.
 
 ## Навыки и сеть
 
@@ -88,32 +87,8 @@ Claude-инструменты исполняются через доступны
 используются, только если текущий CLI их предоставляет; иначе ревью проходит
 последовательно с указанием этого ограничения.
 
-Внутренняя песочница Codex CLI отключена в обоих режимах. В режиме `sandbox`
-работает внешняя песочница Warren; сеть остаётся `restricted`; в стандартный список входят
-`chatgpt.com`, `auth.openai.com`, `api.openai.com` и домены инструментов проекта.
-HTTP-прокси Warren используется и для модели; WebSocket-транспорт отключён.
-Login shell отключён, чтобы системный профиль macOS не подменял PATH
-инструментов Warren.
-
-## Браузерные тесты на macOS
-
-Playwright может запускать установленный в `/Applications` Google Chrome
-с `channel: "chrome"`; для `@playwright/cli` используется `--browser chrome`.
-Warren разрешает чтение файлов приложения, регистрацию канала связи Chrome
-и создание его временного `SingletonSocket`. Подключение к сокетам браузера
-основного пользователя и доступ к его личному профилю не разрешаются.
-
-В песочнице выставляется `PLAYWRIGHT_MCP_SANDBOX=false`: macOS запрещает
-повторную инициализацию Seatbelt внутри уже изолированного процесса.
-Внешняя песочница Warren и ограничения сети остаются активными. Для прямого
-Playwright API оставляй стандартное `chromiumSandbox: false`.
-Браузерные проверки используют отдельный временный профиль и HOME запуска.
-По умолчанию `TMPDIR` указывает на приватный HOME: Unix-сокеты Playwright CLI
-и других инструментов создаются внутри разрешённой области. Явный `TMPDIR`
-команды или профиля сохраняется; общий `/tmp` не разрешает IPC с хостом.
-Запросы к `localhost`, `127.0.0.1` и `::1` обходят HTTP proxy через
-`NO_PROXY`/`no_proxy`, чтобы smoke мог обращаться к локальному приложению.
-Внешние адреса по-прежнему проходят через allowlist proxy.
+Внутренняя песочница Codex CLI отключена для согласованного доверенного запуска.
+Сеть открыта; дополнительные инструменты настраиваются общим набором фабрики.
 
 ## Остановка и восстановление
 
@@ -146,7 +121,7 @@ git clone -b warren-recovery /path/to/data/recovery/run_id.bundle recovered-work
 публикует ошибку удаления. Не удаляй его до ручного восстановления.
 
 Журнал credentials хранится вне приватного HOME и не содержит токены.
-В режиме `process` отдельный путь не является ограничением доступа ОС.
+Отдельный путь не является ограничением доступа ОС.
 При следующем восстановлении runtime проверяет окончание процесса, аккаунт
 и исходный auth-файл, сохраняет обновление и удаляет временные credentials.
 Если запись не удалась, журнал и временный auth-файл остаются на диске.
@@ -169,3 +144,19 @@ git clone -b warren-recovery /path/to/data/recovery/run_id.bundle recovered-work
 
 Контракты OpenAI: [авторизация](https://developers.openai.com/codex/auth),
 [неинтерактивный режим](https://developers.openai.com/codex/noninteractive).
+
+### Project environment preparation
+
+Project settings expose a preparation recipe, an optional command, a timeout,
+and tool versions or absolute executable paths. Operator settings override the
+repository defaults in `.warren/config.yaml`. Each agent checkout and each
+independent verification checkout runs preparation separately. Download caches
+are shared; installed `node_modules` and Python virtual environments are not.
+
+Automatic detection supports an existing JavaScript lockfile, Python with uv.lock,
+and Go modules. Multiple detected stacks require an explicit recipe or command.
+JavaScript uses its existing package manager with frozen installation; Python uses
+`uv sync --frozen` in a private `.venv`; Go uses the selected toolchain and verifies
+module downloads. Preparation does not migrate the application stack. A failed or
+cancelled preparation stops that stage and records the environment error before
+an agent can report success.

@@ -1,3 +1,4 @@
+import { TaskBudgetSchema } from "../plan-runs/approval-schema.ts";
 /**
  * Zod schemas for the per-project `.warren/` config files.
  *   triggers.yaml    array of trigger entries (YAML for cron readability)
@@ -40,9 +41,11 @@
 import { z } from "zod";
 import { KNOWN_RUNTIME_IDS } from "../core/wire.ts";
 import { parseDurationMs } from "../preview/duration.ts";
+import { PreparationRecipeSchema } from "../projects/preparation-schema.ts";
 // warren-2b75: one agent-name grammar, owned by the registry and shared
 // here so role names and registry names can never drift apart.
 import { AGENT_NAME_PATTERN } from "../registry/agent-name.ts";
+import { ExecutionProfilesSchema } from "../runtime/adapters/execution-profiles.ts";
 import { AcceptanceConfigSchema } from "./acceptance-config.ts";
 import { CiFixerConfigSchema, HealerConfigSchema } from "./feature-loop-config.ts";
 import { MigrationsConfigSchema } from "./migrations-config.ts";
@@ -352,6 +355,7 @@ export const DefaultsConfigSchema = z.preprocess(
 	z
 		.object({
 			defaultRole: RoleNameSchema.optional(),
+			executionProfiles: ExecutionProfilesSchema.optional(),
 			defaultBranch: z.string().min(1, "defaultBranch must be non-empty if provided").optional(),
 			defaultPrompt: PromptSchema.optional(),
 			// warren-618b: free-text provider/model defaults applied at spawn time the
@@ -392,6 +396,9 @@ export const DefaultsConfigSchema = z.preprocess(
 			healer: HealerConfigSchema.optional(),
 			acceptance: AcceptanceConfigSchema.optional(),
 			qualityGate: z.string().min(1, "qualityGate must be non-empty if provided").optional(),
+			preparation: PreparationRecipeSchema.optional(),
+			memoryEnabled: z.boolean().optional(),
+			taskBudgets: TaskBudgetSchema.partial().optional(),
 			// warren-540f: free-text per-project onboarding context injected into
 			// every dispatched agent's prompt by composeDispatchPrompt. This is where
 			// "this is a Python repo, the gate is pytest -q, there is no tracker here"

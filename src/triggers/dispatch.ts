@@ -30,6 +30,7 @@
 import { formatError, NotFoundError } from "../core/errors.ts";
 import type { ScheduledIssue } from "../core/wire.ts";
 import type { Repos } from "../db/repos/index.ts";
+import { isRetiredPatrol, RETIRED_PATROL_REASON } from "../registry/retired-agents.ts";
 import { RunCapacityError } from "../runs/spawn/admission.ts";
 import type { CronTrigger, DefaultsConfig } from "../warren-config/index.ts";
 import { parseCron } from "./cron.ts";
@@ -144,6 +145,8 @@ export type DispatchCronResult =
 	  };
 
 export async function dispatchCronTrigger(input: DispatchCronInput): Promise<DispatchCronResult> {
+	if (isRetiredPatrol(input.trigger.role))
+		return { kind: "skipped", nextFireAt: null, reason: RETIRED_PATROL_REASON };
 	const parseInput: { expression: string; timezone?: string } = {
 		expression: input.trigger.cron,
 		...(input.trigger.timezone !== undefined ? { timezone: input.trigger.timezone } : {}),
@@ -288,6 +291,8 @@ export async function dispatchScheduledSeed(
 	}
 
 	const role = input.defaults?.defaultRole;
+	if (isRetiredPatrol(role))
+		return { kind: "skipped", seedId: input.seed.id, reason: RETIRED_PATROL_REASON };
 	if (role === undefined || role === "") {
 		return {
 			kind: "error",

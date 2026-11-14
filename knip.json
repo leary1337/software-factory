@@ -20,8 +20,7 @@
 		},
 		"src/ui": {
 			"entry": ["index.html"],
-			"project": ["src/**/*.{ts,tsx}"],
-			"ignoreDependencies": ["@fontsource-variable/.+"]
+			"project": ["src/**/*.{ts,tsx}"]
 		}
 	}
 }

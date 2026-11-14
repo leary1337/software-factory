@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { claudeToolkitConfig } from "../../toolkit/catalog.ts";
 import {
 	CLAUDE_CODE_SANDBOX_TMPDIR,
 	CLAUDE_CODE_SETTINGS_PATH,
@@ -73,6 +74,8 @@ describe("claudeCodeAdapter.buildSpawnCommand", () => {
 			"stream-json",
 			"--verbose",
 			"--dangerously-skip-permissions",
+			"--mcp-config",
+			claudeToolkitConfig("/ws"),
 		]);
 		expect(typeof cmd?.stdin).toBe("string");
 		const lines = (cmd?.stdin ?? "").split("\n");
@@ -173,10 +176,12 @@ describe("claudeCodeAdapter.prepareWorkspace", () => {
 			frontmatter: { mulch: "on" },
 		});
 		const parsed = JSON.parse(await readFile(join(dir, CLAUDE_CODE_SETTINGS_PATH), "utf8"));
-		expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("ml prime");
+		expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain("ml prime");
 		expect(parsed.hooks.PreToolUse[0]).toEqual({
 			matcher: "Read|Edit|Write|MultiEdit|NotebookEdit|Bash",
-			hooks: [{ type: "command", command: "ml hook" }],
+			hooks: [
+				{ type: "command", command: "if command -v ml >/dev/null 2>&1; then ml hook; fi; true" },
+			],
 		});
 	});
 

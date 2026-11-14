@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { filterRepos, repoLabel, repoPickerMode } from "./add-project-repo-picker.helpers.ts";
+import { NewProjectForm } from "./new-project-form.tsx";
 
 /**
  * "＋ Add project" dialog (warren-e228 / pl-7e38 step 9; repo picker
@@ -80,6 +81,7 @@ export function AddProjectDialog({
 						Clone a GitHub repository so warren can run against it.
 					</DialogDescription>
 				</DialogHeader>
+				<NewProjectForm onCreated={() => onOpenChange(false)} />
 				<form onSubmit={handleSubmit} className="grid gap-4">
 					{mode === "picker" ? (
 						<div className="space-y-1.5">

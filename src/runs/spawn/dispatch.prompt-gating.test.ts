@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type WarrenDb } from "../../db/client.ts";
@@ -60,6 +60,7 @@ describe("spawnRun: prompt-fragment gating (warren-cb46)", () => {
 		const system = result.agent.sections.system ?? "";
 		expect(system).not.toContain(".seeds");
 		expect(system).not.toContain(".mulch");
+		expect(result.agent.frontmatter.mulch).toBe("off");
 		expect(system).not.toMatch(/`sd /);
 		expect(system).not.toMatch(/`ml prime`/);
 		// The composed body is what got frozen onto the run row.
@@ -72,31 +73,44 @@ describe("spawnRun: prompt-fragment gating (warren-cb46)", () => {
 		expect(dispatchBody.prompt.startsWith(system)).toBe(true);
 	});
 
-	test("seeds+mulch project: tracker workflow and expertise text return", async () => {
-		mkdirSync(join(clonePath, ".seeds"));
-		mkdirSync(join(clonePath, ".mulch"));
-		await repos.projects.create({
-			id: "prj_xxxxxxxxxxxx",
-			gitUrl: "https://github.com/x/y.git",
-			localPath: clonePath,
-			defaultBranch: "main",
-			hasSeeds: true,
-		});
-		const { client } = makeSandboxClient();
-		const result = await spawnRun({
-			repos,
-			runtimeProvider: makeProvider(client),
-			agentName: "claude-code",
-			projectId: "prj_xxxxxxxxxxxx",
-			prompt: "fix it",
-			issueTracker: GIT_NATIVE_TRACKER,
-		});
+	test.each([
+		{ memoryEnabled: false, mulchArm: undefined, enabled: false },
+		{ memoryEnabled: true, mulchArm: undefined, enabled: true },
+		{ memoryEnabled: false, mulchArm: "on" as const, enabled: true },
+		{ memoryEnabled: true, mulchArm: "off" as const, enabled: false },
+	])(
+		"applies memory opt-in and per-run overrides %j while preserving records",
+		async ({ memoryEnabled, mulchArm, enabled }) => {
+			mkdirSync(join(clonePath, ".seeds"));
+			mkdirSync(join(clonePath, ".mulch"));
+			await repos.projects.create({
+				id: "prj_xxxxxxxxxxxx",
+				gitUrl: "https://github.com/x/y.git",
+				localPath: clonePath,
+				defaultBranch: "main",
+				hasSeeds: true,
+			});
+			await repos.projectSettings.compareAndSet("prj_xxxxxxxxxxxx", 0, { memoryEnabled });
+			const { client } = makeSandboxClient();
+			const result = await spawnRun({
+				repos,
+				runtimeProvider: makeProvider(client),
+				agentName: "claude-code",
+				projectId: "prj_xxxxxxxxxxxx",
+				prompt: "fix it",
+				mulchArm,
+				issueTracker: GIT_NATIVE_TRACKER,
+			});
 
-		const system = result.agent.sections.system ?? "";
-		expect(system).toContain(".seeds/issues.jsonl");
-		expect(system).toContain(".mulch/expertise");
-		expect(system).toMatch(/`ml prime`/);
-	});
+			const system = result.agent.sections.system ?? "";
+			expect(system).toContain(".seeds/issues.jsonl");
+			expect(system.includes(".mulch/expertise")).toBe(enabled);
+			expect(result.agent.frontmatter.mulch).toBe(enabled ? "on" : "off");
+			const provision = client.calls[0]?.body as { env: Record<string, string> };
+			expect(provision.env.WARREN_MEMORY_ENABLED).toBe(enabled ? "1" : "0");
+			expect(existsSync(join(clonePath, ".mulch"))).toBe(true);
+		},
+	);
 });
 
 async function openTestDb(): Promise<{ db: WarrenDb; repos: Repos }> {

@@ -1,7 +1,4 @@
-// Thin fetch wrapper around the warren HTTP API (docs/http-api.md). Bearer
-// token comes from localStorage; mutated via `setApiToken` after the
-// login screen accepts it. A 401 clears the cached token so the
-// router can redirect back to login on the next render pass.
+// Browser HTTP client. Authentication follows the same-origin server session.
 
 import { readNdjsonStream } from "../../../client/ndjson.ts";
 import type { ProjectDeployResponse } from "./deploy-types.ts";
@@ -92,12 +89,6 @@ export function setApiToken(token: string | null): void {
 	}
 }
 
-/**
- * Drop the cached token after a 401, but only when it is the token the
- * rejected request carried. A request sent before sign-in (no token)
- * can land its 401 after the login form stores a fresh token; clearing
- * then would bounce a valid login back to the sign-in page.
- */
 function clearRejectedToken(sent: string | null): void {
 	if (sent !== null && getApiToken() === sent) setApiToken(null);
 }
@@ -147,13 +138,6 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 /* Agents                                                                   */
 /* ----------------------------------------------------------------------- */
 
-/**
- * Optional projectId filter for agent reads (R-03 / pl-fef5 step 6).
- * When set, the server returns global ∪ that project's tier on `list`,
- * and resolves project-first with global fallback on `get`. Empty string
- * is rejected by the server, so callers must omit the filter rather than
- * passing `""` when no project is selected.
- */
 export interface AgentsFilter {
 	projectId?: string;
 }
@@ -180,9 +164,21 @@ export const agentsApi = {
 /* ----------------------------------------------------------------------- */
 
 export const projectsApi = {
+	settings: (id: string, signal?: AbortSignal) =>
+		request<import("../../../core/project-settings.ts").ProjectSettingsResponse>(
+			`/projects/${encodeURIComponent(id)}/settings`,
+			{ ...(signal ? { signal } : {}) },
+		),
+	updateSettings: (
+		id: string,
+		input: import("../../../core/project-settings.ts").ProjectSettingsUpdate,
+	) =>
+		request<import("../../../core/project-settings.ts").ProjectSettingsResponse>(
+			`/projects/${encodeURIComponent(id)}/settings`,
+			{ method: "PATCH", body: input },
+		),
 	list: (signal?: AbortSignal) =>
 		request<{ projects: ProjectRow[] }>("/projects", { ...(signal ? { signal } : {}) }),
-	/** Bare-row envelope, matching the SDK's `getProject()` (warren-435b). */
 	get: (id: string, signal?: AbortSignal) =>
 		request<ProjectRow>(`/projects/${encodeURIComponent(id)}`, {
 			...(signal ? { signal } : {}),
@@ -209,30 +205,16 @@ export const projectsApi = {
 			`/projects/${encodeURIComponent(id)}/triggers/${encodeURIComponent(triggerId)}/run`,
 			{ method: "POST", body: {} },
 		),
-	/**
-	 * `GET /projects/:id/seeds/:seedId` — read a seed's current status
-	 * (warren-4015).
-	 */
 	seedStatus: (id: string, seedId: string, signal?: AbortSignal) =>
 		request<SeedStatusResponse>(
 			`/projects/${encodeURIComponent(id)}/seeds/${encodeURIComponent(seedId)}`,
 			{ ...(signal ? { signal } : {}) },
 		),
-	/**
-	 * `GET /projects/:id/seeds/plans` — list the project's seeds plans
-	 * (warren-9b49). Populates the plan-run dispatch form's plan-id
-	 * selector with a manual-entry fallback.
-	 */
 	seedPlans: (id: string, signal?: AbortSignal) =>
 		request<SeedPlansResponse>(`/projects/${encodeURIComponent(id)}/seeds/plans`, {
 			...(signal ? { signal } : {}),
 		}),
 
-	/**
-	 * `GET /projects/:id/ready-plans` — approved plans with ≥1 open child
-	 * seed that have not yet been dispatched (warren-7937). Powers the
-	 * "Ready to dispatch" operator surface.
-	 */
 	deployOverview: (id: string, signal?: AbortSignal) =>
 		request<ProjectDeployResponse>(`/projects/${encodeURIComponent(id)}/deploy`, {
 			...(signal ? { signal } : {}),
@@ -252,7 +234,6 @@ export const projectsApi = {
 /* Event explorer (`GET /events`, pl-7e38 step 15 / warren-5eec)          */
 /* ----------------------------------------------------------------------- */
 
-/** One event row on the global query — the same eight-key wire shape the per-run NDJSON stream emits, as JSON. */
 export interface EventExplorerRow {
 	id: number;
 	runId: string;
@@ -264,7 +245,6 @@ export interface EventExplorerRow {
 	payload: unknown;
 }
 
-/** Response envelope of `GET /events` — one bounded page plus the filtered total. */
 export interface EventsListResponse {
 	events: EventExplorerRow[];
 	total: number;
@@ -273,11 +253,8 @@ export interface EventsListResponse {
 }
 
 export interface EventsQueryFilterUI {
-	/** Run id — rides `events_run_seq_idx`. */
 	runId?: string;
-	/** Project id — inner join through `runs`. */
 	projectId?: string;
-	/** Exact event kind (open string: the harness vocabulary). */
 	kind?: string;
 	/** One of the canonical `EVENT_STREAMS` (server-validated). */
 	stream?: EventStream;
@@ -455,12 +432,6 @@ export const planRunsApi = {
 	events: (id: string, opts: StreamRunEventsOptions = {}) => streamPlanRunEvents(id, opts),
 };
 
-/**
- * NDJSON tail of every child run's events for a plan-run
- * (`GET /plan-runs/:id/events`). Each yielded envelope shares the
- * `RunEvent` shape — the server uses the same `eventToNdjson` serializer
- * as `/runs/:id/events`, with `runId` discriminating between children.
- */
 export async function* streamPlanRunEvents(
 	planRunId: string,
 	opts: StreamRunEventsOptions = {},
@@ -676,4 +647,81 @@ export const runAnalyticsApi = {
 			...(signal ? { signal } : {}),
 		});
 	},
+};
+
+export const toolkitApi = {
+	status: (signal?: AbortSignal) =>
+		request<import("../../../core/wire-toolkit.ts").ToolkitStatus>("/toolkit", { signal }),
+	check: () =>
+		request<import("../../../core/wire-toolkit.ts").ToolkitCheck>("/toolkit/check", {
+			method: "POST",
+			body: {},
+		}),
+	apply: (version: string) =>
+		request<import("../../../core/wire-toolkit.ts").ToolkitStatus>("/toolkit/apply", {
+			method: "POST",
+			body: { version },
+		}),
+};
+
+export const approvalsApi = {
+	prepare: (input: import("../../../core/plan-approval.ts").PreparePlanApproval) =>
+		request<{ approval: import("../../../core/plan-approval.ts").PlanApproval }>(
+			"/plan-approvals",
+			{ method: "POST", body: input },
+		),
+	get: (id: string, signal?: AbortSignal) =>
+		request<{ approval: import("../../../core/plan-approval.ts").PlanApproval }>(
+			`/plan-approvals/${encodeURIComponent(id)}`,
+			{ signal },
+		),
+	start: (id: string) =>
+		request<CreatePlanRunResponse>(`/plan-approvals/${encodeURIComponent(id)}/start`, {
+			method: "POST",
+			body: {},
+		}),
+	history: (id: string, signal?: AbortSignal) =>
+		request<import("../../../core/plan-approval.ts").PlanApprovalHistory>(
+			`/plan-runs/${encodeURIComponent(id)}/approval`,
+			{ signal },
+		),
+	revise: (id: string, input: import("../../../core/plan-approval.ts").RevisePlanApproval) =>
+		request<{ approval: import("../../../core/plan-approval.ts").PlanApproval }>(
+			`/plan-runs/${encodeURIComponent(id)}/revisions`,
+			{ method: "POST", body: input },
+		),
+};
+
+export const readinessApi = {
+	get: (id: string, signal?: AbortSignal) =>
+		request<import("../../../core/readiness.ts").ProjectReadiness>(
+			`/projects/${encodeURIComponent(id)}/readiness`,
+			{ signal },
+		),
+	check: (id: string) =>
+		request<import("../../../core/readiness.ts").ProjectReadiness>(
+			`/projects/${encodeURIComponent(id)}/readiness/check`,
+			{ method: "POST", body: {} },
+		),
+	setup: (id: string) =>
+		request<import("../../../core/readiness.ts").ProjectSetupProposal>(
+			`/projects/${encodeURIComponent(id)}/setup-pr`,
+			{ method: "POST", body: {} },
+		),
+};
+
+export const newProjectsApi = {
+	preview: (input: import("../../../core/new-project.ts").NewProjectRequest) =>
+		request<import("../../../core/new-project.ts").NewProjectPreview>("/projects/new/preview", {
+			method: "POST",
+			body: input,
+		}),
+	create: (input: {
+		request: import("../../../core/new-project.ts").NewProjectRequest;
+		confirmation: string;
+	}) =>
+		request<{ project: ProjectRow; created: boolean; ready: false }>("/projects/new", {
+			method: "POST",
+			body: input,
+		}),
 };

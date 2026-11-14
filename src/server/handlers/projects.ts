@@ -19,7 +19,6 @@ import {
 	refreshProject,
 } from "../../projects/index.ts";
 import { spawnRun } from "../../runs/index.ts";
-import { sandboxGitPreflightCached } from "../../sandbox/git-preflight.ts";
 import type { IssueTracker, PlanCapableTracker } from "../../tracker/contract.ts";
 import { buildTriggerSummaries, parseCron, resolveCronPrompt } from "../../triggers/index.ts";
 import type { CronTrigger } from "../../warren-config/index.ts";
@@ -125,11 +124,6 @@ export function createProjectHandler(deps: ServerDeps): RouteHandler {
 			...(defaultBranch !== undefined ? { defaultBranch } : {}),
 			...(gitSecret !== undefined ? { gitCredential: gitSecret } : {}),
 			spawn: defaultSpawn,
-			// warren-1219: on the local topology, prove the sandbox git executes before cloning (no probe under docker/k8s).
-			...(deps.runtimeProvider.kind === "local" &&
-			deps.runtimeProvider.capabilities.networkPolicy !== "none"
-				? { sandboxGitPreflight: sandboxGitPreflightCached }
-				: {}),
 		});
 		return jsonResponse(201, project);
 	};

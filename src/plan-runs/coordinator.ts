@@ -1,4 +1,9 @@
+import type { TaskAttemptKind } from "../core/plan-approval.ts";
 import type { ReviewFinding } from "../core/review-findings.ts";
+import { syncApprovedSeeds } from "../seeds-cli/approved-plan-store.ts";
+import { approvedIssueReader } from "./approved-dispatch.ts";
+import { TaskBudgetExceededError } from "./task-budget.ts";
+import { assertExternalWaitBudget, recordTaskWait } from "./task-wait.ts";
 /**
  * Per-PlanRun decision loop (pl-a258 step 5 / warren-2623).
  *
@@ -51,11 +56,15 @@ import type { MergeStallProbe } from "./merge-stall.ts";
 
 export type { CoordinatorReopenPrFn } from "./merge-gate.ts";
 
-export type CoordinatorRepos = Pick<Repos, "planRuns" | "runs" | "events">;
+export type CoordinatorRepos = Pick<Repos, "planRuns" | "runs" | "events"> &
+	Partial<Pick<Repos, "planApprovals" | "planEffects" | "taskAttempts">>;
 
 export type CoordinatorGetIssueFn = (projectId: string, issueId: string) => Promise<Issue>;
 
 export interface CoordinatorSpawnInput {
+	readonly recoveryOf?: string;
+	readonly attemptKey?: string;
+	readonly attemptKind?: TaskAttemptKind;
 	readonly reviewFindings?: readonly ReviewFinding[];
 	readonly planRun: PlanRunRow;
 	readonly child: PlanRunChildRow;
@@ -80,6 +89,7 @@ export type CoordinatorMergeFn = (
 	branch: string,
 	reviewedCommit: string,
 	projectId: string,
+	approvalContext?: { planRunId: string; seq: number },
 ) => Promise<ReviewMergeResult>;
 
 /** Idempotent PR comment; failures propagate so delivery can retry. */
@@ -117,6 +127,7 @@ export const PLAN_RUN_EVENT_KINDS = [
 	"plan_run.succeeded",
 	"plan_run.waiting_for_pr_reopen",
 	"plan_run.child_retried",
+	"plan_run.deployment_repair",
 	"plan_run.resumed",
 	"plan_run.review_step",
 	"plan_run.review_retry_requested",
@@ -128,6 +139,10 @@ export const PLAN_RUN_EVENT_KINDS = [
 	"plan_run.review_merged",
 	"plan_run.review_comment_attempt",
 	"plan_run.review_commented",
+	"plan_run.release_pending",
+	"plan_run.rollback_attempt",
+	"plan_run.rollback_verified",
+	"plan_run.rollback_failed",
 	"plan_run.deployment_attempt",
 	"plan_run.deployment_dispatched",
 	"plan_run.deployment_verified",
@@ -192,9 +207,54 @@ export async function advancePlanRun(input: AdvancePlanRunInput): Promise<Advanc
 		const planRun = await input.repos.planRuns.require(input.planRun.id);
 		if (planRun.state !== "queued" && planRun.state !== "running")
 			return { kind: "noop", reason: "plan is terminal" };
+		const approval = await input.repos.planApprovals?.forRun(planRun.id);
+		if (approval)
+			await syncApprovedSeeds(approval, await input.repos.planRuns.listChildren(planRun.id));
+		const activeChild = (await input.repos.planRuns.listChildren(planRun.id)).find(
+			(child) => IN_FLIGHT_STATES.includes(child.state) || child.state === "pending",
+		);
+		if (activeChild) {
+			try {
+				await assertExternalWaitBudget(input.repos, planRun.id, activeChild.seq, input.now?.());
+			} catch (error) {
+				if (!(error instanceof TaskBudgetExceededError)) throw error;
+				const reason = formatError(error);
+				const endedAt = (input.now?.() ?? new Date()).toISOString();
+				await input.repos.planRuns.updateChild({
+					planRunId: planRun.id,
+					seq: activeChild.seq,
+					patch: { state: "failed", failureReason: reason, endedAt },
+				});
+				await input.repos.planRuns.transitionTo(planRun.id, "failed", {
+					failureReason: reason,
+					endedAt,
+				});
+				await recordTaskWait(input.repos, planRun.id, activeChild.seq, false, input.now?.());
+				return { kind: "plan_failed", failedSeq: activeChild.seq, reason };
+			}
+		}
 		const blocked = await input.deploymentBlocked?.(planRun);
-		if (blocked) return { kind: "noop", reason: blocked };
-		return advanceLocked({ ...input, planRun });
+		if (blocked) {
+			if (activeChild)
+				await recordTaskWait(input.repos, planRun.id, activeChild.seq, true, input.now?.());
+			return { kind: "noop", reason: blocked };
+		}
+		const result = await advanceLocked({
+			...input,
+			planRun,
+			getIssue: await approvedIssueReader(input.repos, planRun.id, input.getIssue),
+		});
+		if (approval)
+			await syncApprovedSeeds(approval, await input.repos.planRuns.listChildren(planRun.id));
+		if (activeChild)
+			await recordTaskWait(
+				input.repos,
+				planRun.id,
+				activeChild.seq,
+				isExternalWait(result),
+				input.now?.(),
+			);
+		return result;
 	});
 }
 
@@ -330,7 +390,11 @@ async function advanceLocked(input: AdvancePlanRunInput): Promise<AdvanceResult>
 
 		// Dispatch the next child; legacy {seed_id}-only template render.
 		// Every occurrence is substituted (warren-b3be).
-		const prompt = renderPlanRunPrompt(planRun.promptTemplate, next.seedId);
+		const prompt =
+			renderPlanRunPrompt(planRun.promptTemplate, next.seedId) +
+			(issue.metadata?.approvalId
+				? `\n\n## Approved task: ${issue.title}\n${issue.description}`
+				: "");
 		let spawnResult: CoordinatorSpawnResult;
 		try {
 			spawnResult = await input.spawn({ planRun, child: next, prompt });
@@ -398,4 +462,12 @@ function mostRecentDispatchedRunId(children: readonly PlanRunChildRow[]): string
 		if (child !== undefined && child.runId !== null) return child.runId;
 	}
 	return null;
+}
+
+function isExternalWait(result: AdvanceResult): boolean {
+	return (
+		result.kind === "waiting_for_merge" ||
+		result.kind === "waiting_for_parent_merge" ||
+		(result.kind === "noop" && result.reason.startsWith("pr_reopen_pending:"))
+	);
 }

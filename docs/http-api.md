@@ -7,7 +7,7 @@ This page enumerates every HTTP route registered by warren's `Bun.serve` router.
 
 To refresh: `bun run gen:docs`. To check (CI mode): `bun run gen:docs:check`.
 
-Total routes: **57**.
+Total routes: **71**.
 
 ## /agents
 
@@ -36,12 +36,6 @@ Total routes: **57**.
 | --- | --- | --- | --- |
 | `GET` | `/events` | `listEventsHandler` | pl-7e38 step 15 (warren-5eec): cross-run Event explorer query, same per-row `projectEvent` reduction. |
 | `GET` | `/events/stream` | `streamLifecycleEventsHandler` | warren-f566: the global lifecycle notification stream (NDJSON, one `{runId, hook, state, ts}` line per lifecycle transition). The list pages hold ONE connection per tab and debounce-invalidate their list queries instead of polling /runs every 5s. `?follow=0` is a probe shorthand (immediate clean close, empty body). Operator-gated — a public spectator never gets a held-open feed of every run id on the instance (scenario 39); it stays on the fallback poll. |
-
-## /extensions
-
-| Method | Pattern | Handler | Notes |
-| --- | --- | --- | --- |
-| `GET` | `/extensions/judge/verdicts.jsonl` | `judgeVerdictsProxyHandler` | warren-1b40: operator-gated reverse proxy to the judge extension's /verdicts.jsonl export. Server-held base URL + export token from env (see ./judge-proxy.ts); never the SPA fallback. |
 
 ## /forge
 
@@ -81,10 +75,20 @@ Total routes: **57**.
 | --- | --- | --- | --- |
 | `GET` | `/ops/overview` | `opsOverviewHandler` | pl-7e38 step 12 (warren-d850): one-poll Operations snapshot, readPublic with a reduced projection. |
 
+## /plan-approvals
+
+| Method | Pattern | Handler | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/plan-approvals` | `preparePlanApprovalHandler` |  |
+| `GET` | `/plan-approvals/:id` | `getPlanApprovalHandler` |  |
+| `POST` | `/plan-approvals/:id/start` | `startPlanApprovalHandler` |  |
+
 ## /plan-runs
 
 | Method | Pattern | Handler | Notes |
 | --- | --- | --- | --- |
+| `POST` | `/plan-runs/:id/revisions` | `revisePlanApprovalHandler` |  |
+| `GET` | `/plan-runs/:id/approval` | `planApprovalHistoryHandler` |  |
 | `GET` | `/plan-runs` | `listPlanRunsHandler` |  |
 | `POST` | `/plan-runs` | `createPlanRunHandler` |  |
 | `GET` | `/plan-runs/:id` | `getPlanRunHandler` |  |
@@ -105,7 +109,14 @@ Total routes: **57**.
 | --- | --- | --- | --- |
 | `GET` | `/projects` | `listProjectsHandler` |  |
 | `POST` | `/projects` | `createProjectHandler` |  |
+| `POST` | `/projects/new/preview` | `previewNewProjectHandler` |  |
+| `POST` | `/projects/new` | `createNewProjectHandler` |  |
+| `GET` | `/projects/:id/readiness` | `projectReadinessHandler` |  |
+| `POST` | `/projects/:id/readiness/check` | `projectReadinessHandler` |  |
+| `POST` | `/projects/:id/setup-pr` | `projectSetupHandler` |  |
 | `GET` | `/projects/:id` | `getProjectHandler` |  |
+| `GET` | `/projects/:id/settings` | `projectSettingsHandler` |  |
+| `PATCH` | `/projects/:id/settings` | `projectSettingsHandler` |  |
 | `GET` | `/projects/:id/warren-config` | `getProjectWarrenConfigHandler` |  |
 | `GET` | `/projects/:id/triggers` | `getProjectTriggersHandler` |  |
 | `GET` | `/projects/:id/seeds/plans` | `listProjectSeedPlansHandler` | Static path — must precede the :seedId param route so "plans" isn't swallowed as a seed id. |
@@ -148,6 +159,14 @@ Total routes: **57**.
 | Method | Pattern | Handler | Notes |
 | --- | --- | --- | --- |
 | `GET` | `/setup` | `setupHandoffHandler` | warren-48f8: setup-code redemption; anonymous by necessity — the code IS the auth. 404 unless the boot armed the handoff (src/server/setup-handoff.ts). |
+
+## /toolkit
+
+| Method | Pattern | Handler | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/toolkit` | `toolkitStatusHandler` |  |
+| `POST` | `/toolkit/check` | `toolkitCheckHandler` |  |
+| `POST` | `/toolkit/apply` | `toolkitApplyHandler` |  |
 
 ## /version
 

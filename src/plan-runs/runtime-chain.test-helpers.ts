@@ -15,8 +15,10 @@ import type { AgentRuntimeAdapter } from "../runtime/adapters/types.ts";
 import { LocalProvider } from "../runtime/local/provider.ts";
 import { LocalRunStore } from "../runtime/local/run-store.ts";
 import { createBridgeRegistry } from "../server/bridges.ts";
+import { activeToolkitVersion } from "../toolkit/versions.ts";
 import { createWarrenConfigCache } from "../warren-config/cache.ts";
 import { fixtureGitOrThrow } from "../workspace/git/test-fixture.ts";
+import { preparePlanApproval, startApprovedPlan } from "./approval.ts";
 import { advancePlanRun, type CoordinatorEmitFn } from "./coordinator.ts";
 import { createPlanRunSpawn } from "./dispatch.ts";
 import { createReviewedMerge, createReviewHeadReader } from "./review-forge.ts";
@@ -81,8 +83,11 @@ function nextVerdict(verdicts: string[]): string {
 export async function runtimeChain(
 	verdicts: string[],
 	gate = "test -f .warren/config.yaml && test -f change-1.txt",
+	options: { approved?: boolean; pauseRole?: string } = {},
 ) {
 	const root = await realpath(await mkdtemp(join(tmpdir(), "factory-chain-")));
+	const previousData = process.env.WARREN_DATA_DIR;
+	process.env.WARREN_DATA_DIR = join(root, "data");
 	const remote = join(root, "remote.git");
 	const host = join(root, "host");
 	await fixtureGitOrThrow(root, ["init", "--bare", "-b", "main", remote]);
@@ -111,15 +116,38 @@ export async function runtimeChain(
 		localPath: host,
 		defaultBranch: "main",
 	});
-	const { planRun } = await repos.planRuns.create({
-		projectId: project.id,
-		planId: "fixture",
-		agentName: "implementer",
-		children: [
-			{ seq: 1, seedId: "a" },
-			{ seq: 2, seedId: "b" },
-		],
-	});
+	const createPlan = () =>
+		repos.planRuns.create({
+			projectId: project.id,
+			planId: "fixture",
+			agentName: "implementer",
+			children: [
+				{ seq: 1, seedId: "a" },
+				{ seq: 2, seedId: "b" },
+			],
+		});
+	const approval = options.approved
+		? await preparePlanApproval(
+				{
+					repos,
+					warrenConfigs: createWarrenConfigCache(),
+					publishToolkit: async () => ({ version: await activeToolkitVersion() }),
+				},
+				{
+					commandKey: "fixture-approval",
+					projectId: project.id,
+					title: "Fixture recovery",
+					tasks: ["a", "b"].map((id) => ({
+						id,
+						title: `Write fixture ${id}`,
+						description: `Preserve useful work for ${id}`,
+						acceptance: ["Required gate and independent review pass"],
+					})),
+				},
+			)
+		: undefined;
+	const { planRun } = approval ? await startApprovedPlan(repos, approval.id) : await createPlan();
+	let paused = false;
 	const store = new LocalRunStore();
 	const roles: string[] = [];
 	const adapter: AgentRuntimeAdapter = {
@@ -146,6 +174,10 @@ export async function runtimeChain(
 				script = reviewerScript(verdict, roles.length);
 			} else {
 				script = `set -e; echo ${role} > change-${roles.length}.txt; git add change-${roles.length}.txt; git commit -m ${role}; printf '%s\\n' '{"kind":"state_change","stream":"system","payload":{"type":"result","result":"Committed.","total_cost_usd":0}}'`;
+			}
+			if (options.pauseRole === role && !paused) {
+				paused = true;
+				script = `set -e; echo saved > change-1.txt; git add change-1.txt; git commit -m saved; echo pending > preserved.txt; echo ready > interrupted-ready; sleep 30`;
 			}
 			return { argv: ["/bin/sh", "-c", script] };
 		},
@@ -234,6 +266,8 @@ export async function runtimeChain(
 					providerRunId: record.providerRunId,
 				});
 			await db.close();
+			if (previousData === undefined) delete process.env.WARREN_DATA_DIR;
+			else process.env.WARREN_DATA_DIR = previousData;
 			await rm(root, { recursive: true, force: true });
 		},
 	};

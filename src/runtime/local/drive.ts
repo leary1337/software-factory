@@ -1,48 +1,7 @@
-/**
- * The host-side drive loop (warren-413d, plan pl-3007 phase 3) — the
- * in-process replacement for `burrow serve`'s run dispatcher (burrow
- * `src/runner/dispatch.ts`), shaped on the k8s in-pod entrypoint
- * (`src/runtime/container/agent-entrypoint.ts`, warren-0efe): the same adapter
- * hooks (`buildSpawnCommand` / `parseEvents` / steering encoders), the same
- * stdin-hold contract, the same synthesized-terminal fallback — but spawned
- * through warren's own sandbox (`src/sandbox/`, warren-5af7) and persisted
- * directly into the in-process run store (`./run-store.ts`) instead of
- * riding a daemon's HTTP stream.
- *
- * Lifecycle per run:
- *
- *   1. Claim the steering inbox once (spawn-time drain, burrow SPEC §13.2)
- *      so pending messages fold into the adapter's stdin payload.
- *   2. `prepareWorkspace` (settings file, private TMPDIR, pi session dir),
- *      plus the warren-c865 home-credential forward: with $HOME now a real
- *      per-run directory, the host's claude OAuth blob is copied into it so
- *      auth resolves via $HOME lookup instead of the workspace.
- *   3. Under `network=restricted`, start a per-run loopback CONNECT proxy
- *      (warren-70bb / burrow `src/proxy/server.ts`), set `proxyAddress` on
- *      the profile, and overlay HTTP(S)_PROXY onto the agent env. open/none
- *      skip this path entirely so default behavior stays byte-identical.
- *   4. Spawn through `runSandboxed`. Batch runtimes (claude-code) close
- *      stdin at spawn; stdin-held runtimes (pi — declares
- *      `shouldCloseStdinOnEvent`) keep it open until the terminal event
- *      lands, with mid-run steering delivered over the live stdin
- *      (`encodeSteeringMessage`) and the auto-reply hook
- *      (`autoRespondToEvent`) declining interactive RPCs. The proxy stops
- *      in the drive loop's `finally` so a hung CONNECT tunnel cannot pin
- *      the run.
- *   5. Terminalize the record: cancelled (cancel() won the race), oom_killed
- *      (the cgroup probe, burrow-2083 parity), stream error, or the exit
- *      code. An agent that exits WITHOUT a terminal envelope gets a
- *      synthesized `agent_end` (warren-9a4a parity with the k8s entrypoint)
- *      so the domain's `detectRuntimeTerminal` always sees the run end.
- *
- * The loop never throws: every failure lands as events + a failed terminal
- * record, mirroring how burrow's dispatcher collapsed dispatch errors into a
- * structured failed outcome rather than rejecting `runs.create`.
- */
+/** Drive a guarded local process, persist events and run independent verification before success. */
 
 import { extractAgentEventEnvelope } from "../../core/event-envelope.ts";
-import type { ProxyHandle, StartProxyOptions } from "../../sandbox/proxy-server.ts";
-import { runSandboxed } from "../../sandbox/sandbox.ts";
+import type { ReserveEnvironmentRepair } from "../../preparation/repair.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
 import type { AdapterRuntimeEvent, AgentRuntimeAdapter } from "../adapters/index.ts";
 import type { AgentFrontmatter } from "../adapters/types.ts";
@@ -63,18 +22,12 @@ import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 /** Mid-run steering poll cadence — burrow's MID_RUN_INBOX_POLL_MS verbatim. */
 export const MID_RUN_INBOX_POLL_MS = 200;
 
-export type StartProxyFn = (opts: StartProxyOptions) => Promise<ProxyHandle>;
-
 export interface DriveDeps {
-	/** Explicit macOS process mode; keep one recovery marker across agent and gate children. */
-	readonly hostProcess?: { readonly codexBin?: string };
-	/** Spawn seam — defaults to `runSandboxed` (tests inject a fake child). */
+	readonly reserveEnvironmentRepair?: ReserveEnvironmentRepair;
+	/** Optional configured Codex CLI path. */
+	readonly codexBin?: string;
+	/** Spawn seam — defaults to the guarded local process. */
 	readonly spawn?: (profile: SandboxProfile, command: SpawnCommand) => Promise<SpawnResult>;
-	/**
-	 * Proxy starter seam (warren-70bb) — defaults to `startProxy`. Tests inject
-	 * a fake so restricted-network runs never bind a real loopback port.
-	 */
-	readonly startProxy?: StartProxyFn;
 	/** Adapter registry — defaults to warren's built-ins. */
 	readonly registry?: { get(id: string): AgentRuntimeAdapter | undefined };
 	/** Test seam: mid-run inbox poll cadence (ms). */
@@ -212,11 +165,11 @@ async function drivePrepared(
 	} catch {
 		// Best-effort observability; a writer fault must not kill the drive loop.
 	}
-	const { runtime, runProfile, runCommand, proxy, useStdinHold } = prepared;
+	const { runtime, runCommand, useStdinHold } = prepared;
+	const runProfile = remainingProfile(prepared);
 
 	// Re-check after async setup — cancel may have landed mid-prepare.
 	if (cancelWon(store, record)) {
-		await proxy?.stop();
 		settleCancelledIfNeeded(store, record);
 		return;
 	}
@@ -224,21 +177,13 @@ async function drivePrepared(
 	const spawn =
 		deps.spawn ??
 		((profile: SandboxProfile, command: SpawnCommand) =>
-			deps.hostProcess
-				? runHostProcess(profile, command, {
-						...deps.hostProcess,
-						lifecyclePath: `${record.homePath}.lifecycle.json`,
-					})
-				: runSandboxed(profile, command, { lifecyclePath: `${record.homePath}.lifecycle.json` }));
-	let proc: SpawnResult;
-	try {
-		proc = await spawn(runProfile, runCommand);
-	} catch (err) {
-		await proxy?.stop();
-		throw err;
-	}
+			runHostProcess(profile, command, {
+				codexBin: deps.codexBin,
+				lifecyclePath: `${record.homePath}.lifecycle.json`,
+			}));
+	const proc = await spawn(runProfile, runCommand);
 	if (cancelWon(store, record)) {
-		await abandonSpawnedChild(store, record, proc, proxy);
+		await abandonSpawnedChild(store, record, proc);
 		return;
 	}
 	record.proc = proc;
@@ -257,9 +202,9 @@ async function drivePrepared(
 							store,
 							record,
 							prepared.qualityGate,
-							runProfile,
+							remainingProfile(prepared),
 							runCommand.env,
-							{ spawn },
+							{ spawn, reserveEnvironmentRepair: deps.reserveEnvironmentRepair },
 						);
 					await prepared.finalizeHome?.();
 				}
@@ -277,8 +222,15 @@ async function drivePrepared(
 		await stdin.closeIfDangling();
 		// Bound proxy teardown to spawn lifetime — a hung CONNECT tunnel
 		// can't pin the run (burrow dispatch.ts shape).
-		await proxy?.stop();
 	}
+}
+
+function remainingProfile(prepared: PreparedSpawn): SandboxProfile {
+	if (prepared.deadlineAt === undefined) return prepared.runProfile;
+	const timeoutMs = prepared.deadlineAt - Date.now();
+	if (timeoutMs <= 0)
+		throw new Error("run timeout exhausted during environment preparation or verification");
+	return { ...prepared.runProfile, timeoutMs };
 }
 
 function armRunDeadline(proc: SpawnResult, timeoutMs: number | undefined) {
@@ -318,7 +270,7 @@ async function pumpToExit(
 	const persistEvent = (ev: AdapterRuntimeEvent): void => {
 		// Only the host runner may attest a quality gate. Harness stdout cannot.
 		if (
-			["quality_gate.", "review_check.", "acceptance.", "review."].some((prefix) =>
+			["preparation.", "quality_gate.", "review_check.", "acceptance.", "review."].some((prefix) =>
 				ev.kind.startsWith(prefix),
 			)
 		)

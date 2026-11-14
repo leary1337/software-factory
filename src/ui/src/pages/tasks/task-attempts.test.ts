@@ -5,6 +5,13 @@ import { planProgressCounts } from "./plan-progress-summary.ts";
 import { groupTaskAttempts, type TaskAttempt, taskExecutionId } from "./task-attempts.ts";
 import { taskStatus } from "./task-status.ts";
 
+const verification = {
+	sha: "a".repeat(40),
+	environment: "production",
+	checks: { availability: true, version: true, scenario: true } as const,
+	verifiedAt: "2026-01-01T00:00:00Z",
+};
+
 function attempt(
 	id: string,
 	plan: Partial<PlanRunRow> = {},
@@ -54,7 +61,11 @@ describe("groupTaskAttempts", () => {
 	});
 
 	test("keeps a reopened failure current instead of replacing it with an older delivery", () => {
-		const delivered = attempt("1", { state: "succeeded" }, { state: "merged" });
+		const delivered = attempt(
+			"1",
+			{ state: "succeeded" },
+			{ state: "merged", productionVerification: verification },
+		);
 		const reopened = attempt("2", { state: "failed" }, { state: "failed" });
 		const [task] = groupTaskAttempts([delivered, reopened]);
 		expect(task?.current).toBe(reopened);
@@ -72,7 +83,10 @@ describe("groupTaskAttempts", () => {
 
 	test("does not label tracker closures as completed deliveries", () => {
 		const skipped = attempt("2", { state: "succeeded" }, { state: "skipped" });
-		const [task] = groupTaskAttempts([attempt("1", {}, { state: "merged" }), skipped]);
+		const [task] = groupTaskAttempts([
+			attempt("1", {}, { state: "merged", productionVerification: verification }),
+			skipped,
+		]);
 		expect(task?.current).toBe(skipped);
 		expect(task?.delivered?.detail.planRun.id).toBe("1");
 		expect(taskStatus(skipped.child, skipped.detail.planRun).group).toBe("closed");
@@ -115,13 +129,14 @@ describe("planProgressCounts", () => {
 			(state) => ({ state }),
 		) as PlanRunChildRow[];
 		expect(planProgressCounts(children)).toEqual({
-			delivered: 1,
+			merged: 1,
+			delivered: 0,
 			closed: 2,
 			waiting: 1,
 			failed: 1,
 		});
 		expect(childSummary("running", children)).toBe(
-			"Task 4 of 6 · 1 delivered in this attempt · 2 previously closed · 1 waiting · 1 failed",
+			"Task 4 of 6 · 1 merged · 0 release verified · 2 previously closed · 1 waiting · 1 failed",
 		);
 		expect(childSummary("cancelled", children)).not.toContain("Task 4");
 		expect(childSummary("cancelled", children)).toContain("1 not started");

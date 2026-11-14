@@ -1,30 +1,52 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { planRunsApi, projectsApi } from "@/api/client.ts";
+import { planRunsApi, projectsApi, runsApi } from "@/api/client.ts";
 import { OperatorOnly } from "@/components/operator-only.tsx";
-import { Alert } from "@/components/ui/alert.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
-import { Spinner } from "@/components/ui/spinner.tsx";
 import { useListParams } from "@/hooks/use-list-params.ts";
-import { formatError } from "@/lib/format-error.ts";
+import { StandaloneTaskCard } from "./tasks/standalone-task-card.tsx";
+import { standaloneStatus, standaloneTasks } from "./tasks/standalone-tasks.ts";
 import { groupTaskAttempts } from "./tasks/task-attempts.ts";
 import { TaskCard } from "./tasks/task-card.tsx";
+import { TaskGroupSection } from "./tasks/task-group-section.tsx";
+import { TaskListNotices } from "./tasks/task-list-notices.tsx";
 import { TASK_GROUPS, taskStatus } from "./tasks/task-status.ts";
 
 export function TasksPage() {
 	const { params, update } = useListParams();
 	const search = params.get("q") ?? "";
+	const projectId = params.get("project") ?? "";
 	const requestedLimit = Number(params.get("limit"));
 	const limit = Number.isSafeInteger(requestedLimit) && requestedLimit >= 12 ? requestedLimit : 12;
 	const plans = useQuery({
-		queryKey: ["plan-runs", "tasks"],
-		queryFn: ({ signal }) => planRunsApi.list({}, signal),
+		queryKey: ["plan-runs", "tasks", projectId],
+		queryFn: ({ signal }) => planRunsApi.list(projectId ? { project: projectId } : {}, signal),
 		refetchInterval: 45_000,
 	});
 	const projects = useQuery({
 		queryKey: ["projects"],
 		queryFn: ({ signal }) => projectsApi.list(signal),
+	});
+	const runs = useInfiniteQuery({
+		queryKey: ["runs", "tasks", projectId],
+		initialPageParam: 0,
+		queryFn: ({ signal, pageParam }) =>
+			runsApi.list(
+				{
+					...(projectId ? { project: projectId } : {}),
+					limit: 100,
+					offset: pageParam,
+					sort: "started",
+					dir: "desc",
+				},
+				signal,
+			),
+		getNextPageParam: (last, pages) => {
+			const count = pages.reduce((sum, page) => sum + page.runs.length, 0);
+			return count < last.total ? count : undefined;
+		},
+		refetchInterval: 45000,
 	});
 	const ordered = [...(plans.data?.planRuns ?? [])].sort((a, b) => {
 		const active = (state: string) => state === "running" || state === "queued";
@@ -64,7 +86,14 @@ export function TasksPage() {
 				.includes(search.toLowerCase()),
 		),
 	);
-	const failed = details.filter((query) => query.isError);
+	const standalone = standaloneTasks(
+		runs.data?.pages.flatMap((page) => page.runs) ?? [],
+		details.flatMap((query) => (query.data ? [query.data] : [])),
+	).filter((task) =>
+		`${task.original.prompt ?? ""} ${names.get(task.original.projectId ?? "") ?? ""}`
+			.toLowerCase()
+			.includes(search.toLowerCase()),
+	);
 	return (
 		<div className="flex min-h-full flex-col gap-6 px-3.5 py-6 md:px-6">
 			<header className="flex flex-wrap items-start justify-between gap-4">
@@ -87,65 +116,53 @@ export function TasksPage() {
 				value={search}
 				onChange={(event) => update({ q: event.target.value })}
 			/>
-			{plans.isLoading || details.some((query) => query.isLoading) ? (
-				<Spinner label="Loading tasks" />
-			) : null}
-			{plans.isError ? (
-				<Alert variant="danger" title="Could not load tasks">
-					{formatError(plans.error)}{" "}
-					<Button variant="outline" onClick={() => void plans.refetch()}>
-						Retry
-					</Button>
-				</Alert>
-			) : null}
-			{projects.isError ? (
-				<Alert variant="warning" title="Project names unavailable">
-					Task results remain visible.{" "}
-					<Button variant="outline" onClick={() => void projects.refetch()}>
-						Retry project names
-					</Button>
-				</Alert>
-			) : null}
-			{failed.length > 0 ? (
-				<Alert variant="danger" title="Some tasks could not be loaded">
-					Some task states may be missing or out of date. Last known tasks remain visible.{" "}
-					<Button
-						variant="outline"
-						onClick={() => {
-							for (const query of failed) void query.refetch();
-						}}
-					>
-						Retry missing tasks
-					</Button>
-				</Alert>
-			) : null}
-			{!plans.isLoading &&
-			!plans.isError &&
-			details.every((query) => !query.isLoading && !query.isError) &&
-			matched.length === 0 ? (
-				<Alert title="No tasks to show">
-					{search
-						? "No loaded tasks match your search."
-						: "Start a plan to track its tasks here. Individual technical runs remain available under More."}
-				</Alert>
-			) : null}
+			<TaskListNotices
+				plans={plans}
+				runs={runs}
+				projects={projects}
+				details={details}
+				isEmpty={matched.length + standalone.length === 0}
+				search={search}
+			/>
 			{TASK_GROUPS.map(({ key, title }) => {
 				const rows = matched.filter(
 					({ current }) => taskStatus(current.child, current.detail.planRun).group === key,
 				);
-				return rows.length ? (
-					<section key={key} aria-label={title} className="space-y-3">
-						<h2 className="font-semibold text-base">
-							{title} <span className="text-(--color-text-2)">({rows.length})</span>
-						</h2>
+				const individual = standalone.filter(
+					(task) => standaloneStatus(task.current).group === key,
+				);
+				return rows.length + individual.length ? (
+					<TaskGroupSection
+						key={key}
+						group={key}
+						title={title}
+						count={rows.length + individual.length}
+						searching={!!search}
+					>
 						<div className="grid gap-3 xl:grid-cols-2">
 							{rows.map((row) => (
 								<TaskCard key={row.key} task={row} />
 							))}
+							{individual.map((task) => (
+								<StandaloneTaskCard
+									key={task.key}
+									task={task}
+									project={names.get(task.original.projectId ?? "") ?? "Project unavailable"}
+								/>
+							))}
 						</div>
-					</section>
+					</TaskGroupSection>
 				) : null;
 			})}
+			{runs.hasNextPage ? (
+				<Button
+					variant="outline"
+					disabled={runs.isFetchingNextPage}
+					onClick={() => void runs.fetchNextPage()}
+				>
+					{runs.isFetchingNextPage ? "Loading task history…" : "Load more task history"}
+				</Button>
+			) : null}
 			{ordered.length > visiblePlans.length ? (
 				<div className="space-y-2">
 					<p className="text-(--color-text-2) text-sm">

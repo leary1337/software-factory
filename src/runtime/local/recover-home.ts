@@ -2,6 +2,7 @@ import { waitForSandboxStop } from "../../sandbox/guarded-process.ts";
 import { RUNTIME_ADAPTERS } from "../adapters/index.ts";
 import type { AgentRuntimeAdapter } from "../adapters/types.ts";
 import type { LocalRunManifest } from "./manifest.ts";
+import { waitForPreviewProcesses } from "./preview/process.ts";
 
 /** Resolve harness-specific recovery through the same adapter seam as preparation. */
 export async function recoverLocalHome(
@@ -14,6 +15,7 @@ export async function recoverLocalHome(
 		);
 	}
 	await waitForSandboxStop(`${manifest.homePath}.lifecycle.json`);
+	await waitForPreviewProcesses(manifest.homePath);
 	const adapter =
 		manifest.runtimeId === undefined
 			? undefined

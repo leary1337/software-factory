@@ -55,7 +55,7 @@ describe("bounded automatic review recovery", () => {
 			for (const step of ["review", "rework"] as const)
 				expect(decideReviewStep([{ ...failed, step, failureReason: reason }])).toMatchObject({
 					kind: "spawn",
-					step: "review",
+					step,
 					recoveryReason: reason,
 				});
 	});

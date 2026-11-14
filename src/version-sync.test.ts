@@ -1,6 +1,7 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { locateReadmeStatusVersion } from "../scripts/version-bump.ts";
 import { VERSION } from "./index.ts";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
@@ -15,20 +16,16 @@ function readVersionFromPackageJson(): string {
 
 /**
  * The README "Status" section carries a human-facing version tag of the
- * form ``Stable (`X.Y.Z`)``. It is the same version surfaced by
+ * located by the release bumper. It is the same version surfaced by
  * package.json and src/index.ts, so it must never drift out of sync.
  */
 function readVersionFromReadme(): string {
 	const readme = readFileSync(resolve(REPO_ROOT, "README.md"), "utf8");
-	const match = readme.match(/Stable \(`(\d+\.\d+\.\d+(?:-[\w.]+)?)`\)/);
-	if (!match?.[1]) {
-		throw new Error("README.md is missing a `Stable (`X.Y.Z`)` version tag");
-	}
-	return match[1];
+	return locateReadmeStatusVersion(readme).version;
 }
 
 describe("version sync", () => {
-	it("keeps README, package.json, and src/index.ts on the same version", () => {
+	test("keeps README, package.json, and src/index.ts on the same version", () => {
 		const pkgVersion = readVersionFromPackageJson();
 		const readmeVersion = readVersionFromReadme();
 		expect(readmeVersion).toBe(pkgVersion);

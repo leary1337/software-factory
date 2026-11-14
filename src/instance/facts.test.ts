@@ -41,7 +41,7 @@ describe("buildInstanceFacts", () => {
 	});
 
 	test("never emits secrets from the input env", () => {
-		const facts: unknown = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "docker" }));
+		const facts: unknown = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "local" }));
 		const text = JSON.stringify(facts);
 		for (const marker of [
 			"super-secret-token",
@@ -56,7 +56,7 @@ describe("buildInstanceFacts", () => {
 	test("floors negative uptime at zero and truncates fractions", () => {
 		expect(buildInstanceFacts({ ...baseInput(), uptimeSeconds: -5 }).uptimeSeconds).toBe(0);
 		expect(
-			buildInstanceFacts({ ...baseInput({ WARREN_RUNTIME: "docker" }), uptimeSeconds: 3.7 })
+			buildInstanceFacts({ ...baseInput({ WARREN_RUNTIME: "local" }), uptimeSeconds: 3.7 })
 				.uptimeSeconds,
 		).toBe(3);
 	});
@@ -69,7 +69,7 @@ describe("buildInstanceFacts", () => {
 
 describe("publicInstanceFacts", () => {
 	test("keeps only the three static facts", () => {
-		const facts: InstanceFacts = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "docker" }));
+		const facts: InstanceFacts = buildInstanceFacts(baseInput({ WARREN_RUNTIME: "local" }));
 		const pub = publicInstanceFacts(facts);
 		expect(Object.keys(pub).sort()).toEqual(["authMode", "runtime", "version"]);
 		expect(pub.version).toBe(VERSION);

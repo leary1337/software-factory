@@ -42,7 +42,6 @@
  *   agents.legacyLibrary    "legacy-reviewer" (source "library")
  *   telemetry.historyRunIds run_fx0000000301..318: terminal runs over the last 14 days
  *                           with cost, tokens, PR outcomes, tool_calls, and steers;
- *                           the fake judge export serves `telemetry.judgeRows` rows
  *
  * ## Determinism
  *
@@ -80,7 +79,6 @@ import {
 	type FixtureIds,
 	seedFixtureDb,
 } from "./fixture-data.ts";
-import { judgeExportRows } from "./fixture-events.ts";
 import { writeFixtureSdStub } from "./fixture-sd-stub.ts";
 
 export interface FixtureBootOutput {
@@ -102,39 +100,20 @@ export interface FixtureBootOptions {
 
 export interface FixtureBootHandle {
 	readonly output: FixtureBootOutput;
-	/** Stop warren + the fake judge and remove the temp root. Idempotent. */
+	/** Stop warren and remove the temp root. Idempotent. */
 	stop(): Promise<void>;
 }
 
 const REPO_ROOT = join(import.meta.dir, "..", "..");
 const SERVER_ENTRY = join(import.meta.dir, "fixture-server-entry.ts");
-const JUDGE_TOKEN = "warren-ui-visual-judge-token";
 
 function defaultUiDistDir(): string | null {
 	const dir = join(REPO_ROOT, "src", "ui", "dist");
 	return existsSync(join(dir, "index.html")) ? dir : null;
 }
 
-/** Loopback stand-in for the judge extension's `/verdicts.jsonl` export. */
-function startFakeJudge(body: string, maxId: number): ReturnType<typeof Bun.serve> {
-	return Bun.serve({
-		hostname: "127.0.0.1",
-		port: 0,
-		fetch(req) {
-			const url = new URL(req.url);
-			if (req.headers.get("authorization") !== `Bearer ${JUDGE_TOKEN}`) {
-				return new Response("unauthorized", { status: 401 });
-			}
-			if (url.pathname !== "/verdicts.jsonl") return new Response("not found", { status: 404 });
-			return new Response(body, {
-				headers: { "content-type": "application/x-ndjson", "x-verdicts-max-id": String(maxId) },
-			});
-		},
-	});
-}
-
 /** Env that holds every background mutator off the seeded rows. */
-function fixtureEnv(sdStubPath: string, judgeUrl: string, uiDistDir: string | null) {
+function fixtureEnv(sdStubPath: string, uiDistDir: string | null) {
 	return {
 		WARREN_UI_VISUAL_NOW: String(FIXTURE_NOW_MS),
 		WARREN_FORGE: "fake",
@@ -149,8 +128,6 @@ function fixtureEnv(sdStubPath: string, judgeUrl: string, uiDistDir: string | nu
 		// the lifecycle stream (plus a run's event stream on run detail): the
 		// default per-client cap of 5 would 503 them (warren-99e1).
 		WARREN_MAX_EVENT_STREAMS_PER_CLIENT: "200",
-		WARREN_JUDGE_BASE_URL: judgeUrl,
-		WARREN_JUDGE_EXPORT_TOKEN: JUDGE_TOKEN,
 		TZ: "UTC",
 		...(uiDistDir !== null
 			? { WARREN_DISABLE_UI: "0", WARREN_UI_DIST_DIR: uiDistDir }
@@ -164,11 +141,8 @@ export async function bootFixture(opts: FixtureBootOptions = {}): Promise<Fixtur
 	const projectsDir = join(tmpRoot, "data", "projects", FIXTURE_CONSTANTS.projectOwner);
 	const seedsProjectPath = join(projectsDir, FIXTURE_CONSTANTS.projectRepo);
 	const plainProjectPath = join(projectsDir, "docs-site");
-	let judge: ReturnType<typeof Bun.serve> | undefined;
 	let boot: BootHandle | undefined;
 	const stop = async (): Promise<void> => {
-		judge?.stop(true);
-		judge = undefined;
 		const b = boot;
 		boot = undefined;
 		if (b !== undefined) await b.stop();
@@ -184,7 +158,6 @@ export async function bootFixture(opts: FixtureBootOptions = {}): Promise<Fixtur
 			seedsProjectPath,
 			plainProjectPath,
 		});
-		judge = startFakeJudge(judgeExportRows(seeded.judgeRuns), seeded.judgeRuns.length);
 		const uiDistDir = opts.uiDistDir === undefined ? defaultUiDistDir() : opts.uiDistDir;
 		boot = await bootInProc({
 			tmpRoot,
@@ -192,11 +165,7 @@ export async function bootFixture(opts: FixtureBootOptions = {}): Promise<Fixtur
 			canopyRepoUrl: `https://github.com/${FIXTURE_CONSTANTS.canopyOwner}/${FIXTURE_CONSTANTS.canopyRepo}.git`,
 			serverEntry: SERVER_ENTRY,
 			...(opts.port !== undefined ? { bind: { host: "127.0.0.1", port: opts.port } } : {}),
-			extraEnv: fixtureEnv(
-				await writeFixtureSdStub(tmpRoot),
-				`http://127.0.0.1:${judge.port}`,
-				uiDistDir,
-			),
+			extraEnv: fixtureEnv(await writeFixtureSdStub(tmpRoot), uiDistDir),
 		});
 		return {
 			output: {

@@ -2,11 +2,15 @@ import { openDatabase, type WarrenDb } from "../../db/client.ts";
 import { createRepos, type Repos } from "../../db/repos/index.ts";
 import { FakeForge } from "../../forge/fake/fake-forge.ts";
 import type { SpawnFn, SpawnOptions, SpawnResult } from "../../projects/clone.ts";
+import { getProjectReadiness } from "../../projects/readiness.ts";
+import { saveReadiness } from "../../projects/readiness-store.ts";
 import { RunEventBroker } from "../../runs/index.ts";
 import { FakeProvider } from "../../runtime/fake/fake-provider.ts";
 import { SeedsTracker } from "../../tracker/seeds-tracker.ts";
+import { createWarrenConfigCache } from "../../warren-config/cache.ts";
 import { createBridgeRegistry } from "../bridges.ts";
 import type { BridgeRegistry, Logger, ServeHandle, ServerDeps } from "../types.ts";
+import { readinessDeps } from "./projects.readiness.ts";
 
 export const silentLogger: Logger = {
 	info() {},
@@ -91,7 +95,18 @@ export interface BuildDepsInput {
 export async function depsFor(input: BuildDepsInput): Promise<ServerDeps> {
 	const broker = new RunEventBroker();
 	const provider = poolFor();
-	return {
+	const deps: ServerDeps = {
+		warrenConfigs: createWarrenConfigCache({
+			load: async () => ({
+				defaults: null,
+				triggers: null,
+				prTemplate: null,
+				sourceFile: null,
+				errors: [],
+				warnings: [],
+			}),
+		}),
+		readinessSpawn: async () => ({ exitCode: 0, stdout: "a".repeat(40), stderr: "" }),
 		repos: input.repos,
 		runtimeProvider: provider,
 		forge: new FakeForge(),
@@ -113,6 +128,17 @@ export async function depsFor(input: BuildDepsInput): Promise<ServerDeps> {
 		...(input.refreshProjectFn !== undefined ? { refreshProjectFn: input.refreshProjectFn } : {}),
 		...(input.streamLimiter !== undefined ? { streamLimiter: input.streamLimiter } : {}),
 	};
+	for (const project of await input.repos.projects.listAll()) {
+		const ready = await getProjectReadiness(readinessDeps(deps), project.id);
+		await saveReadiness(readinessDeps(deps).directory, project.id, {
+			...ready,
+			ready: true,
+			stale: false,
+			checkedAt: new Date().toISOString(),
+			checks: [{ name: "fixture", ok: true, message: "Verified fixture" }],
+		});
+	}
+	return deps;
 }
 
 export interface CapturedLog {

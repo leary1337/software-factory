@@ -11,6 +11,13 @@ const agent: AgentDefinition = {
 };
 
 describe("readRunnableRuntimeId", () => {
+	test.each(["nightwatch", "bugwatch"])("hides and refuses saved patrol %s", (name) => {
+		const historical = { ...agent, name };
+		expect(isRetiredAgent({ name, renderedJson: historical })).toBe(true);
+		expect(() => readRunnableRuntimeId(historical)).toThrow("patrols are retired");
+		expect(historical.name).toBe(name);
+	});
+
 	test("rejects a retired project override before dispatch", () => {
 		expect(() => readRunnableRuntimeId(agent, "pi")).toThrow("retired runtime");
 	});

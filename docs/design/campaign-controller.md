@@ -1,10 +1,15 @@
 # Campaign controller
 
 **Kind:** direction
-**Design state:** approved
-**Delivery:** next
-**Roadmap order:** 1
+**Design state:** retired
+**Delivery:** not-applicable
 **Arrived:** 2026-08-20
+
+> Retired by FACTORY-REDESIGN ticket 08. The judge, campaign-controller,
+> audit-log and tracker-conformance packages are no longer shipped.
+> Built-in run events, history, diagnostics and checks remain available.
+> The rest of this record describes historical designs, not supported setup.
+> See [IssueTracker](./issue-tracker.md) for the internal tracker.
 
 This direction record defines the durable controller extension that moves
 long-running Warren campaigns off an operator's laptop and into the deployment.

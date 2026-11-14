@@ -6,7 +6,7 @@ import { createGitFixture } from "../../workspace/git/test-fixture.ts";
 import { CODEX_RUNTIME_ID } from "../adapters/codex.ts";
 import type { AgentRuntimeAdapter } from "../adapters/types.ts";
 import type { RunSpec } from "../contract.ts";
-import { resolveLocalExecutionMode } from "./execution-mode.ts";
+import { assertLocalProcessPlatform } from "./execution-mode.ts";
 import { resolveCodexExecutable, runHostProcess } from "./process-spawn.ts";
 import { LocalProvider } from "./provider.ts";
 import { LocalRunStore } from "./run-store.ts";
@@ -45,7 +45,7 @@ async function setup(script: string) {
 		],
 	};
 	const provider = new LocalProvider({
-		serverEnv: { WARREN_LOCAL_EXECUTION: "process", WARREN_DATA_DIR: join(fixture.root, "data") },
+		serverEnv: { WARREN_DATA_DIR: join(fixture.root, "data") },
 		store,
 		drive: { registry: { get: () => adapter } },
 	});
@@ -65,16 +65,13 @@ async function setup(script: string) {
 	return { fixture, store, provider, spec, launches: () => launches };
 }
 
-describe("resolveLocalExecutionMode", () => {
-	test("retains sandbox defaults and refuses unsupported rollout targets", () => {
-		expect(resolveLocalExecutionMode({}, "linux")).toBe("sandbox");
-		expect(resolveLocalExecutionMode({ WARREN_LOCAL_EXECUTION: "process" }, "darwin")).toBe(
-			"process",
-		);
-		expect(() => resolveLocalExecutionMode({ WARREN_LOCAL_EXECUTION: "process" }, "linux")).toThrow(
-			"requires macOS",
-		);
-		expect(() => resolveLocalExecutionMode({ WARREN_LOCAL_EXECUTION: "typo" })).toThrow("Unknown");
+describe("assertLocalProcessPlatform", () => {
+	test("runs natively by default and refuses retired modes and unsupported platforms", () => {
+		expect(() => assertLocalProcessPlatform({}, "darwin")).not.toThrow();
+		expect(() => assertLocalProcessPlatform({}, "linux")).toThrow("requires macOS");
+		expect(() =>
+			assertLocalProcessPlatform({ WARREN_LOCAL_EXECUTION: "sandbox" }, "darwin"),
+		).toThrow("retired");
 		expect(() => resolveCodexExecutable({ WARREN_CODEX_BIN: "./codex" })).toThrow("absolute path");
 	});
 });
@@ -148,13 +145,12 @@ describe.skipIf(process.platform !== "darwin")("local process mode", () => {
 		}
 	});
 
-	test("refuses other harnesses and unenforceable network isolation before starting", async () => {
+	test("refuses unsupported harnesses before starting", async () => {
 		const h = await setup("exit 0");
 		try {
 			expect(() => h.provider.create({ ...h.spec, runtimeId: "claude-code" })).toThrow(
 				"only Codex",
 			);
-			expect(() => h.provider.create({ ...h.spec, network: "none" })).toThrow("network=none");
 			expect(h.launches()).toBe(0);
 		} finally {
 			await h.fixture.cleanup();

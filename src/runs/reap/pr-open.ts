@@ -138,13 +138,14 @@ export async function tryOpenPr(input: TryOpenPrInput): Promise<TryOpenPrResult>
 	// Find-then-open keeps the re-reap sweep idempotent WITHOUT a POST: a PR
 	// already covering this head→base resolves to mode "exists" (the provider's
 	// own openPullRequest would resolve the duplicate too, but then the domain
-	// could not report the distinction). A failed find degrades to open — the
-	// provider's duplicate resolution is the backstop.
+	// could not report the distinction). A failed lookup leaves the outcome
+	// unknown and must never authorize a second mutation.
 	const found = await input.forge.findPullRequest(ref, {
 		headBranch: input.branch,
 		baseBranch: input.baseBranch,
 	});
-	if (found.ok && found.value !== null) {
+	if (!found.ok) return { ok: false, kind: found.error.kind, detail: found.error.detail };
+	if (found.value !== null) {
 		return {
 			ok: true,
 			pr: {
@@ -297,6 +298,12 @@ export async function runPrOpen(input: RunPrOpenInput): Promise<OpenedPr | null>
 			...(input.prTemplate !== undefined ? { prTemplate: input.prTemplate } : {}),
 		};
 		const sleep = input.sleep ?? defaultSleep;
+		await input.emit("reap.pr_open_intent", {
+			identity: `pr:${input.project.id}:${input.branch}:${baseBranch}`,
+			projectId: input.project.id,
+			branch: input.branch,
+			baseBranch,
+		});
 		let opened = await tryOpenPr(prArgs);
 		for (let attempt = 0; attempt < PR_OPEN_RETRY_DELAYS_MS.length; attempt++) {
 			if (opened.ok || !isRetryablePrErrorKind(opened.kind)) break;

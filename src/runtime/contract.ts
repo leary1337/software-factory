@@ -3,6 +3,7 @@
  * Native ids, socket/host paths, and `SandboxProfile` stay inside the provider.
  */
 import type { AcceptanceCriterion, AcceptancePolicy } from "../core/acceptance-evidence.ts";
+import type { PreparationRecipe } from "../core/preparation.ts";
 import type { ReviewFinding } from "../core/review-findings.ts";
 import type {
 	AcceptedRuntimeId,
@@ -62,7 +63,9 @@ export interface RunSpec {
 	prompt: string;
 	metadata?: Record<string, unknown>;
 	mode: "batch" | "conversation";
+	preparation?: PreparationRecipe;
 	qualityGate?: {
+		preparation?: PreparationRecipe;
 		reviewFindings?: readonly ReviewFinding[];
 		command: string;
 		commit: string;

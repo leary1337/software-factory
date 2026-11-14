@@ -7,7 +7,7 @@ This page enumerates every `warren` command with its arguments, flags, and the s
 
 To refresh: `bun run gen:cli-ref`. To check (CI mode): `bun run gen:cli-ref:check`.
 
-Total commands: **22**.
+Total commands: **26**.
 
 ## Global options
 
@@ -124,7 +124,7 @@ warren doctor [options]
 
 | Flag | Required | Default | Description |
 | --- | --- | --- | --- |
-| `--local` |  |  | run the deployment-side checks instead (env vars, sandbox runtime, bwrap, DB) |
+| `--local` |  |  | run the deployment-side checks instead (env vars, local runtime, DB) |
 | `--no-auth` |  |  | skip the auth check (loopback dev mode) |
 | `--verbose` |  |  | print raw probe/driver output (withheld from check messages) to stderr |
 | `--url <url>` |  |  | warren server base URL (env WARREN_BASE_URL) |
@@ -373,6 +373,55 @@ warren up [options]
 | --- | --- | --- | --- |
 | `--no-open` |  |  | do not open the UI in a browser (the setup URL is still printed) |
 | `--no-wizard` |  |  | skip the first-boot credential wizard (also automatic when stdin is not a TTY) |
+
+### `warren state`
+
+_Command group — see the subcommands below._
+
+copy, restore, and activate a stopped local installation
+
+```bash
+warren state [options] [command]
+```
+
+### `warren state backup`
+
+create a verified private copy of history, queue, workspaces, and action receipts
+
+```bash
+warren state backup [options]
+```
+
+| Flag | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--to <directory>` | yes |  | new backup directory |
+| `--data-dir <directory>` |  |  | installation data directory |
+
+### `warren state restore`
+
+verify and restore a copy with its queue disabled
+
+```bash
+warren state restore [options]
+```
+
+| Flag | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--from <directory>` | yes |  | verified backup directory |
+| `--to <directory>` | yes |  | new isolated data directory |
+
+### `warren state activate`
+
+activate a restored queue after single-owner and newer-action checks
+
+```bash
+warren state activate [options]
+```
+
+| Flag | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--data-dir <directory>` | yes |  | restored data directory |
+| `--allow-source-unavailable` |  |  | explicitly activate after inspecting receipts when original data is unavailable |
 
 ## Exit codes
 

@@ -209,3 +209,13 @@ parsed but spawn still falls back to `WARREN_DEFAULT_AGENT`;
 `defaults.defaultPrompt` has no template-substitution consumer yet. As of
 2026-05-11 the trigger half is no longer deferred — R-06 (§11.I) dispatches
 `triggers.yaml` entries on a 60s tick.
+
+## Optional project memory
+
+`memoryEnabled` defaults to false. The project settings API and UI persist an
+explicit choice; each new run freezes it into its agent snapshot. Disabled runs
+receive no factory memory instructions, hooks or expertise seed files, while
+existing `.mulch` records and historical runs are preserved. Enabled runs use
+optional Mulch instructions/hooks; a missing `ml` tool does not block the task.
+Project-authored instructions and files remain project content, not an isolation
+boundary. The run environment exposes the frozen choice as `WARREN_MEMORY_ENABLED`.

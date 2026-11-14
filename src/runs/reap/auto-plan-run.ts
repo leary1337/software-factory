@@ -1,5 +1,6 @@
 import { IssueNotFoundError } from "../../core/wire.ts";
 import type { CreatePlanRunInput } from "../../db/repos/plan-runs.ts";
+import { isRetiredPatrol, RETIRED_PATROL_REASON } from "../../registry/retired-agents.ts";
 import { readAutoPlanRunAgent } from "../../registry/schema.ts";
 import type { IssueTracker } from "../../tracker/contract.ts";
 import { splitLines } from "./util.ts";
@@ -211,6 +212,10 @@ async function dispatchOnePlan(
 export async function dispatchAutoPlanRuns(
 	input: DispatchAutoPlanRunsInput,
 ): Promise<DispatchAutoPlanRunsResult> {
+	if (isRetiredPatrol(input.run.agentName)) {
+		await input.emit("auto_plan_run_skipped", { reason: RETIRED_PATROL_REASON });
+		return { created: false, id: null, planId: null };
+	}
 	const { workspacePlanIds, baselinePlanIds, workspacePlansBody } = input;
 	if (workspacePlanIds === null || baselinePlanIds === null || workspacePlansBody === null) {
 		return { created: false, id: null, planId: null };

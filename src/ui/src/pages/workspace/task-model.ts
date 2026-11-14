@@ -137,13 +137,17 @@ function applyStandaloneContinuations(
 			plan.current.detail.planRun.state === "queued"
 		)
 			continue;
-		const delivery = plan.delivered?.child;
-		const deliveredAt = Date.parse(delivery?.prMergedAt ?? delivery?.endedAt ?? "");
+		const mergedAt = Math.max(
+			0,
+			...plan.attempts
+				.filter(({ child }) => child.state === "merged")
+				.map(({ child }) => Date.parse(child.prMergedAt ?? child.endedAt ?? "") || 0),
+		);
 		const newer = task.runs.filter(
 			(run) =>
 				!owners.has(run.id) &&
 				(run.createdAt ?? 0) > Date.parse(plan.current.detail.planRun.createdAt) &&
-				!(run.state === "failed" && Date.parse(run.endedAt ?? "") <= deliveredAt),
+				!(run.state === "failed" && Date.parse(run.endedAt ?? "") <= mergedAt),
 		);
 		if (newer.length)
 			tasks.set(task.key, { ...standaloneTask(task.key, newer), plan, runs: task.runs });

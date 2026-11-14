@@ -134,6 +134,9 @@ describe("scaffold", () => {
 			"github.com/me/demo/internal/api",
 		);
 		expect(readFileSync(join(dir, "AGENTS.md"), "utf8")).not.toContain("__PROJECT__");
+		expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain("node_modules/");
+		expect(readFileSync(join(dir, ".gitignore"), "utf8")).toContain(".env");
+		expect(existsSync(join(dir, "gitignore.template"))).toBe(false);
 	});
 
 	test("fillPlaceholders replaces every occurrence", () => {

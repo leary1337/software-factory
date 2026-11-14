@@ -22,7 +22,6 @@ import { Command, CommanderError } from "commander";
 import { openDatabase } from "../db/client.ts";
 import { parseDatabaseUrl } from "../db/url.ts";
 import { VERSION } from "../index.ts";
-import { sandboxGitPreflightCached } from "../sandbox/git-preflight.ts";
 import { addClientFlags, clientFlags, type RemoteOpts, resolveCommandClient } from "./client.ts";
 import { runAddProject } from "./commands/add-project.ts";
 import { registerBootstrapCommands } from "./commands/bootstrap.ts";
@@ -36,6 +35,7 @@ import { runPlanList, runPlanStatus } from "./commands/plan-status.ts";
 import { runProjects } from "./commands/projects.ts";
 import { registerRunCommand } from "./commands/run.ts";
 import { runServe } from "./commands/serve.ts";
+import { registerStateCommands } from "./commands/state.ts";
 import { registerUpCommand } from "./commands/up.ts";
 import { withCliDb } from "./context.ts";
 import {
@@ -180,10 +180,7 @@ export function buildProgram(baseContext: CliContext): Command {
 			.description(
 				"check the client's view of a warren server (reachable? auth valid? version match?)",
 			)
-			.option(
-				"--local",
-				"run the deployment-side checks instead (env vars, sandbox runtime, bwrap, DB)",
-			)
+			.option("--local", "run the deployment-side checks instead (env vars, local runtime, DB)")
 			.option("--no-auth", "skip the auth check (loopback dev mode)")
 			.option(
 				"--verbose",
@@ -207,9 +204,6 @@ export function buildProgram(baseContext: CliContext): Command {
 					{
 						projects,
 						db,
-						// warren-1219: the real (boot-cached) sandbox git preflight —
-						// `warren doctor --local` is the operator's named surface for it.
-						probeSandboxGit: () => sandboxGitPreflightCached(),
 					},
 					{ noAuth: opts.auth === false, verbose: opts.verbose === true },
 				);
@@ -419,6 +413,7 @@ export function buildProgram(baseContext: CliContext): Command {
 
 	// Casual-user boot (warren-c18a): autodetect + serve + auto-login.
 	registerUpCommand(program, context);
+	registerStateCommands(program, context);
 	return program;
 }
 

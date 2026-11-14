@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "exa": {
+    "url": "https://mcp.exa.ai/mcp?tools=web_search_exa,web_fetch_exa",
+    "tools": ["web_search_exa", "web_fetch_exa"]
+  },
+  "context7": {
+    "url": "https://mcp.context7.com/mcp",
+    "tools": ["resolve-library-id", "query-docs"]
+  },
+  "graphify": { "package": "graphifyy", "version": "0.9.108", "backend": "none" },
+  "playwright": { "mcpVersion": "0.0.85", "cliVersion": "0.1.24", "browser": "chrome" }
+}

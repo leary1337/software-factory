@@ -1,3 +1,4 @@
+import { readVerificationArtifact } from "./verification-artifact.ts";
 /** GitHub Deployments, compare and Actions calls behind the Production panel. */
 
 import type {
@@ -32,6 +33,22 @@ export class GitHubDeploys implements ForgeDeploys {
 		private readonly slug: (ref: RepoRef) => string,
 		private readonly fetchImpl?: typeof fetch,
 	) {}
+
+	async readVerificationArtifact(
+		ref: RepoRef,
+		runId: number,
+		artifactName: string,
+	): Promise<ForgeResult<unknown>> {
+		const minted = await this.mint(ref);
+		if (!minted.ok) return minted;
+		return readVerificationArtifact({
+			slug: this.slug(ref),
+			runId,
+			artifactName,
+			token: minted.value.secret,
+			fetch: this.fetchImpl,
+		});
+	}
 
 	private async call(
 		ref: RepoRef,

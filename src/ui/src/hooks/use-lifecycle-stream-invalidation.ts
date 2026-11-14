@@ -98,7 +98,9 @@ export function useLifecycleStreamInvalidation(): void {
 			isAuthError: (err) =>
 				err instanceof UnauthorizedError || (err instanceof ApiError && err.status === 403),
 			onEvent: invalidateLists,
-			onStatus: () => {},
+			onStatus: (status) => {
+				if (status === "live") invalidateLists();
+			},
 		});
 
 		return () => {

@@ -1,52 +1,38 @@
+import { productionVerificationFromEvent } from "./production-verification.ts";
 /** Durable, opt-in delivery gate. A dispatch with an uncertain outcome is never repeated. */
+
 import { formatError } from "../core/errors.ts";
 import type { Repos } from "../db/repos/index.ts";
-import type { PlanRunChildRow, PlanRunRow, RunRow } from "../db/schema.ts";
-import type { DeployRecord, Forge, ForgeDeploys, RepoRef } from "../forge/contract.ts";
+import type { DeployRecord, ForgeDeploys, RepoRef } from "../forge/contract.ts";
 import { loadDeploymentHistory } from "../projects/deploy.ts";
 import {
 	DEFAULT_DEPLOYMENT_ADMISSION,
-	type DeploymentAdmission,
 	ensureDeploymentAdmission,
 } from "../projects/deployment-admission.ts";
 import { validateDeploymentWorkflow } from "../projects/deployment-workflow.ts";
+import { verifyRelease } from "../projects/release-verification.ts";
 import { recordLearningEvidence } from "../runs/learning-evidence.ts";
 import { resolvePollTarget } from "../runs/pr-merge.ts";
-import { loadWarrenConfig, type WarrenConfigCache } from "../warren-config/index.ts";
-import type { CoordinatorEmitFn } from "./coordinator.ts";
+import { reconcileEffect } from "./effects.ts";
+import { releasePolicy } from "./release-policy.ts";
+import { recoverRelease } from "./release-rollback.ts";
 
-export type DeploymentDecision =
-	| { readonly kind: "passed" | "waiting" }
-	| { readonly kind: "incident"; readonly reason: string };
-export interface DeploymentInput {
-	readonly planRun: PlanRunRow;
-	readonly child: PlanRunChildRow;
-	readonly run: RunRow;
-	readonly prUrl: string;
-	readonly emit: CoordinatorEmitFn;
-	readonly now: () => Date;
-}
-export type CoordinatorDeploymentFn = (input: DeploymentInput) => Promise<DeploymentDecision>;
-export type ProjectDeploymentBlocker = (plan: PlanRunRow) => Promise<string | null>;
-interface Deps {
-	readonly repos: Pick<Repos, "projects" | "planRuns" | "events">;
-	readonly forge: Forge;
-	readonly warrenConfigs?: WarrenConfigCache;
-	readonly fetch?: typeof fetch;
-	readonly deploymentAdmission?: DeploymentAdmission;
-}
-interface Attempt {
-	readonly expectedSha: string;
-	readonly shaInput: string;
-	readonly branch: string;
-	readonly workflow: string;
-	readonly environment: string;
-	readonly smokeUrl: string;
-	readonly timeoutMs: number;
-	readonly smokeTimeoutMs: number;
-	readonly startedAt: string;
-	readonly previousRunIds: readonly number[];
-}
+export type {
+	CoordinatorDeploymentFn,
+	DeploymentDecision,
+	DeploymentInput,
+	ProjectDeploymentBlocker,
+} from "./deployment-contract.ts";
+
+import type {
+	DeploymentAttempt as Attempt,
+	CoordinatorDeploymentFn,
+	DeploymentDecision,
+	DeploymentInput,
+	DeploymentGateDeps as Deps,
+	ProjectDeploymentBlocker,
+} from "./deployment-contract.ts";
+
 const WAIT: DeploymentDecision = { kind: "waiting" };
 const PASS: DeploymentDecision = { kind: "passed" };
 
@@ -73,6 +59,17 @@ async function incident(
 	return { kind: "incident", reason };
 }
 
+async function failedRelease(
+	deps: Deps,
+	input: DeploymentInput,
+	attempt: Attempt,
+	reason: string,
+): Promise<DeploymentDecision> {
+	return attempt.verification
+		? recoverRelease(deps, input, attempt, reason)
+		: incident(deps, input, reason);
+}
+
 async function assertPinnedWorkflow(
 	deploys: ForgeDeploys,
 	ref: RepoRef,
@@ -94,14 +91,15 @@ async function prepare(
 	deploys: ForgeDeploys,
 	ref: RepoRef,
 ): Promise<Attempt | null> {
-	const project = await deps.repos.projects.require(input.planRun.projectId);
-	const loaded =
-		deps.warrenConfigs === undefined
-			? await loadWarrenConfig({ projectPath: project.localPath })
-			: await deps.warrenConfigs.get(project.id, project.localPath);
-	if (loaded.errors.length > 0) throw new Error("Deployment configuration could not be read");
-	const config = loaded.defaults?.deploy;
+	const { deploy: config } = await releasePolicy(
+		deps,
+		input.planRun.id,
+		input.planRun.projectId,
+		input.child.seq,
+	);
 	if (!config?.autoDeploy) return null;
+	if (!config.verification)
+		throw new Error("Approved delivery requires application version and scenario checks");
 	const target = resolvePollTarget(deps.forge, input.prUrl);
 	if (target.kind === "unparseable") throw new Error("Cannot resolve the merged pull request");
 	const pr = await deps.forge.getPullRequest(ref, target.pr);
@@ -119,6 +117,8 @@ async function prepare(
 	await assertPinnedWorkflow(deploys, ref, workflow, pr.value.baseBranch, config.shaInput);
 	if (!config.smokeUrl) throw new Error("Automatic deployment requires an explicit smoke URL");
 	return {
+		verification: config.verification,
+		rollback: config.rollback,
 		expectedSha: pr.value.mergedCommit ?? "",
 		shaInput: config.shaInput ?? "",
 		branch: pr.value.baseBranch,
@@ -138,44 +138,55 @@ async function start(
 	deploys: ForgeDeploys,
 	ref: RepoRef,
 	attempt: Attempt,
+	recordIntent = true,
 ): Promise<DeploymentDecision> {
-	// Persist BEFORE external mutation: interruption here requires owner intervention.
-	await input.emit(input.run.id, "plan_run.deployment_attempt", { ...attempt });
-	await (deps.deploymentAdmission ?? DEFAULT_DEPLOYMENT_ADMISSION).write(input.planRun.projectId, {
-		ownerRunId: input.run.id,
-		workflow: attempt.workflow,
-		branch: attempt.branch,
-		requestedAt: attempt.startedAt,
-		previousRunIds: attempt.previousRunIds,
-	});
-	const sent = await deploys.dispatch(ref, attempt.workflow, attempt.branch, {
-		[attempt.shaInput]: attempt.expectedSha,
-	});
-	if (!sent.ok)
-		return incident(
-			deps,
-			input,
-			"Deployment dispatch could not be confirmed; inspect GitHub before resuming",
+	if (recordIntent) {
+		// Persist BEFORE external mutation: interruption here requires owner intervention.
+		await input.emit(input.run.id, "plan_run.deployment_attempt", { ...attempt });
+		await (deps.deploymentAdmission ?? DEFAULT_DEPLOYMENT_ADMISSION).write(
+			input.planRun.projectId,
+			{
+				ownerRunId: input.run.id,
+				workflow: attempt.workflow,
+				branch: attempt.branch,
+				requestedAt: attempt.startedAt,
+				previousRunIds: attempt.previousRunIds,
+			},
 		);
+	}
+	const sent = await reconcileEffect(deps.repos, {
+		identity: `${input.planRun.id}:${input.child.seq}:deploy:${attempt.expectedSha}`,
+		planRunId: input.planRun.id,
+		seq: input.child.seq,
+		kind: "deploy",
+		target: attempt.expectedSha,
+		lookup: async () => {
+			const runs = await deploys.listRuns(ref, attempt.workflow, 100);
+			const matching = runs.ok
+				? runs.value.find(
+						(run) =>
+							!attempt.previousRunIds.includes(run.id) &&
+							run.displayTitle === `Factory deploy ${attempt.expectedSha}`,
+					)
+				: undefined;
+			return matching
+				? { kind: "confirmed", result: { workflowRunId: matching.id } }
+				: { kind: "unknown", reason: "Deployment dispatch is not yet observable" };
+		},
+		perform: async () => {
+			const result = await deploys.dispatch(ref, attempt.workflow, attempt.branch, {
+				[attempt.shaInput]: attempt.expectedSha,
+			});
+			return result.ok
+				? { kind: "confirmed", result: { accepted: true } }
+				: { kind: "unknown", reason: "Deployment dispatch could not be confirmed" };
+		},
+	});
+	if (sent.kind !== "confirmed") return WAIT;
 	await input.emit(input.run.id, "plan_run.deployment_dispatched", {
 		expectedSha: attempt.expectedSha,
 	});
 	return WAIT;
-}
-
-async function smoke(fetchImpl: typeof fetch, attempt: Attempt): Promise<string | null> {
-	try {
-		const response = await fetchImpl(attempt.smokeUrl, {
-			method: "GET",
-			redirect: "error",
-			signal: AbortSignal.timeout(attempt.smokeTimeoutMs),
-			headers: { "User-Agent": "software-factory-smoke" },
-		});
-		await response.body?.cancel();
-		return response.ok ? null : `Production smoke returned HTTP ${response.status}`;
-	} catch {
-		return "Production smoke failed or timed out";
-	}
 }
 
 function isExpectedRelease(current: DeployRecord | null, attempt: Attempt): boolean {
@@ -185,6 +196,68 @@ function isExpectedRelease(current: DeployRecord | null, attempt: Attempt): bool
 		Number.isFinite(Date.parse(current.createdAt)) &&
 		Date.parse(current.createdAt) >= Date.parse(attempt.startedAt) - 1000
 	);
+}
+
+async function finishApplicationChecks(
+	deps: Deps,
+	input: DeploymentInput,
+	attempt: Attempt,
+	workflowRunId: number,
+	deploys: ForgeDeploys,
+	ref: RepoRef,
+): Promise<DeploymentDecision | null> {
+	if (!attempt.verification)
+		throw new Error(
+			"Application version and scenario verification were not approved; update the release policy before continuing",
+		);
+	await verifyRelease({
+		sha: attempt.expectedSha,
+		workflow: {
+			deploys,
+			ref,
+			runId: workflowRunId,
+			startedAt: attempt.startedAt,
+			now: input.now(),
+		},
+		smokeUrl: attempt.smokeUrl,
+		verification: attempt.verification,
+		timeoutMs: attempt.smokeTimeoutMs,
+		fetch: deps.fetch,
+	});
+	await input.emit(input.run.id, "plan_run.deployment_verified", {
+		expectedSha: attempt.expectedSha,
+		workflowRunId: workflowRunId,
+		environment: attempt.environment,
+		verification: { availability: true, version: true, scenario: true },
+		compatibility: attempt.rollback,
+		verificationPolicy: attempt.verification,
+		smokeUrl: attempt.smokeUrl,
+		smokeTimeoutMs: attempt.smokeTimeoutMs,
+	});
+
+	return null;
+}
+
+async function verifyPlatformCommit(
+	deps: Deps,
+	input: DeploymentInput,
+	deploys: ForgeDeploys,
+	ref: RepoRef,
+	attempt: Attempt,
+): Promise<DeploymentDecision | null> {
+	if (!attempt.verification?.artifactName) {
+		const release = await loadDeploymentHistory(deploys, ref, attempt.environment);
+		if (!release.ok || release.value.currentState === "unknown") return WAIT;
+		if (!isExpectedRelease(release.value.current, attempt))
+			return failedRelease(
+				deps,
+				input,
+				attempt,
+				"Production does not report the exact merged commit as active",
+			);
+	}
+
+	return null;
 }
 
 async function poll(
@@ -199,7 +272,7 @@ async function poll(
 		Date.parse(input.planRun.resumedAt ?? attempt.startedAt),
 	);
 	if (input.now().getTime() - baseline >= attempt.timeoutMs)
-		return incident(deps, input, "Deployment verification timed out");
+		return failedRelease(deps, input, attempt, "Deployment verification timed out");
 	const runs = await deploys.listRuns(ref, attempt.workflow, 100);
 	if (!runs.ok) return WAIT;
 	const candidates = runs.value.filter(
@@ -212,48 +285,83 @@ async function poll(
 	);
 	if (!matching) {
 		if (candidates.length > 0)
-			return incident(
+			return failedRelease(
 				deps,
 				input,
+				attempt,
 				"The deployment workflow ran a different commit; the queue remains stopped",
 			);
 		return WAIT;
 	}
 	if (matching.status !== "completed") return WAIT;
 	if (matching.conclusion !== "success")
-		return incident(
+		return failedRelease(
 			deps,
 			input,
+			attempt,
 			`Deployment workflow finished with ${matching.conclusion ?? "unknown status"}`,
 		);
-	const release = await loadDeploymentHistory(deploys, ref, attempt.environment);
-	if (!release.ok || release.value.currentState === "unknown") return WAIT;
-	if (!isExpectedRelease(release.value.current, attempt))
-		return incident(deps, input, "Production does not report the exact merged commit as active");
-	const failure = await smoke(deps.fetch ?? fetch, attempt);
-	if (failure !== null) return incident(deps, input, failure);
-	await input.emit(input.run.id, "plan_run.deployment_verified", {
-		expectedSha: attempt.expectedSha,
-		workflowRunId: matching.id,
-		environment: attempt.environment,
-	});
+	const platform = await verifyPlatformCommit(deps, input, deploys, ref, attempt);
+	if (platform) return platform;
+
+	let application: DeploymentDecision | null;
+	try {
+		application = await finishApplicationChecks(deps, input, attempt, matching.id, deploys, ref);
+	} catch (error) {
+		return failedRelease(deps, input, attempt, formatError(error));
+	}
+	if (application) return application;
 	await (deps.deploymentAdmission ?? DEFAULT_DEPLOYMENT_ADMISSION).clear(input.planRun.projectId);
 	return PASS;
 }
 
-async function isEnabled(deps: Deps, projectId: string): Promise<boolean> {
-	const project = await deps.repos.projects.require(projectId);
-	const loaded =
-		deps.warrenConfigs === undefined
-			? await loadWarrenConfig({ projectPath: project.localPath })
-			: await deps.warrenConfigs.get(project.id, project.localPath);
-	if (loaded.errors.length > 0) throw new Error("Deployment configuration could not be read");
-	return loaded.defaults?.deploy?.autoDeploy === true;
+async function waitForBoundary(deps: Deps, input: DeploymentInput): Promise<DeploymentDecision> {
+	const events = await deps.repos.events.listByRun(input.run.id);
+	if (!events.some((event) => event.kind === "plan_run.release_pending"))
+		await input.emit(input.run.id, "plan_run.release_pending", {
+			planRunId: input.planRun.id,
+			seq: input.child.seq,
+			reason: "Merged; waiting for the approved release boundary",
+		});
+	return PASS;
+}
+
+async function reconcileInterruptedDispatch(
+	deps: Deps,
+	input: DeploymentInput,
+	deploys: ForgeDeploys,
+	target: RepoRef,
+	attempt: Attempt,
+): Promise<DeploymentDecision> {
+	if (input.now().getTime() - Date.parse(attempt.startedAt) >= attempt.timeoutMs)
+		return incident(
+			deps,
+			input,
+			"Deployment dispatch remains unconfirmed after its wait budget; inspect the platform before another release",
+		);
+	return start(deps, input, deploys, target, attempt, false);
+}
+
+function shouldResumeRollback(
+	events: readonly { kind: string; ts: string }[],
+	resumedAt: string | null,
+): boolean {
+	if (!events.some((event) => event.kind.startsWith("plan_run.rollback_"))) return false;
+	if (events.some((event) => event.kind === "plan_run.rollback_attempt")) return true;
+	const failed = [...events].reverse().find((event) => event.kind === "plan_run.rollback_failed");
+	return !failed || !resumedAt || Date.parse(resumedAt) <= Date.parse(failed.ts);
 }
 
 async function advanceDeployment(deps: Deps, input: DeploymentInput): Promise<DeploymentDecision> {
+	const policy = await releasePolicy(
+		deps,
+		input.planRun.id,
+		input.planRun.projectId,
+		input.child.seq,
+	);
+	if (!policy.boundary) return waitForBoundary(deps, input);
 	const events = await deps.repos.events.listByRun(input.run.id);
-	if (events.some((event) => event.kind === "plan_run.deployment_verified")) {
+	if (events.some((event) => productionVerificationFromEvent(event) !== null)) {
 		const admission = deps.deploymentAdmission ?? DEFAULT_DEPLOYMENT_ADMISSION;
 		if ((await admission.read(input.planRun.projectId))?.ownerRunId === input.run.id)
 			await admission.clear(input.planRun.projectId);
@@ -263,7 +371,7 @@ async function advanceDeployment(deps: Deps, input: DeploymentInput): Promise<De
 	const project = await deps.repos.projects.require(input.planRun.projectId);
 	const target = deps.forge.parseRepoRef(project.gitUrl);
 	const deploys = deps.forge.deploys;
-	if (!saved && !(await isEnabled(deps, project.id))) return PASS;
+	if (!saved && !policy.deploy?.autoDeploy) return PASS;
 	if (!deploys || !target)
 		return incident(deps, input, "Automatic deployment is unsupported by this forge");
 	await ensureDeploymentAdmission(
@@ -278,13 +386,10 @@ async function advanceDeployment(deps: Deps, input: DeploymentInput): Promise<De
 		return attempt === null ? PASS : await start(deps, input, deploys, target, attempt);
 	}
 	const attempt = saved.payloadJson as unknown as Attempt;
+	if (shouldResumeRollback(events, input.planRun.resumedAt))
+		return recoverRelease(deps, input, attempt, "Deployment verification failed");
 	const sent = events.some((event) => event.kind === "plan_run.deployment_dispatched");
-	if (!sent && (input.planRun.resumedAt === null || input.planRun.resumedAt <= saved.ts))
-		return incident(
-			deps,
-			input,
-			"Deployment dispatch was interrupted; inspect GitHub and resume explicitly",
-		);
+	if (!sent) return reconcileInterruptedDispatch(deps, input, deploys, target, attempt);
 	return await poll(deps, input, deploys, target, attempt);
 }
 export function createDeploymentGate(deps: Deps): CoordinatorDeploymentFn {
@@ -309,7 +414,7 @@ export async function hasPendingDeployment(
 		(event) =>
 			event.kind === "plan_run.deployment_attempt" &&
 			!events.some(
-				(done) => done.runId === event.runId && done.kind === "plan_run.deployment_verified",
+				(done) => done.runId === event.runId && productionVerificationFromEvent(done) !== null,
 			),
 	);
 }

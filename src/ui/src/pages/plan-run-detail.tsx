@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { formatError } from "@/lib/format-error.ts";
 import { formatPlanRunFailureReason } from "@/lib/labels.ts";
+import { PlanRevisionPanel } from "./plan-revision-panel.tsx";
 import { ChildWalkPanel } from "./plan-run-detail/child-walk.tsx";
 import { DetailRail } from "./plan-run-detail/detail-rail.tsx";
 import { TaskDetail } from "./plan-run-detail/task-detail.tsx";
@@ -146,6 +147,7 @@ export function PlanRunDetailPage() {
 
 			{refreshWarning}
 			<PlanProgress plan={planRun} tasks={children} />
+			<PlanRevisionPanel planRunId={id} childRows={children} active={canCancel} />
 
 			{/* items-start: the child walk sizes to its rows rather than
 			    stretching to the rail's height (warren-dac1). */}

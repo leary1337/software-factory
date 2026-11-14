@@ -6,7 +6,7 @@
  * ··" because it reused the sidebar's ordinals.
  *
  * Captions say what the operator sees or can do, never how the code
- * fetches or resolves it. The bottom nav numbers its own five tabs 01-05.
+ * fetches or resolves it. The bottom nav keeps only the three primary destinations.
  *
  * Asserts on rendered text, never pixels.
  */
@@ -62,19 +62,20 @@ for (const c of cases.filter(
 	test.describe(`${SEED} ${c.name}`, () => {
 		test.use({ viewport: c.size, colorScheme: c.theme });
 
-		test("keeps primary workspace navigation compact and leaves tools in More", async ({
-			page,
-		}) => {
+		test("keeps primary navigation compact and diagnostics inside Settings", async ({ page }) => {
 			await openCase(page, c, fixture);
 			const nav = page.getByRole("navigation", { name: "Primary" });
 			expect(await nav.getByRole("link").allTextContents()).toEqual([
-				"Overview",
-				"Kanban",
-				"Production",
+				"Tasks",
+				"Projects",
+				"Settings",
 			]);
-			await nav.getByRole("button", { name: "More" }).click();
+			await nav.getByRole("link", { name: "Settings" }).click();
+			await page.getByText("Diagnostics", { exact: true }).click();
 			await expect(
-				page.getByRole("dialog").getByRole("link", { name: "Operations" }),
+				page
+					.getByRole("navigation", { name: "Diagnostics" })
+					.getByRole("link", { name: "Operations" }),
 			).toBeVisible();
 		});
 	});

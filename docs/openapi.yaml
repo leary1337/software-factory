@@ -19,8 +19,6 @@ tags:
     description: '`/analytics` routes.'
   - name: events
     description: '`/events` routes.'
-  - name: extensions
-    description: '`/extensions` routes.'
   - name: forge
     description: '`/forge` routes.'
   - name: github-app
@@ -33,6 +31,8 @@ tags:
     description: '`/metrics` routes.'
   - name: ops
     description: '`/ops` routes.'
+  - name: plan-approvals
+    description: '`/plan-approvals` routes.'
   - name: plan-runs
     description: '`/plan-runs` routes.'
   - name: preview
@@ -43,6 +43,8 @@ tags:
     description: '`/runs` routes.'
   - name: setup
     description: '`/setup` routes.'
+  - name: toolkit
+    description: '`/toolkit` routes.'
   - name: whoami
     description: '`/whoami` routes.'
 paths:
@@ -196,24 +198,6 @@ paths:
         probe shorthand (immediate clean close, empty body). Operator-gated — a public spectator
         never gets a held-open feed of every run id on the instance (scenario 39); it stays on the
         fallback poll.
-  /extensions/judge/verdicts.jsonl:
-    get:
-      operationId: judgeVerdictsProxyHandler
-      tags:
-        - extensions
-      summary: GET /extensions/judge/verdicts.jsonl
-      responses:
-        '200':
-          description: Successful response.
-        default:
-          description: Error response (see `src/core/errors.ts`).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-      description: >-
-        warren-1b40: operator-gated reverse proxy to the judge extension's /verdicts.jsonl export.
-        Server-held base URL + export token from env (see ./judge-proxy.ts); never the SPA fallback.
   /forge/repos:
     get:
       operationId: forgeReposHandler
@@ -345,6 +329,63 @@ paths:
       description: >-
         pl-7e38 step 12 (warren-d850): one-poll Operations snapshot, readPublic with a reduced
         projection.
+  /plan-approvals:
+    post:
+      operationId: preparePlanApprovalHandler
+      tags:
+        - plan-approvals
+      summary: POST /plan-approvals
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /plan-approvals/{id}:
+    get:
+      operationId: getPlanApprovalHandler
+      tags:
+        - plan-approvals
+      summary: GET /plan-approvals/:id
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /plan-approvals/{id}/start:
+    post:
+      operationId: startPlanApprovalHandler
+      tags:
+        - plan-approvals
+      summary: POST /plan-approvals/:id/start
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
   /plan-runs:
     get:
       operationId: listPlanRunsHandler
@@ -427,6 +468,27 @@ paths:
                   - planRun
                   - children
                   - runs
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /plan-runs/{id}/approval:
+    get:
+      operationId: planApprovalHistoryHandler
+      tags:
+        - plan-runs
+      summary: GET /plan-runs/:id/approval
+      responses:
+        '200':
+          description: Successful response.
         default:
           description: Error response (see `src/core/errors.ts`).
           content:
@@ -550,6 +612,27 @@ paths:
           required: true
           schema:
             type: string
+  /plan-runs/{id}/revisions:
+    post:
+      operationId: revisePlanApprovalHandler
+      tags:
+        - plan-runs
+      summary: POST /plan-runs/:id/revisions
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
   /preview/config:
     get:
       operationId: previewConfigHandler
@@ -608,6 +691,36 @@ paths:
                     $ref: '#/components/schemas/Project'
                 required:
                   - project
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /projects/new:
+    post:
+      operationId: createNewProjectHandler
+      tags:
+        - projects
+      summary: POST /projects/new
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /projects/new/preview:
+    post:
+      operationId: previewNewProjectHandler
+      tags:
+        - projects
+      summary: POST /projects/new/preview
+      responses:
+        '200':
+          description: Successful response.
         default:
           description: Error response (see `src/core/errors.ts`).
           content:
@@ -751,6 +864,48 @@ paths:
           required: true
           schema:
             type: string
+  /projects/{id}/readiness:
+    get:
+      operationId: projectReadinessHandler
+      tags:
+        - projects
+      summary: GET /projects/:id/readiness
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /projects/{id}/readiness/check:
+    post:
+      operationId: projectReadinessHandler
+      tags:
+        - projects
+      summary: POST /projects/:id/readiness/check
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
   /projects/{id}/ready-plans:
     get:
       operationId: listReadyPlansHandler
@@ -837,6 +992,68 @@ paths:
           schema:
             type: string
         - name: seedId
+          in: path
+          required: true
+          schema:
+            type: string
+  /projects/{id}/settings:
+    get:
+      operationId: projectSettingsHandler
+      tags:
+        - projects
+      summary: GET /projects/:id/settings
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+    patch:
+      operationId: projectSettingsHandler
+      tags:
+        - projects
+      summary: PATCH /projects/:id/settings
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /projects/{id}/setup-pr:
+    post:
+      operationId: projectSetupHandler
+      tags:
+        - projects
+      summary: POST /projects/:id/setup-pr
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+      parameters:
+        - name: id
           in: path
           required: true
           schema:
@@ -1279,6 +1496,51 @@ paths:
       description: >-
         warren-48f8: setup-code redemption; anonymous by necessity — the code IS the auth. 404
         unless the boot armed the handoff (src/server/setup-handoff.ts).
+  /toolkit:
+    get:
+      operationId: toolkitStatusHandler
+      tags:
+        - toolkit
+      summary: GET /toolkit
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /toolkit/apply:
+    post:
+      operationId: toolkitApplyHandler
+      tags:
+        - toolkit
+      summary: POST /toolkit/apply
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /toolkit/check:
+    post:
+      operationId: toolkitCheckHandler
+      tags:
+        - toolkit
+      summary: POST /toolkit/check
+      responses:
+        '200':
+          description: Successful response.
+        default:
+          description: Error response (see `src/core/errors.ts`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /version:
     get:
       operationId: versionHandler

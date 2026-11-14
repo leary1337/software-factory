@@ -11,13 +11,11 @@ import {
 } from "@/pages/telemetry/use-telemetry-window.tsx";
 
 export { TelemetryBehaviorTab } from "@/pages/telemetry/behavior-tab.tsx";
-export { TelemetryJudgeTab } from "@/pages/telemetry/judge-tab.tsx";
 export { TelemetryLoopTab } from "@/pages/telemetry/loop-tab.tsx";
 
 const TABS = [
 	{ path: "loop", label: "DELIVERY" },
 	{ path: "behavior", label: "BEHAVIOR" },
-	{ path: "judge", label: "JUDGE" },
 ] as const;
 
 /** "ENDS TODAY · AUG 26" — the window end label beside the selector. */

@@ -110,34 +110,6 @@ describe("runDoctor", () => {
 		expect(result.checks.every((c: DoctorCheck) => c.ok)).toBe(true);
 	});
 
-	test("flags a missing bwrap binary with the install hint", async () => {
-		const { context } = captureContext(
-			{
-				WARREN_API_TOKEN: "tok",
-				CANOPY_REPO_URL: "https://example.com/agents.git",
-			},
-			async (cmd) => {
-				if (cmd[0]?.endsWith("bwrap")) {
-					return { stdout: "", stderr: "command not found", exitCode: 127 };
-				}
-				return { stdout: "", stderr: "", exitCode: 0 };
-			},
-		);
-		const result = await runDoctor(
-			context,
-			{
-				existsSync: () => true,
-				probeLocalRuntime: async () => undefined,
-				platform: "linux",
-			},
-			{},
-		);
-		expect(result.exitCode).toBe(1);
-		const bwrap = result.checks.find((c: DoctorCheck) => c.name === "bwrap");
-		expect(bwrap?.ok).toBe(false);
-		expect(bwrap?.hint).toContain("bubblewrap");
-	});
-
 	test("emits all expected check names in order", async () => {
 		const { context } = captureContext({
 			WARREN_API_TOKEN: "tok",
@@ -157,7 +129,6 @@ describe("runDoctor", () => {
 			"warren_db",
 			"db_reachable",
 			"projects_root",
-			"bwrap",
 			"warren_config",
 			"warren_config_deprecations",
 			"preview_port_allocator",
@@ -167,117 +138,8 @@ describe("runDoctor", () => {
 		]);
 	});
 
-	test("under WARREN_RUNTIME=docker, skips burrow/bwrap/stale probes and says so", async () => {
-		const { context } = captureContext({
-			WARREN_API_TOKEN: "tok",
-			CANOPY_REPO_URL: "https://example.com/agents.git",
-			WARREN_RUNTIME: "docker",
-		});
-		const result = await runDoctor(
-			context,
-			{
-				existsSync: () => true,
-				// A throwing probe would fail the check under local; under k8s it must
-				// never be consulted at all.
-				probeLocalRuntime: async () => {
-					throw new Error("burrow must not be probed under k8s");
-				},
-			},
-			{},
-		);
-		const names = result.checks.map((c) => c.name);
-		expect(names).not.toContain("bwrap");
-		expect(names).not.toContain("stale_sandbox_workspaces");
-		expect(names).not.toContain("local_runtime");
-		const runtime = result.checks.find((c: DoctorCheck) => c.name === "runtime_backend");
-		expect(runtime?.ok).toBe(true);
-		expect(runtime?.message).toContain("docker");
-		expect(result.exitCode).toBe(0);
-	});
-
-	test("skips sandbox probes for explicit macOS process execution", async () => {
-		const { context } = captureContext({
-			WARREN_API_TOKEN: "tok",
-			WARREN_LOCAL_EXECUTION: "process",
-		});
-		const result = await runDoctor(
-			context,
-			{
-				platform: "darwin",
-				existsSync: () => true,
-				probeLocalRuntime: async () => undefined,
-				probeSandboxGit: async () => {
-					throw new Error("sandbox probe must not run");
-				},
-			},
-			{},
-		);
-		expect(result.exitCode).toBe(0);
-		expect(result.checks.map((check) => check.name)).not.toContain("sandbox_git");
-		expect(result.checks.map((check) => check.name)).not.toContain("bwrap");
-	});
-
 	// warren-1219: the sandbox git preflight check runs only on the local
 	// topology, only when a probe is wired (main.ts wires the real one).
-	test("sandbox_git check reports ok for a passing probe", async () => {
-		const { context } = captureContext({ WARREN_API_TOKEN: "tok" });
-		const result = await runDoctor(
-			context,
-			{
-				existsSync: () => true,
-				probeLocalRuntime: async () => undefined,
-				probeSandboxGit: async () => ({
-					ok: true,
-					gitPath: "/usr/bin/git",
-					effectiveGit: "/usr/bin/git",
-					substituted: false,
-					message: "/usr/bin/git executes inside the sandbox profile (git --version ok)",
-				}),
-			},
-			{},
-		);
-		const check = result.checks.find((c: DoctorCheck) => c.name === "sandbox_git");
-		expect(check?.ok).toBe(true);
-		expect(check?.message).toContain("git --version");
-		expect(result.exitCode).toBe(0);
-	});
-
-	test("sandbox_git check fails (and fails doctor) naming the binary for a broken sandbox git", async () => {
-		const { context } = captureContext({ WARREN_API_TOKEN: "tok" });
-		const result = await runDoctor(
-			context,
-			{
-				existsSync: () => true,
-				probeLocalRuntime: async () => undefined,
-				probeSandboxGit: async () => ({
-					ok: false,
-					gitPath: "/nix/store/abc-git-2.44/bin/git",
-					effectiveGit: "/nix/store/abc-git-2.44/bin/git",
-					substituted: false,
-					message:
-						"/nix/store/abc-git-2.44/bin/git does not execute inside the sandbox: dyld: Library not loaded",
-					hint: "this git cannot run inside the sandbox; install a system git",
-				}),
-			},
-			{},
-		);
-		const check = result.checks.find((c: DoctorCheck) => c.name === "sandbox_git");
-		expect(check?.ok).toBe(false);
-		expect(check?.message).toContain("/nix/store/abc-git-2.44/bin/git");
-		expect(check?.message).toContain("dyld");
-		expect(check?.hint).toContain("sandbox");
-		expect(result.exitCode).toBe(1);
-	});
-
-	test("sandbox_git check is absent without a wired probe (hermetic default)", async () => {
-		const { context } = captureContext({ WARREN_API_TOKEN: "tok" });
-		const result = await runDoctor(
-			context,
-			{ existsSync: () => true, probeLocalRuntime: async () => undefined },
-			{},
-		);
-		expect(result.checks.map((c) => c.name)).not.toContain("sandbox_git");
-	});
 
 	test("warren_db reports the resolved dialect for WARREN_DB_URL", async () => {
 		const { context } = captureContext({

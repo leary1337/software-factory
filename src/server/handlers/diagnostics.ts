@@ -7,9 +7,7 @@
  */
 
 import {
-	checkBwrap,
 	checkDatabaseReachable,
-	checkDockerCli,
 	checkPreviewAuthStrength,
 	checkPreviewMaxLive,
 	checkPreviewPortAllocator,
@@ -20,22 +18,11 @@ import {
 import { checkStaleSandboxWorkspaces } from "../../diagnostics/stale-workspaces.ts";
 import { DEFAULT_MAX_LIVE } from "../../preview/eviction/index.ts";
 import { DEFAULT_PREVIEW_PORT_RANGE, PreviewPortAllocator } from "../../preview/port-allocator.ts";
-import type { SpawnFn } from "../../projects/clone.ts";
-import { resolveDockerConfig } from "../../runtime/docker/config.ts";
-import { resolveRuntimeKind } from "../../runtime/registry.ts";
 import { jsonResponse } from "../response.ts";
 import type { RouteHandler, ServerDeps } from "../types.ts";
-import { defaultSpawn } from "./index.ts";
 
 export function readyzHandler(deps: ServerDeps): RouteHandler {
 	return async () => {
-		// SpawnFn is required for the bwrap + canopy_clean probes; main.ts
-		// always wires `defaultSpawn`, but the type system keeps it
-		// optional so tests don't have to populate it. Fall back to the
-		// handler-local `defaultSpawn` to keep the contract live in tests
-		// that don't override.
-		const spawn: SpawnFn = deps.spawn ?? defaultSpawn;
-
 		const checks: DiagnosticCheck[] = [];
 		// `deps.logger` is the sink for the raw failure detail the checks
 		// refuse to put in the payload (warren-51de): driver text naming the
@@ -47,23 +34,7 @@ export function readyzHandler(deps: ServerDeps): RouteHandler {
 				log: deps.logger,
 			}),
 		);
-		// The bwrap and stale-workspace probes only make sense for the local
-		// backend, where warren runs sandboxes in-process on the host (warren-413d).
-		// The co-tenanted burrow daemon is gone (warren-9a26), so its socket probe
-		// is gone with it. Under `WARREN_RUNTIME=k8s` agents run in pods and bwrap
-		// runs inside the agent image, so probing it here just reports "bwrap not
-		// found" and needlessly degrades readiness (warren-c128).
-		// `localReadyzChecks` returns [] under k8s.
-		checks.push(...(await localReadyzChecks(deps, spawn)));
-		// The docker-topology counterpart (warren-5c42): under
-		// `WARREN_RUNTIME=docker` the one binary a dispatch cannot proceed
-		// without is the docker CLI, so readiness execs it. Returns [] on the
-		// other backends.
-		checks.push(...(await dockerReadyzChecks(spawn)));
-		// The K8s-topology counterpart (warren-39e1): under `WARREN_RUNTIME=k8s`
-		// /readyz asserts something POSITIVE about the control plane — the pod
-		// watcher's informer sync state — rather than just skipping the burrow
-		// probes. Returns null under `local` so the check is absent there.
+		checks.push(await staleSandboxWorkspacesReadyzCheck(deps));
 		checks.push(await checkAgentsRegistered(deps));
 		const warrenConfigProjects = (await deps.repos.projects.listAll()).map((p) => ({
 			id: p.id,
@@ -91,46 +62,6 @@ export function readyzHandler(deps: ServerDeps): RouteHandler {
 			checks,
 		});
 	};
-}
-
-/**
- * The local-topology readyz probes — bwrap bring-up and stale workspaces.
- * Only meaningful under the local backend, where warren itself execs bwrap
- * for the in-process sandbox engine (warren-413d): the K8s runtime
- * (`WARREN_RUNTIME=k8s`) runs agents in pods and bwrap lives in the agent
- * image, so probing it here would only ever report "bwrap not found" and
- * degrade an otherwise-healthy control plane (warren-c128). The burrow-daemon
- * socket probe died with the daemon (warren-9a26). Returns `[]` under k8s.
- * Reads `WARREN_RUNTIME` off `process.env` directly, mirroring the
- * auth-strength probe above (server boot already validated the value via
- * `resolveRuntimeProvider`).
- */
-async function localReadyzChecks(deps: ServerDeps, spawn: SpawnFn): Promise<DiagnosticCheck[]> {
-	if (resolveRuntimeKind() !== "local") return [];
-	return [
-		await checkBwrap({
-			spawn,
-			...(deps.platform !== undefined ? { platform: deps.platform } : {}),
-		}),
-		await staleSandboxWorkspacesReadyzCheck(deps),
-	];
-}
-
-/**
- * The docker-topology readyz probe — `docker_cli` (warren-5c42). Scoped the
- * same way as the local bwrap probe (warren-c128): only the sibling-container
- * backend needs a docker CLI, so on `local` / `k8s` there is nothing to probe
- * and the check is absent. A broken CLI used to boot green and surface only
- * at the first dispatch, as `Executable not found in $PATH: "docker"` — the
- * macOS Docker Desktop bind-mount trap in particular (see
- * `DOCKER_CLI_HINT`). Reads `WARREN_RUNTIME` and `WARREN_DOCKER_BIN` off
- * `process.env` directly, mirroring `localReadyzChecks` — boot already
- * validated the runtime value via `resolveRuntimeProvider`, and the spawn
- * seam resolves its own config from the same env.
- */
-async function dockerReadyzChecks(spawn: SpawnFn): Promise<DiagnosticCheck[]> {
-	if (resolveRuntimeKind() !== "docker") return [];
-	return [await checkDockerCli({ spawn, dockerBin: resolveDockerConfig(process.env).bin })];
 }
 
 async function previewPortAllocatorReadyzCheck(deps: ServerDeps): Promise<DiagnosticCheck> {

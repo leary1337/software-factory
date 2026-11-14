@@ -121,6 +121,20 @@ describe("dispatchCronTrigger", () => {
 		await db.close();
 	});
 
+	test.each(["nightwatch", "bugwatch"])("never dispatches retired patrol %s", async (role) => {
+		const { spawn, calls } = spawnRecorder(repos, projectId);
+		const result = await dispatchCronTrigger({
+			projectId,
+			trigger: cronTrigger({ role }),
+			now: new Date(),
+			repos,
+			spawn,
+		});
+		expect(result).toMatchObject({ kind: "skipped", reason: expect.stringContaining("retired") });
+		expect(calls).toEqual([]);
+		expect(await repos.runs.listAll()).toEqual([]);
+	});
+
 	test("first observation seeds the row at now and does NOT fire", async () => {
 		const { spawn, calls } = spawnRecorder(repos, projectId);
 		const now = new Date("2026-05-10T12:30:00.000Z");

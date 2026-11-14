@@ -46,6 +46,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { load } from "js-yaml";
 import { formatError } from "../core/errors.ts";
+import { isRetiredPatrol, RETIRED_PATROL_REASON } from "../registry/retired-agents.ts";
 import { type PrTemplateOverrides, parsePrTemplate } from "../runs/pr-template.ts";
 import { WARREN_CONFIG_DIR, WARREN_CONFIG_FILES, warrenConfigRelativePath } from "./config.ts";
 import {
@@ -141,7 +142,15 @@ export async function loadWarrenConfig(input: LoadWarrenConfigInput): Promise<Lo
 		};
 	}
 
-	const triggers = await loadTriggers({ projectPath, exists, read, errors });
+	const loadedTriggers = await loadTriggers({ projectPath, exists, read, errors });
+	const retired = loadedTriggers?.filter((trigger) => isRetiredPatrol(trigger.role)) ?? [];
+	if (retired.length)
+		warnings.push({
+			file: ".warren/triggers.yaml",
+			code: WARREN_CONFIG_FILE_ERROR_CODES.deprecated,
+			message: `${RETIRED_PATROL_REASON}. Disabled: ${retired.map((trigger) => trigger.id).join(", ")}`,
+		});
+	const triggers = loadedTriggers?.filter((trigger) => !isRetiredPatrol(trigger.role)) ?? null;
 	const defaults = await loadDefaults({ projectPath, exists, read, errors, warnings });
 	const previewOverride = await loadPreviewFile({ projectPath, exists, read, errors });
 	const prTemplate = await loadPrTemplate({ projectPath, exists, read, errors });

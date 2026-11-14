@@ -87,6 +87,7 @@ export const ALWAYS_PROTECTED_CONFIG_PATH = warrenConfigRelativePath("config");
 export interface AutoMergePolicyInput {
 	/** Only the reviewed plan delivery boundary may apply owner-delegated paths. */
 	readonly independentlyReviewed?: boolean;
+	readonly approvedPlanPaths?: readonly string[];
 	/**
 	 * The `pr.autoMerge` block resolved from the PR's BASE ref (design record
 	 * §3.1), never from the run-branch working tree — the agent authors the
@@ -142,6 +143,7 @@ export function decideAutoMerge(input: AutoMergePolicyInput): AutoMergeDecision 
 		return { decision: "skip", reason: changed.reason, paths: changed.paths };
 	if (changed.paths.length === 0) return { decision: "skip", reason: "empty_diff" };
 	const matched = changed.paths.filter((path) => {
+		if (input.independentlyReviewed && input.approvedPlanPaths?.includes(path)) return false;
 		if (pathMatchesProtectedEntry(path, config.protectedPaths)) return true;
 		if (!pathMatchesProtectedEntry(path, MANDATORY_REVIEW_PATHS)) return false;
 		return !(
@@ -153,7 +155,12 @@ export function decideAutoMerge(input: AutoMergePolicyInput): AutoMergeDecision 
 	if (matched.length > 0) {
 		return { decision: "skip", reason: "protected_path", paths: matched };
 	}
-	if (changed.paths.includes(ALWAYS_PROTECTED_CONFIG_PATH)) {
+	if (
+		changed.paths.includes(ALWAYS_PROTECTED_CONFIG_PATH) &&
+		!(
+			input.independentlyReviewed && input.approvedPlanPaths?.includes(ALWAYS_PROTECTED_CONFIG_PATH)
+		)
+	) {
 		// A diff that touches `.warren/config.yaml` never arms, regardless of
 		// the list — the base-ref rule alone cannot cover a chained child
 		// that edits the config its own policy resolves from.

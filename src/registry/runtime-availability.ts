@@ -1,9 +1,11 @@
 import { isRetiredRuntimeId } from "../core/wire.ts";
 import { AgentSchemaError } from "./errors.ts";
+import { isRetiredPatrol, RETIRED_PATROL_REASON } from "./retired-agents.ts";
 import { type AgentDefinition, readRuntimeId } from "./schema.ts";
 
 /** Keep old definitions readable without offering them as executable choices. */
 export function isRetiredAgent(row: { name: string; renderedJson: unknown }): boolean {
+	if (isRetiredPatrol(row.name)) return true;
 	const rendered = row.renderedJson;
 	if (rendered === null || typeof rendered !== "object") return false;
 	const frontmatter = (rendered as { frontmatter?: unknown }).frontmatter;
@@ -16,6 +18,7 @@ export function isRetiredAgent(row: { name: string; renderedJson: unknown }): bo
 
 /** Resolve new work separately from decoding historical definitions. */
 export function readRunnableRuntimeId(agent: AgentDefinition, configOverride?: string): string {
+	if (isRetiredPatrol(agent.name)) throw new AgentSchemaError(RETIRED_PATROL_REASON);
 	const runtimeId = readRuntimeId(agent, configOverride);
 	if (isRetiredRuntimeId(runtimeId) || isRetiredAgent({ name: agent.name, renderedJson: agent })) {
 		throw new AgentSchemaError(

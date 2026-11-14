@@ -66,12 +66,10 @@ const DELIBERATE: Readonly<Record<string, string>> = {
 	"src/core/tool-shape.ts": "per-runtime shape record, keyed by runtime id by design",
 	"src/core/usage-shape.ts": "per-runtime shape record, keyed by runtime id by design",
 	"src/registry/schema.ts": "declares DEFAULT_RUNTIME_ID, the id agents fall back to",
-	"src/registry/builtins/bugwatch.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/claude-code.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/factory-roles.ts":
 		"built-in agents declaring the runtime they dispatch onto",
 	"src/registry/builtins/healer.ts": "built-in agent declaring the runtime it dispatches onto",
-	"src/registry/builtins/nightwatch.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/planner.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/registry/builtins/pr-fixer.ts": "built-in agent declaring the runtime it dispatches onto",
 	"src/ui/src/pages/setup.helpers.ts":

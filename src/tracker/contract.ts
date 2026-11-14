@@ -1,21 +1,4 @@
-/**
- * The IssueTracker contract (warren-6c29, plan pl-a37b Track B step 1).
- *
- * Seeds is implementation #1 behind this seam, never a structural
- * dependency (docs/PHILOSOPHY.md: "no issue-tracker monoculture"). The
- * DTOs are neutral and live in `src/core/wire-tracker.ts`; this module
- * declares the behavior surface every tracker implementation answers to.
- *
- * This PR cuts the contract only — no call-site porting. The existing
- * `src/seeds-cli/` facade keeps working as-is; `SeedsTracker`
- * (`src/tracker/seeds-tracker.ts`) wraps it 1:1. Swapping ServerDeps
- * onto the seam is the next issue (warren-5819).
- *
- * Error contract: implementations surface every failure as a
- * `TrackerError` subclass (`src/core/wire-tracker.ts`) — `TrackerError`
- * for transient/operational failures, `IssueNotFoundError` for the
- * definitive missing-id case.
- */
+/** Internal Seeds tracker seam with shared DTOs and typed operational errors. */
 
 import type {
 	Issue,

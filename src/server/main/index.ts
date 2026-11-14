@@ -1,8 +1,11 @@
+import { environmentRepairBudget } from "../../plan-runs/task-budget.ts";
+import type { BootCleanup } from "./boot-cleanup.ts";
+import { bootWithInstallationOwner } from "./owned-boot.ts";
 /**
  * Boot entry for `warren serve` (docs/design/runtime-and-supervisor.md).
  *
  * Wires together every layer the server depends on (env config, db,
- * BurrowClient + RunEventBroker, BridgeRegistry, projects, auth) and calls
+ * RuntimeProvider, RunEventBroker, projects, auth) and calls
  * `startServer`. Returns a `WarrenServerHandle` whose `stop()` tears
  * everything down in reverse order; the supervisor owns SIGTERM/SIGINT
  * plumbing. `bootServer` is async.
@@ -94,6 +97,15 @@ export interface WarrenServerHandle extends ServeHandle {
 }
 
 export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenServerHandle> {
+	return bootWithInstallationOwner(opts.env ?? process.env, (cleanup) =>
+		bootOwnedServer(opts, cleanup),
+	);
+}
+
+async function bootOwnedServer(
+	opts: BootServerOptions,
+	cleanup: BootCleanup,
+): Promise<WarrenServerHandle> {
 	const env = opts.env ?? process.env;
 	const { logger, metricsRegistry } = await bootObservability(env);
 
@@ -132,6 +144,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		url: serverConfig.dbUrl,
 		...(pgPoolMax !== undefined ? { pgPoolMax } : {}),
 	});
+	cleanup.add(() => closeDatabase(db));
 	const repos = createRepos(db);
 
 	// Load the operator-facing TOML config (pl-9ba1 step 7 / warren-3909).
@@ -191,10 +204,8 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 	// warren-df3e seed-close). Installed BEFORE bridges resume in-flight runs so no emit
 	// is dropped (see lifecycle-bus-wiring.ts). warren-3bc6: `forge` is the boot-resolved instance.
 	const lifecycleBusHandle = bootLifecycleBus({ logger, repos, issueTracker, broker, forge });
+	cleanup.add(() => lifecycleBusHandle.stop());
 
-	// K8s runtime background loops (pl-829f step 25 / warren-7c30); undefined under the
-	// default `local` backend; booted HERE (before `bootBridges`, warren-c531).
-	// warren-32f8: onPodWarning surfaces pod-level stalls onto the run's event stream.
 	// warren-7116: runtime → domain edge for the workspace_ready_at stamp.
 	const onWorkspaceReady = (runId: string, at: Date): void => {
 		void repos.runs.markWorkspaceReady(runId, at).catch(() => {});
@@ -202,14 +213,19 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 
 	// Resolve the runtime provider ONCE (warren-c531) — the SAME instance flows into the
 	// bridge registry, poller, watchdog, and `ServerDeps` (warren-f796: local vs k8s seams).
+	const reserveEnvironmentRepair = environmentRepairBudget(repos);
 	const localBackend =
 		resolveRuntimeKind(env) === "local"
-			? resolveLocalBootBackend(env, { onWorkspaceReady })
+			? resolveLocalBootBackend(env, { onWorkspaceReady, reserveEnvironmentRepair })
 			: undefined;
+	cleanup.add(async () => {
+		await localBackend?.close();
+	});
 	const runtimeProvider =
 		localBackend?.runtimeProvider ??
 		resolveBootRuntimeProvider({
 			env,
+			reserveEnvironmentRepair,
 			onWorkspaceReady,
 		});
 	// warren-3f8a/820e: path mode boots a dedicated preview listener; previewPorts gates it.
@@ -221,6 +237,9 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		transport: serverConfig.transport,
 		previewPorts: runtimeProvider.capabilities.previewPorts,
 		...(opts.now !== undefined ? { now: opts.now } : {}),
+	});
+	cleanup.add(async () => {
+		await previewSurface.previewListener?.stop();
 	});
 	const previewSidecars = localBackend?.previewSidecars;
 	const workspaceDestroyer = localBackend?.workspaceDestroyer;
@@ -282,6 +301,8 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
 
+	cleanup.add(() => bridgesBoot.registry.stopAll());
+	cleanup.add(() => providerRetryRegistration.unregister());
 	const scheduler = bootScheduler({
 		repos,
 		runtimeProvider,
@@ -298,6 +319,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(runBranchPrefixDefault !== undefined ? { runBranchPrefixDefault } : {}),
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
+	cleanup.add(() => scheduler.stop());
 	if (schedulerConfig.disabled) {
 		logger.info({}, "scheduler disabled via WARREN_SCHEDULER_DISABLED");
 	} else {
@@ -326,6 +348,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
 
+	cleanup.add(() => planRunCoordinator.stop());
 	// Background detectors: run heartbeat watchdog (warren-285d), periodic
 	// ops-stats worker, forge credential heartbeat (warren-1295). See detector-wiring.ts.
 	const { watchdog, opsStatsWorker, forgeHeartbeat } = bootBackgroundDetectors({
@@ -344,6 +367,9 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
 
+	cleanup.add(() => watchdog.stop());
+	cleanup.add(() => opsStatsWorker.stop());
+	cleanup.add(() => forgeHeartbeat?.stop());
 	// Preview TTL + LRU eviction worker (R-19 / docs/design/preview-environments.md, warren-ea6b).
 	const previewEvictionWorker = startPreviewEvictionWorker({
 		db,
@@ -354,6 +380,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(previewSidecars !== undefined ? { resolveSidecar: previewSidecars } : {}),
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
+	cleanup.add(() => previewEvictionWorker.stop());
 	if (previewEvictionConfig.disabled) {
 		logger.info({}, "preview eviction disabled via WARREN_PREVIEW_EVICTION_DISABLED");
 	} else {
@@ -369,8 +396,10 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(opts.now !== undefined ? { now: opts.now } : {}),
 	});
 
-	// Tool-calls rollup backfill (warren-7746). Fire-and-forget; see the wiring module.
-	bootToolCallsBackfill({ repos, logger });
+	cleanup.add(() => workspaceGcWorker.stop());
+	// Boot remains nonblocking; shutdown drains the finite pass before closing the database.
+	const backfill = bootToolCallsBackfill({ repos, logger });
+	cleanup.add(() => backfill);
 
 	const deps = buildServerDeps({
 		deploymentAdmission,
@@ -438,6 +467,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 		...(mainPreamble !== undefined ? { previewProxy: mainPreamble } : {}),
 	});
 
+	cleanup.add(() => handle.stop());
 	logger.info({ url: handle.url }, "warren server listening");
 
 	return {
@@ -449,25 +479,7 @@ export async function bootServer(opts: BootServerOptions = {}): Promise<WarrenSe
 			: {}),
 		stop: async () => {
 			logger.info({}, "warren server stopping");
-			// Stop the HTTP listener first, then drain the scheduler so any in-flight
-			// tick finishes calling spawnRun before bridges/burrow/db disappear.
-			await handle.stop();
-			await previewSurface.previewListener?.stop();
-			await planRunCoordinator.stop();
-			await watchdog.stop();
-			await scheduler.stop();
-			await previewEvictionWorker.stop();
-			await workspaceGcWorker.stop();
-			await opsStatsWorker.stop();
-			forgeHeartbeat?.stop();
-			await bridgesBoot.registry.stopAll();
-			// Detach the lifecycle-bus consumers + uninstall the singleton so a
-			// teardown leaves no global emit target behind (warren-4e74).
-			providerRetryRegistration.unregister();
-			lifecycleBusHandle.stop();
-			// warren-f796: close the local backend's burrow client (undefined under k8s).
-			await localBackend?.close();
-			await closeDatabase(db);
+			await cleanup.stop();
 		},
 	};
 }

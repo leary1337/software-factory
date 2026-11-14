@@ -42,7 +42,25 @@ const MULCH_HOOK_MATCHER = "Read|Edit|Write|MultiEdit|NotebookEdit|Bash";
  */
 export function mulchClaudeHooks(): Record<string, unknown> {
 	return {
-		SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "ml prime" }] }],
-		PreToolUse: [{ matcher: MULCH_HOOK_MATCHER, hooks: [{ type: "command", command: "ml hook" }] }],
+		SessionStart: [
+			{
+				matcher: "",
+				hooks: [
+					{
+						type: "command",
+						command:
+							"if command -v ml >/dev/null 2>&1; then if [ ! -d .mulch ]; then ml init; fi; ml prime; fi; true",
+					},
+				],
+			},
+		],
+		PreToolUse: [
+			{
+				matcher: MULCH_HOOK_MATCHER,
+				hooks: [
+					{ type: "command", command: "if command -v ml >/dev/null 2>&1; then ml hook; fi; true" },
+				],
+			},
+		],
 	};
 }

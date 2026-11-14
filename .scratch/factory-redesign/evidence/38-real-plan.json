@@ -1,0 +1,118 @@
+{
+  "outcome": "succeeded",
+  "startedAt": "2026-11-14T18:07:34.560Z",
+  "endedAt": "2026-11-14T18:16:16.017Z",
+  "elapsedMs": 521457,
+  "initialSha": "f9ba27ef6d5de89fa7e4295fea25f1f7518ce291",
+  "finalSha": "03c54aa55a9b4c6a3b3f26ff4a20ffbdd76f17ee",
+  "approvalId": "approval_e901b2af-7b02-4ea1-869d-c605583d18f1",
+  "approvalRevision": 1,
+  "approvalDigest": "1050b5b282dea11a37ce1788e07c2efb104da91954a24d8fb2c0d9563ad52f4a",
+  "toolkitVersion": "8e800a1ae4232f8bcdfa9d475a551b0d3cca0e7a39bb48e60e66d8d5b3551d8f",
+  "model": "gpt-6.1-sol",
+  "realCodex": true,
+  "platform": "local bare Git and explicit FakeForge",
+  "actualApplication": true,
+  "manualRepairs": 0,
+  "merges": [
+    {
+      "sha": "bd97ec78dce7744ed4023867da3eb8ae23409ca9",
+      "at": "2026-11-14T18:10:14.787Z"
+    },
+    {
+      "sha": "26e17bfbe2897722f8607c6a42c82866dfb3bea0",
+      "at": "2026-11-14T18:12:41.548Z"
+    },
+    {
+      "sha": "03c54aa55a9b4c6a3b3f26ff4a20ffbdd76f17ee",
+      "at": "2026-11-14T18:16:11.688Z"
+    }
+  ],
+  "releases": [
+    {
+      "sha": "03c54aa55a9b4c6a3b3f26ff4a20ffbdd76f17ee",
+      "createdAt": "2026-11-14T18:16:13.727Z",
+      "state": "success"
+    }
+  ],
+  "runs": [
+    {
+      "id": "run_9m1m5yk7ccmk",
+      "role": "reviewer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:15:04.122Z",
+      "endedAt": "2026-11-14T18:16:09.906Z",
+      "tokensInput": 26570,
+      "tokensOutput": 1791,
+      "tokensCacheRead": 320000
+    },
+    {
+      "id": "run_23qk29ns0mhm",
+      "role": "reviewer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:13:54.579Z",
+      "endedAt": "2026-11-14T18:15:01.724Z",
+      "tokensInput": 41560,
+      "tokensOutput": 1752,
+      "tokensCacheRead": 306304
+    },
+    {
+      "id": "run_zdwpq8b58c54",
+      "role": "implementer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:12:43.836Z",
+      "endedAt": "2026-11-14T18:13:54.201Z",
+      "tokensInput": 50905,
+      "tokensOutput": 1472,
+      "tokensCacheRead": 363648
+    },
+    {
+      "id": "run_yym88wnm77r7",
+      "role": "reviewer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:11:31.931Z",
+      "endedAt": "2026-11-14T18:12:40.754Z",
+      "tokensInput": 21505,
+      "tokensOutput": 1675,
+      "tokensCacheRead": 303872
+    },
+    {
+      "id": "run_nvzdt679n0w5",
+      "role": "implementer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:10:17.059Z",
+      "endedAt": "2026-11-14T18:11:30.532Z",
+      "tokensInput": 26454,
+      "tokensOutput": 1757,
+      "tokensCacheRead": 365056
+    },
+    {
+      "id": "run_p765hjhvmhzc",
+      "role": "reviewer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:09:05.241Z",
+      "endedAt": "2026-11-14T18:10:12.951Z",
+      "tokensInput": 40217,
+      "tokensOutput": 1795,
+      "tokensCacheRead": 298624
+    },
+    {
+      "id": "run_zp8zhdef1djd",
+      "role": "implementer",
+      "state": "succeeded",
+      "failureReason": null,
+      "startedAt": "2026-11-14T18:07:36.326Z",
+      "endedAt": "2026-11-14T18:09:03.824Z",
+      "tokensInput": 25470,
+      "tokensOutput": 1426,
+      "tokensCacheRead": 456832
+    }
+  ],
+  "evidenceScope": "Real local Codex and application, local bare Git, explicit FakeForge; no GitHub or production delivery claimed."
+}

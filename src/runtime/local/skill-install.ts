@@ -1,6 +1,7 @@
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
+import { TOOLKIT } from "../../toolkit/catalog.ts";
 import {
 	fileFingerprint,
 	isRelativePath,
@@ -24,6 +25,7 @@ export interface InstallSkillsOptions {
 	readonly format: SkillFormat;
 	readonly audience: SkillAudience;
 	readonly packDir?: string;
+	readonly browserCliVersion?: string;
 	readonly apply?: boolean;
 }
 
@@ -154,6 +156,19 @@ async function install(options: InstallSkillsOptions): Promise<SkillInstallRepor
 	const root = resolve(options.homePath);
 	const catalog = await loadSkillCatalog(options.packDir);
 	const files = projectSkillCatalog(catalog, options.format, options.audience);
+	const cliVersion = z
+		.string()
+		.regex(/^\d+\.\d+\.\d+$/)
+		.parse(options.browserCliVersion ?? TOOLKIT.playwright.cliVersion);
+	for (const skill of files.filter((file) => file.path.endsWith("/browser-checks/SKILL.md"))) {
+		files.push({
+			path: skill.path.replace(/SKILL\.md$/, "PINNED-CLI.md"),
+			mode: 0o644,
+			body: Buffer.from(
+				`# Pinned Playwright CLI\n\nRun \`npx -y @playwright/cli@${cliVersion} --help\` for this toolkit's CLI syntax.\nKeep this version for every CLI command in the task.\n`,
+			),
+		});
+	}
 	const manifestPath = `${rootName(options.format)}/factory-skills.json`;
 	const previous = await previousFiles(root, manifestPath, options.format);
 	const changes = await inspectChanges(root, files, previous);

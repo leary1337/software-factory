@@ -56,8 +56,11 @@ export function gateAgentPrompts(
 		...(tracker !== undefined ? { tracker } : {}),
 	});
 	// Mulch arm "off" drops the mulch fragment even when `.mulch/` exists.
-	const mulchOff = readMulchArm(agent.frontmatter) === "off";
-	return withGatedPromptFragments(agent, mulchOff ? { ...caps, mulch: false } : caps);
+	const arm = readMulchArm(agent.frontmatter);
+	return withGatedPromptFragments(agent, {
+		...caps,
+		mulch: arm === undefined ? caps.mulch : arm === "on",
+	});
 }
 
 /**

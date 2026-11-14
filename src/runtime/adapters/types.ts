@@ -106,7 +106,7 @@ export interface AgentRuntimeAdapter {
 	/** Stateful parser scoped to one process, never shared by concurrent runs. */
 	createEventParser?(frontmatter?: AgentFrontmatter): (line: string) => AdapterRuntimeEvent[];
 	/** Prepare private HOME; return a cleanup that preserves refreshed credentials. */
-	prepareHome?(homePath: string): Promise<() => Promise<void>>;
+	prepareHome?(homePath: string, frontmatter?: AgentFrontmatter): Promise<() => Promise<void>>;
 	/** Finish durable HOME cleanup after the owning server has restarted. */
 	recoverHome?(homePath: string): Promise<void>;
 
@@ -213,6 +213,7 @@ export interface SpawnCommand {
  * model flags honor these to override their pinned defaults (burrow-b5b4).
  */
 export interface AgentFrontmatter {
+	toolkitVersion?: string;
 	provider?: string;
 	model?: string;
 	/** Mulch experiment arm (`./mulch-arm.ts`); absent = default behavior. */
