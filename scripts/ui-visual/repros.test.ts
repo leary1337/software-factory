@@ -10,7 +10,7 @@ import { join } from "node:path";
  */
 
 const REPROS = join(import.meta.dir, "repros");
-const REPRO_FILE = /^(warren-[0-9a-f]{4,})\.pw\.ts$/;
+const REPRO_FILE = /^(warren-[0-9a-f]{4,}|factory-\d{2})\.pw\.ts$/;
 /** playwright.config.ts `testMatch`. */
 const PW_TEST_MATCH = /.*\.pw\.ts$/;
 
@@ -35,5 +35,15 @@ describe("ui-visual repros", () => {
 			return readFileSync(join(REPROS, e.name), "utf8").includes(seed) ? [] : [e.name];
 		});
 		expect(unnamed).toEqual([]);
+	});
+	test("links factory repros to approved local tickets", () => {
+		const tickets = readdirSync(join(import.meta.dir, "../../.scratch/factory-redesign/issues"));
+		for (const entry of entries) {
+			const id = /^factory-(\d{2})\.pw\.ts$/.exec(entry.name)?.[1];
+			if (id)
+				expect(tickets.some((file) => file.startsWith(`${id}-`) && file.endsWith(".md"))).toBe(
+					true,
+				);
+		}
 	});
 });
