@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import type { ReapExec, ReapFs } from "../runs/reap/types.ts";
-import { DockerProvider } from "./docker/provider.ts";
 import { UnknownRuntimeError } from "./errors.ts";
 import { LocalProvider } from "./local/provider.ts";
 import {
@@ -27,8 +26,8 @@ describe("resolveRuntimeKind", () => {
 		expect(resolveRuntimeKind({ WARREN_RUNTIME: "local" })).toBe("local");
 	});
 
-	test("accepts the docker selector (warren-3732, sibling containers)", () => {
-		expect(resolveRuntimeKind({ WARREN_RUNTIME: "docker" })).toBe("docker");
+	test("refuses the retired Docker selector with a local migration hint", () => {
+		expect(() => resolveRuntimeKind({ WARREN_RUNTIME: "docker" })).toThrow("retired");
 	});
 
 	test("fails loudly on an unknown value rather than falling back", () => {
@@ -69,31 +68,17 @@ describe("resolveRuntimeProvider", () => {
 		const provider = resolveRuntimeProvider(deps, {});
 		expect(provider.capabilities).toEqual({
 			previewPorts: true,
-			networkPolicy: "domain-allowlist",
+			networkPolicy: "none",
 			longLived: true,
 			midRunSteering: true,
-			enforcedResourceLimits: true,
+			enforcedResourceLimits: false,
 			workspaceArchive: true,
 			workspaceGc: true,
 		});
 	});
 
-	test("resolves DockerProvider for WARREN_RUNTIME=docker (warren-3732)", () => {
-		const provider = resolveRuntimeProvider(deps, { WARREN_RUNTIME: "docker" });
-		expect(provider).toBeInstanceOf(DockerProvider);
-	});
-
-	test("DockerProvider advertises the honest docker v1 capability set", () => {
-		const provider = resolveRuntimeProvider(deps, { WARREN_RUNTIME: "docker" });
-		expect(provider.capabilities).toEqual({
-			previewPorts: false,
-			networkPolicy: "coarse",
-			longLived: true,
-			midRunSteering: true,
-			enforcedResourceLimits: true,
-			workspaceArchive: false,
-			workspaceGc: true,
-		});
+	test("never constructs a workload for the retired Docker backend", () => {
+		expect(() => resolveRuntimeProvider(deps, { WARREN_RUNTIME: "docker" })).toThrow("retired");
 	});
 
 	test("garbage selector throws UnknownRuntimeError", () => {

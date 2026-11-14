@@ -42,7 +42,7 @@ describe("production delivery gate", () => {
 		await writeFile(join(directory, ".github/workflows/deploy.yml"), "name: Deploy\n");
 		await writeFile(
 			join(directory, ".warren/config.yaml"),
-			"deploy:\n  autoDeploy: true\n  shaInput: factory_sha\n  smokeUrl: https://example.test/health\n",
+			"deploy:\n  autoDeploy: true\n  shaInput: factory_sha\n  smokeUrl: https://example.test/health\n  verification:\n    versionUrl: https://example.test/version\n    scenarioUrl: https://example.test/\n    expectedText: ok\n",
 		);
 		const project = await repos.projects.create({
 			gitUrl: "https://github.com/o/r",
@@ -151,9 +151,9 @@ describe("production delivery gate", () => {
 		gate = createDeploymentGate({
 			repos,
 			forge,
-			fetch: (async () => {
+			fetch: (async (url: string) => {
 				smokeCalls++;
-				return new Response("ok", { status: smokeStatus });
+				return new Response(url.endsWith("/version") ? SHA : "ok", { status: smokeStatus });
 			}) as unknown as typeof fetch,
 		});
 	});
@@ -166,12 +166,26 @@ describe("production delivery gate", () => {
 		expect(await gate(input)).toEqual({ kind: "passed" });
 		expect(dispatches).toBe(0);
 	});
+	test("refuses a legacy smoke-only policy without claiming a verified application", async () => {
+		await writeFile(
+			join(directory, ".warren/config.yaml"),
+			"deploy:\n  autoDeploy: true\n  shaInput: factory_sha\n  smokeUrl: https://example.test/health\n",
+		);
+		expect((await gate(input)).kind).toBe("incident");
+		expect(dispatches).toBe(0);
+		expect(
+			(await repos.events.listByRun(input.run.id)).some(
+				(event) => event.kind === "plan_run.deployment_verified",
+			),
+		).toBe(false);
+	});
+
 	test("dispatches once and verifies exact squash commit, workflow and smoke across repeated ticks", async () => {
 		expect(await gate(input)).toEqual({ kind: "waiting" });
 		expect(await gate(input)).toEqual({ kind: "passed" });
 		expect(await gate(input)).toEqual({ kind: "passed" });
 		expect(dispatches).toBe(1);
-		expect(smokeCalls).toBe(1);
+		expect(smokeCalls).toBe(3);
 		expect(dispatchedInputs).toEqual({ factory_sha: SHA });
 	});
 	test("blocks manual delivery while automatic dispatch is not yet visible in GitHub", async () => {
@@ -199,8 +213,9 @@ describe("production delivery gate", () => {
 			dispatches++;
 			throw new Error("connection interrupted");
 		};
-		expect((await gate(input)).kind).toBe("incident");
-		expect((await gate(input)).kind).toBe("incident");
+		expect((await gate(input)).kind).toBe("waiting");
+		expect((await gate(input)).kind).toBe("waiting");
+		expect((await gate(input)).kind).toBe("passed");
 		expect(dispatches).toBe(1);
 	});
 	test("rejects missing merge SHA before mutation", async () => {
@@ -262,20 +277,27 @@ describe("production delivery gate", () => {
 			fetch(request) {
 				requests++;
 				return new Response(
-					request.headers.get("User-Agent") === "software-factory-smoke" ? "ready" : "wrong client",
-					{ status: request.headers.get("User-Agent") === "software-factory-smoke" ? 200 : 400 },
+					request.headers.get("User-Agent") === "software-factory-verification"
+						? new URL(request.url).pathname === "/version"
+							? SHA
+							: "ready"
+						: "wrong client",
+					{
+						status:
+							request.headers.get("User-Agent") === "software-factory-verification" ? 200 : 400,
+					},
 				);
 			},
 		});
 		try {
 			await writeFile(
 				join(directory, ".warren/config.yaml"),
-				`deploy:\n  autoDeploy: true\n  shaInput: factory_sha\n  smokeUrl: http://127.0.0.1:${server.port}/health\n`,
+				`deploy:\n  autoDeploy: true\n  shaInput: factory_sha\n  smokeUrl: http://127.0.0.1:${server.port}/health\n  verification:\n    versionUrl: http://127.0.0.1:${server.port}/version\n    scenarioUrl: http://127.0.0.1:${server.port}/\n    expectedText: ready\n`,
 			);
 			const realGate = createDeploymentGate({ repos, forge });
 			expect(await realGate(input)).toEqual({ kind: "waiting" });
 			expect(await realGate(input)).toEqual({ kind: "passed" });
-			expect(requests).toBe(1);
+			expect(requests).toBe(3);
 		} finally {
 			await server.stop(true);
 		}

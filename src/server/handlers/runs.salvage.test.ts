@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type WarrenDb } from "../../db/client.ts";
 import { createRepos, type Repos } from "../../db/repos/index.ts";
-import { IN_POD_FINALIZE_WIRE_VERSION } from "../../runtime/container/finalize-wire.ts";
 import { FakeProvider } from "../../runtime/fake/fake-provider.ts";
+import { FINALIZE_CALLBACK_WIRE_VERSION } from "../../runtime/finalization/wire.ts";
 import { MAX_SALVAGE_BUNDLE_BYTES } from "../../runtime/salvage.ts";
 import { NO_AUTH } from "../auth.ts";
 import { startServer } from "../server.ts";
@@ -27,7 +27,7 @@ function inertSandboxClient(): FakeProvider {
 
 function envelope(over: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
-		version: IN_POD_FINALIZE_WIRE_VERSION,
+		version: FINALIZE_CALLBACK_WIRE_VERSION,
 		trigger: "push_failed",
 		rescueRef: null,
 		bundleBase64: Buffer.from("fake-bundle-bytes").toString("base64"),

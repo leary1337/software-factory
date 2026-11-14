@@ -125,7 +125,7 @@
       "options": [
         {
           "flags": "--local",
-          "description": "run the deployment-side checks instead (env vars, sandbox runtime, bwrap, DB)"
+          "description": "run the deployment-side checks instead (env vars, local runtime, DB)"
         },
         {
           "flags": "--no-auth",
@@ -415,6 +415,53 @@
         {
           "flags": "--no-wizard",
           "description": "skip the first-boot credential wizard (also automatic when stdin is not a TTY)"
+        }
+      ]
+    },
+    {
+      "name": "state",
+      "description": "copy, restore, and activate a stopped local installation",
+      "options": []
+    },
+    {
+      "name": "state backup",
+      "description": "create a verified private copy of history, queue, workspaces, and action receipts",
+      "options": [
+        {
+          "flags": "--to <directory>",
+          "description": "new backup directory"
+        },
+        {
+          "flags": "--data-dir <directory>",
+          "description": "installation data directory"
+        }
+      ]
+    },
+    {
+      "name": "state restore",
+      "description": "verify and restore a copy with its queue disabled",
+      "options": [
+        {
+          "flags": "--from <directory>",
+          "description": "verified backup directory"
+        },
+        {
+          "flags": "--to <directory>",
+          "description": "new isolated data directory"
+        }
+      ]
+    },
+    {
+      "name": "state activate",
+      "description": "activate a restored queue after single-owner and newer-action checks",
+      "options": [
+        {
+          "flags": "--data-dir <directory>",
+          "description": "restored data directory"
+        },
+        {
+          "flags": "--allow-source-unavailable",
+          "description": "explicitly activate after inspecting receipts when original data is unavailable"
         }
       ]
     }

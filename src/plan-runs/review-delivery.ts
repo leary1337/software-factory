@@ -10,7 +10,7 @@ const HEADINGS: Record<ReviewOutcome, string> = {
 	changes_left: "Ревью фабрики: замечания остались после доработок",
 	broken: "Ревью фабрики требует внимания владельца",
 };
-const WAIT: HandleInFlightDecision = { kind: "result", result: { kind: "waiting_for_run" } };
+const WAIT: HandleInFlightDecision = { kind: "result", result: { kind: "waiting_for_merge" } };
 
 type Events = Awaited<ReturnType<HandleInFlightInput["repos"]["events"]["listByRun"]>>;
 export interface ReviewDelivery {

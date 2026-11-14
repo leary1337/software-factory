@@ -1,0 +1,74 @@
+{
+  "phase": "upgraded service and preserved state verified; final interface update pending",
+  "oldCommit": "141ed531c5f6f6c163f1d9595f30fbcbc9db93fa",
+  "oldServiceStopped": true,
+  "sourceBackupRestoreEqual": true,
+  "restoreQueueDisabled": true,
+  "tableCounts": {
+    "__drizzle_migrations": 59,
+    "agents": 10,
+    "dispatch_context": 270,
+    "events": 31248,
+    "plan_run_children": 108,
+    "plan_runs": 14,
+    "projects": 2,
+    "run_inbox": 0,
+    "runs": 270,
+    "sqlite_sequence": 3,
+    "tool_calls": 5955,
+    "triggers": 0
+  },
+  "allTableContentDigest": "2747814505180612cd7903f647a4cd6524c23d8f227a8c74fa990d6a510b8437",
+  "vpsFactoryChanged": false,
+  "firstVerifiedUpgrade": {
+    "commit": "0a7677fc",
+    "integrityCheck": "ok",
+    "foreignKeyErrors": 0,
+    "migrations": 63,
+    "singleOwnerVerified": true,
+    "healthReadyAndOperatorApi": true,
+    "preservedHistory": {
+      "projects": {
+        "before": 2,
+        "after": 2,
+        "allPriorRowsUnchanged": true
+      },
+      "runs": {
+        "before": 270,
+        "after": 270,
+        "allPriorRowsUnchanged": true
+      },
+      "plan_runs": {
+        "before": 14,
+        "after": 14,
+        "allPriorRowsUnchanged": true
+      },
+      "plan_run_children": {
+        "before": 108,
+        "after": 108,
+        "allPriorRowsUnchanged": true
+      },
+      "dispatch_context": {
+        "before": 270,
+        "after": 270,
+        "allPriorRowsUnchanged": true
+      },
+      "events": {
+        "before": 31248,
+        "after": 31248,
+        "allPriorRowsUnchanged": true
+      },
+      "tool_calls": {
+        "before": 5955,
+        "after": 5955,
+        "allPriorRowsUnchanged": true
+      }
+    }
+  },
+  "toolkit": {
+    "version": "f9144f9b6cfa737951f746f291edcb0dd7f67121f2c12b28b3922d0a6fc9b1b9",
+    "personalCodexAndClaudeEnrolled": true,
+    "foreignSettingsPreserved": true,
+    "claudeExecuted": false
+  }
+}

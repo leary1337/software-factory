@@ -38,7 +38,6 @@
 		"src/ui/src/pages/setup.tsx": 3,
 		"src/ui/src/pages/telemetry.tsx": 5,
 		"src/ui/src/pages/telemetry/behavior-tab.tsx": 4,
-		"src/ui/src/pages/telemetry/judge-tab.tsx": 11,
 		"src/ui/src/pages/telemetry/loop-tab.tsx": 5,
 		"src/ui/src/pages/telemetry/telemetry-metrics.tsx": 4,
 		"src/ui/src/pages/telemetry/telemetry-panel.tsx": 4

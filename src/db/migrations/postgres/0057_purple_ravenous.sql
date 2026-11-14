@@ -1,0 +1,1 @@
+ALTER TABLE "plan_task_attempts" ADD COLUMN "ended_at" text;

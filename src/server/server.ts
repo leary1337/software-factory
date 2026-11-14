@@ -63,10 +63,9 @@ const DEFAULT_TRANSPORT: Transport = { kind: "tcp", hostname: "127.0.0.1", port:
  * read: a client that drips its body a byte at a time is refused once the
  * gap exceeds this, and with 0 it is served no matter how long it stalls.
  *
- * It does NOT watch a handler that takes its time, nor a response body
- * that stays quiet, so the long-lived NDJSON tails behind
- * `GET /runs/:id/events?follow=1` are unaffected by a bounded value and
- * need no per-route exemption. Their own lifetime and concurrency caps
+ * Bun also expires quiet handlers before their response starts. Authenticated
+ * operations with their own bounded lifetime can opt out through RouteContext;
+ * ordinary requests retain this limit. Event stream lifetime/concurrency caps
  * live in `stream-limits.ts`.
  */
 export const DEFAULT_IDLE_TIMEOUT_SECONDS = 30;
@@ -108,6 +107,7 @@ export function startServer(deps: ServerDeps, opts: ServeOptions = {}): ServeHan
 			requestId,
 			clientIp,
 			runActivityCheck,
+			() => self.timeout(request, 0),
 		);
 		// Access log (warren-26c2 / pl-f700 step 4): one info line per
 		// request. request_id is already bound onto requestLogger, so the
@@ -225,6 +225,7 @@ async function handleRequest(
 	requestId: string,
 	clientIp: string | undefined,
 	runActivityCheck: RunActivityCheck | undefined,
+	keepResponseAlive: () => void,
 ): Promise<Response> {
 	const url = new URL(request.url);
 
@@ -289,6 +290,7 @@ async function handleRequest(
 			request,
 			url,
 			params: match.params,
+			keepResponseAlive,
 			logger,
 			requestId,
 			...(clientIp !== undefined ? { clientIp } : {}),

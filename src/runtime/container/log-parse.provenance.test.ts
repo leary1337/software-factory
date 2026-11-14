@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { detectRuntimeTerminal, isPiAgentEnd } from "../../runs/stream/terminal-detect.ts";
-import { formatEventLine } from "./agent-io.ts";
 import { splitTimestamp, toNormalizedEvent, tryParse } from "./log-parse.ts";
 
 /**
@@ -70,7 +69,8 @@ describe("toNormalizedEvent provenance", () => {
 
 	test("the entrypoint emitter's own envelope keeps warren origin + terminal authority", () => {
 		const event = parseLine(
-			formatEventLine({
+			JSON.stringify({
+				origin: "warren",
 				kind: "state_change",
 				stream: "system",
 				payload: { type: "result", is_error: false },
@@ -85,7 +85,8 @@ describe("toNormalizedEvent provenance", () => {
 
 	test("the emitter's pi agent_end envelope still drives the piStats snapshot", () => {
 		const event = parseLine(
-			formatEventLine({
+			JSON.stringify({
+				origin: "warren",
 				kind: "state_change",
 				stream: "system",
 				payload: { type: "agent_end", stopReason: "end_turn" },
@@ -98,7 +99,8 @@ describe("toNormalizedEvent provenance", () => {
 	});
 
 	test("a kubelet-stamped emitter line keeps its warren origin", () => {
-		const line = formatEventLine({
+		const line = JSON.stringify({
+			origin: "warren",
 			kind: "state_change",
 			stream: "system",
 			payload: { type: "result", is_error: true },

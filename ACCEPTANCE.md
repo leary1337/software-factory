@@ -18,8 +18,6 @@ bun test && bun run lint && bun run typecheck
 # Automated acceptance harness (in-proc, default).
 bun run acceptance
 
-# Container-mode boot smoke (requires Docker, slow first run).
-bun run acceptance:container
 ```
 
 A green run prints something like:
@@ -30,17 +28,6 @@ Acceptance results:
   ✓ 03     842ms  projects management — add / list / refresh / delete
   ...
   12 passed, 0 failed, 0 skipped
-```
-
-In container mode, scenarios that need host-side fixtures skip cleanly:
-
-```
-  ✓ 01     180ms  boot + /healthz auth-exempt + /readyz transitions to 200 after refresh
-  ○ 19       0ms  warren on postgres
-        ↳ not supported in container mode
-  ...
-  ✓ 13   42130ms  container boot — image builds, supervisor + bwrap flags hold, healthz/readyz/agents respond
-  2 passed, 0 failed, 11 skipped
 ```
 
 ## Quality gates (CI parity)
@@ -107,63 +94,13 @@ Deferred to V2 (context, not built in V1):
 - GitHub webhook receiver and signature verification: the event-driven half of the scheduler. The cron half shipped in V1. See [`docs/design/scheduler.md`](docs/design/scheduler.md).
 - `@os-eco/warren` library API exports — internal-only `Client` is fine for V1.
 
-## Automated harness — container mode
+## Retired container acceptance
 
-Boots warren via `docker compose up -d --build` using the canonical
-`docker-compose.yml` plus a generated override that:
-
-- gives the run a unique compose project name + container name,
-- maps a random ephemeral host port to the container's `:8080`,
-- supplies `WARREN_API_TOKEN`, `WARREN_BURROW_NO_AUTH=1`, and
-  `WARREN_LOG_LEVEL=warn` inline
-  (no `.env` file required at the repo root).
-
-```bash
-bun run acceptance:container
-# or, equivalently:
-bun run scripts/acceptance/run.ts --mode container
-```
-
-Container mode requires Docker on PATH and a running daemon. First run
-builds the image (~1–3 min on a warm cache); subsequent runs reuse the
-image layer and complete the boot smoke in ~30s.
-
-What container mode actually verifies (scenarios 01 + 13):
-
-- the image builds (ui-builder + runtime stages),
-- the supervisor (`bun run src/supervisor/main.ts`) boots burrow under
-  the four bwrap-friendly security flags from `docker-compose.yml`
-  (apparmor=unconfined, seccomp=unconfined, systempaths=unconfined,
-  cap_add=SYS_ADMIN),
-- warren and burrow start as siblings on `/var/run/burrow.sock`,
-- `/healthz` is auth-exempt and returns 200,
-- `GET /agents` returns the built-in coding agents (`claude-code`,
-  `pi`) seeded by `seedBuiltinAgents`,
-- `/readyz` returns a structured `{ ok, checks: [...] }` body.
-
-Scenarios that depend on host-side fixtures (a sample project repo)
-declare `modes: ["in-proc"]` and skip cleanly in
-container mode — the compose harness deliberately doesn't bind-mount
-fixtures into the container, since the production deploy is
-fixture-free. Scenarios that drive process control (kill warren /
-restart warren / kill burrow) also stay in-proc-only because the
-in-container supervisor owns burrow lifecycle and would fight
-harness-side kills.
-
-**macOS Docker Desktop caveat.** Container boot succeeds on macOS, but
-`cap_add: SYS_ADMIN` is partial under Docker Desktop's VM. Boot smoke
-(scenario 13) holds; dispatching a real run with bwrap nesting is
-Linux-only territory and is not asserted here. For nested-bwrap
-verification, run `acceptance:container` on a Linux host. (Under the
-`k8s` runtime there is no bwrap at all — the pod boundary is the
-sandbox — so nested-bwrap only applies to the `local` topology.)
-
-**`--keep-tmp` in container mode** leaves the compose stack running
-after the harness exits. Tear it down with the printed command:
-
-```
-docker compose -p warren-acceptance-<suffix> down -v
-```
+Factory container execution and its image/Compose acceptance paths are retired.
+The active harness runs in process. An explicit `--mode container` fails with a
+retirement message. Historical scenarios and deployment reports below describe
+previous releases; they are not current setup instructions. Application project
+releases may still use Docker when their delivery plan calls for it.
 
 ## Manual gate — `--real` claude-code run
 
@@ -389,14 +326,13 @@ For V1, fix A (canopy prompt instructs commit only, since warren handles the pus
 |---------------------------------------------|---------------------------------------------------|
 | `scripts/acceptance/run.ts`                 | Harness entry; argv parsing, mode dispatch        |
 | `scripts/acceptance/lib/inproc.ts`          | In-proc boot (warren + burrow as host children)   |
-| `scripts/acceptance/lib/compose.ts`         | Container boot (`docker compose up -d --build`)   |
 | `scripts/acceptance/lib/fixtures.ts`        | Local git fixtures + insteadOf rewrites           |
 | `scripts/acceptance/lib/burrow-with-stub.ts`| Wraps `burrow serve` so `stub-shell` is registered|
 | `scripts/acceptance/lib/stub-agent/agent.sh`| Deterministic no-network stub agent               |
 | `scripts/acceptance/lib/assert.ts`          | Scenario runner + assertion helpers               |
 | `scripts/acceptance/lib/http.ts`            | Bearer-aware fetch + NDJSON streaming             |
 | `scripts/acceptance/scenarios/01-13`        | The 13 V1-goal acceptance criteria                |
-| `package.json`                              | `acceptance` + `acceptance:container` scripts     |
+| `package.json`                              | `acceptance` script     |
 
 When adding a scenario, mirror the existing file shape: a top-level
 JSDoc with the criterion + verification surface, an exported `Scenario`

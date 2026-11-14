@@ -32,6 +32,10 @@ export * from "../../core/wire.ts";
 export const TABLE_NAMES = {
 	agents: "agents",
 	projects: "projects",
+	projectSettings: "project_settings",
+	planApprovals: "plan_approvals",
+	planEffects: "plan_effects",
+	planTaskAttempts: "plan_task_attempts",
 	runs: "runs",
 	events: "events",
 	triggers: "triggers",

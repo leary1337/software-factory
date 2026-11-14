@@ -1,13 +1,14 @@
 /**
- * The factory skill pack: pinned copies of the skills every claude-code run
- * gets, delivered into the run's own $HOME so they never touch the git
+ * The factory skill pack: one versioned catalog for supported harnesses,
+ * delivered into the run's own $HOME so skills never touch the git
  * worktree. See `factory/skill-pack/LOCK.json` for the upstream commits.
  */
 
-import { cp } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { DEFAULT_SKILL_PACK_DIR } from "./skill-catalog.ts";
+import { installSkillCatalog } from "./skill-install.ts";
 
-export const DEFAULT_SKILL_PACK_DIR = resolve(import.meta.dir, "../../../factory/skill-pack");
+export { DEFAULT_SKILL_PACK_DIR } from "./skill-catalog.ts";
 
 /** Where pstack lands in a run's home; `claude --plugin-dir` points here. */
 export function pstackPluginDir(homePath: string): string {
@@ -18,21 +19,30 @@ export function pstackPluginDir(homePath: string): string {
 export async function materializeSkillPack(
 	homePath: string,
 	packDir: string = DEFAULT_SKILL_PACK_DIR,
+	browserCliVersion?: string,
 ): Promise<void> {
-	const claudeDir = join(homePath, ".claude");
-	await cp(join(packDir, "pstack"), pstackPluginDir(homePath), { recursive: true });
-	await cp(join(packDir, "mattpocock", "skills"), join(claudeDir, "skills"), { recursive: true });
-	await cp(join(packDir, "factory", "skills"), join(claudeDir, "skills"), { recursive: true });
-	await cp(join(packDir, "rules"), join(claudeDir, "rules"), { recursive: true });
+	await installSkillCatalog({
+		homePath,
+		packDir,
+		browserCliVersion,
+		format: "claude",
+		audience: "factory",
+		apply: true,
+	});
 }
 
 /** Codex discovers skills under ~/.agents; pstack references keep a stable root. */
 export async function materializeCodexSkillPack(
 	homePath: string,
 	packDir = DEFAULT_SKILL_PACK_DIR,
+	browserCliVersion?: string,
 ): Promise<void> {
-	const skills = join(homePath, ".agents", "skills");
-	await cp(join(packDir, "mattpocock", "skills"), skills, { recursive: true });
-	await cp(join(packDir, "factory", "skills"), skills, { recursive: true });
-	await cp(join(packDir, "pstack"), join(homePath, ".agents", "pstack"), { recursive: true });
+	await installSkillCatalog({
+		homePath,
+		packDir,
+		browserCliVersion,
+		format: "agents",
+		audience: "factory",
+		apply: true,
+	});
 }

@@ -1,8 +1,14 @@
 # Repeatable factory pilot
 
-The live pilot is restricted to `leary1337/factory-sandbox`. It complements
-deterministic runtime tests; simulated adapters are never counted as live model
-evidence. Preserve existing sandbox tickets and branches.
+This document describes the original `factory-pilot.ts` sandbox harness, restricted
+to `leary1337/factory-sandbox`. The redesign has a separate approved-plan pilot
+in nhl-edge-lab: show the running application version and actual data update time,
+without changing calculations. Its acceptance is tracked in task 40 of
+[the redesign plan](../.scratch/factory-redesign/README.md).
+
+Neither harness results nor simulated adapters count as that production pilot.
+Preserve existing sandbox tickets and branches. The real local multi-task
+acceptance is documented separately in [delivery acceptance](factory-delivery-acceptance.md).
 
 ## Run and capture
 

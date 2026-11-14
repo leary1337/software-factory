@@ -27,6 +27,8 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { claudeToolkitConfig } from "../../toolkit/catalog.ts";
+import { resolveToolkitBundle } from "../../toolkit/versions.ts";
 import { pstackPluginDir } from "../local/skill-pack.ts";
 import { mulchClaudeHooks, readMulchArm } from "./mulch-arm.ts";
 import { parseJsonlClaude } from "./parsers/jsonl-claude.ts";
@@ -107,6 +109,14 @@ export const claudeCodeAdapter: AgentRuntimeAdapter = {
 				// The sandbox is the enforcement boundary; an in-app prompt would
 				// deadlock a non-interactive spawn.
 				"--dangerously-skip-permissions",
+				"--mcp-config",
+				claudeToolkitConfig(
+					ctx.workspacePath,
+					ctx.frontmatter?.toolkitVersion
+						? resolveToolkitBundle(ctx.frontmatter.toolkitVersion)
+						: undefined,
+					ctx.homePath,
+				),
 				...(ctx.homePath !== undefined ? ["--plugin-dir", pstackPluginDir(ctx.homePath)] : []),
 				...(ctx.frontmatter?.model !== undefined ? ["--model", ctx.frontmatter.model] : []),
 			],

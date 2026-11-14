@@ -1,3 +1,4 @@
+import type { DriveDeps } from "./drive.ts";
 /**
  * Local-topology boot backend (warren-f796). The SINGLE composition point that
  * owns the local runtime's boot-time seams for the SERVER's `local` boot path,
@@ -60,7 +61,7 @@ export interface LocalBootBackend {
  */
 export function resolveLocalBootBackend(
 	env: EnvLike,
-	deps: { onWorkspaceReady?: (runId: string, at: Date) => void } = {},
+	deps: Pick<DriveDeps, "onWorkspaceReady" | "reserveEnvironmentRepair"> = {},
 ): LocalBootBackend {
 	const store = new LocalRunStore();
 	const sidecarRegistry = new LocalSidecarRegistry({
@@ -69,6 +70,9 @@ export function resolveLocalBootBackend(
 	const runtimeProvider = resolveRuntimeProvider(
 		{
 			serverEnv: env,
+			...(deps.reserveEnvironmentRepair
+				? { reserveEnvironmentRepair: deps.reserveEnvironmentRepair }
+				: {}),
 			localStore: store,
 			localSidecars: sidecarRegistry,
 			...(deps.onWorkspaceReady !== undefined ? { onWorkspaceReady: deps.onWorkspaceReady } : {}),

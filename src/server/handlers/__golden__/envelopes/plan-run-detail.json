@@ -58,6 +58,10 @@
 					"resumeCount": 0,
 					"postMergeIncidentCount": 0
 				},
+				"recovery": {
+					"preparation": null,
+					"rollback": null
+				},
 				"budget": null,
 				"reviewFailure": null,
 				"reviewSteps": [],
@@ -97,6 +101,10 @@
 					"steeringCount": 0,
 					"resumeCount": 0,
 					"postMergeIncidentCount": 0
+				},
+				"recovery": {
+					"preparation": null,
+					"rollback": null
 				},
 				"budget": null,
 				"reviewFailure": null,

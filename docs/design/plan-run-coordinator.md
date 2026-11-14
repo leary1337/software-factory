@@ -19,6 +19,11 @@
 > cross-references to surviving SPEC sections are repointed by the
 > later sweep steps of `pl-1717`.
 
+The current local factory freezes approvals, revisions, permissions, and task budgets
+before entering this coordinator. See [Approved plans](./approved-plans.md). The
+tracker prerequisites below describe the historical tracker launch form; new internal
+approvals create their own Seeds mirror.
+
 ## PlanRun: serial plan execution (pl-a258, 2026-05-18)
 
 PlanRun is a dispatch mode, not a fifth bundled feature. The substrate

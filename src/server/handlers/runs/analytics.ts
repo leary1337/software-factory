@@ -1,5 +1,5 @@
 import type { RuntimeId } from "../../../core/wire.ts";
-import { DEFAULT_RUNTIME_ID } from "../../../registry/schema.ts";
+import { HISTORICAL_DEFAULT_RUNTIME_ID } from "../../../core/wire.ts";
 import type { EventRow, RunRow } from "../../../runs/index.ts";
 import {
 	buildRunMetrics,
@@ -188,7 +188,7 @@ export async function loadToolCallRows(
 			toolUseId: r.toolUseId,
 			isError: r.isError,
 			resultBytes: r.resultBytes,
-			runtime: runtimeByRunId.get(r.runId) ?? DEFAULT_RUNTIME_ID,
+			runtime: runtimeByRunId.get(r.runId) ?? HISTORICAL_DEFAULT_RUNTIME_ID,
 		})),
 		// warren-8f1b: the same rollup rows, reduced to the directory-join
 		// shape. `filePaths` is the JSON column the fileShape extractor

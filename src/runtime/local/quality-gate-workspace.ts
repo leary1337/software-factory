@@ -12,7 +12,6 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
-import { SANDBOX_HOME_PATH } from "../../sandbox/bwrap.ts";
 import type { SandboxProfile } from "../../sandbox/types.ts";
 import { HOST_GIT_CONFIG_ARGS } from "../../workspace/git/host-git.ts";
 
@@ -116,7 +115,7 @@ function gateProfile(
 	shortTemp: string | undefined,
 ): SandboxProfile {
 	if (!original.workspaceGit) throw new Error("Independent gate requires trusted host Git objects");
-	const home = process.platform === "linux" ? SANDBOX_HOME_PATH : join(root, "home");
+	const home = join(root, "home");
 	const env: Record<string, string> = {
 		GIT_CONFIG_NOSYSTEM: "1",
 		GIT_CONFIG_GLOBAL: "/dev/null",
@@ -207,12 +206,7 @@ export async function prepareQualityGateWorkspace(
 		]);
 		await writeFile(join(metadata, "objects/info/alternates"), `${shared}\n`);
 		await git(root, home, [`--git-dir=${metadata}`, "config", "core.bare", "false"]);
-		await git(root, home, [
-			`--git-dir=${metadata}`,
-			"config",
-			"core.worktree",
-			process.platform === "linux" ? "/workspace" : workspace,
-		]);
+		await git(root, home, [`--git-dir=${metadata}`, "config", "core.worktree", workspace]);
 		await git(root, home, [
 			`--git-dir=${metadata}`,
 			`--work-tree=${workspace}`,

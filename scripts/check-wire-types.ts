@@ -107,6 +107,12 @@ export function canonicalSources(homeText: string): string[] {
  * generically-named helper to the kernel can never fail an unrelated file.
  */
 export const DOMAIN_STEMS = [
+	"merge",
+	"task",
+	"tool",
+	"remote",
+	"preparation",
+	"rollback",
 	"run",
 	"inbox",
 	"clone",

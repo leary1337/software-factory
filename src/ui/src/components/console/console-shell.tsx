@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { WarrenLogo } from "@/components/warren-logo.tsx";
 import { useCapabilities } from "@/hooks/use-capabilities.ts";
 import { cn } from "@/lib/utils.ts";
+import { LocalConnectionStatus } from "./local-connection-status.tsx";
 import { WorkspaceNavigation } from "./workspace-navigation.tsx";
 
 /**
@@ -97,6 +98,7 @@ export function ConsoleShell() {
 					<ConsoleTopbar stats={stats} />
 				</div>
 
+				<LocalConnectionStatus />
 				<WorkspaceNavigation scrollRef={scrollRef}>
 					{/* biome-ignore lint/a11y/noNoninteractiveTabindex: warren-f009 keyboard users must be able to focus this scroll container. */}
 					<main ref={scrollRef} tabIndex={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
@@ -110,7 +112,7 @@ export function ConsoleShell() {
 
 				{/* Mobile bottom tab bar (warren-4d4a): in-flow sibling of <main>,
 				    so pages scroll above it and nothing hides under the bar. */}
-				<ConsoleBottomNav onOpenMore={() => setMobileNavOpen(true)} />
+				<ConsoleBottomNav />
 			</div>
 
 			{/* Mobile slide-over drawer: same sidebar body as the desktop rail. */}

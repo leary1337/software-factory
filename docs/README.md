@@ -1,6 +1,10 @@
 # Software Factory documentation
 
-For this personal fork, start with [PLAN.md](PLAN.md), [FACTORY-BACKLOG.md](FACTORY-BACKLOG.md), and [codex-runtime.md](codex-runtime.md). The supported factory path runs from a checkout on macOS.
+For this personal fork, start with the [approved local factory plan](factory-cleanup-plan.md).
+The [factory specification](factory-redesign-spec.md) defines behavior and acceptance tests.
+[FACTORY-BACKLOG.md](FACTORY-BACKLOG.md) tracks delivery. [PLAN.md](PLAN.md) preserves the previous plan.
+[codex-runtime.md](codex-runtime.md) describes the current implementation. The verified factory path still runs from a checkout on macOS.
+VPS deployment is deferred. The current scope keeps execution on the owner's Mac.
 
 The remaining documents describe the inherited Warren substrate. Historical Docker/Linux and platform design records are not evidence of a tested factory distribution.
 
@@ -8,44 +12,48 @@ This directory holds operator, API, architecture, and contributor documentation.
 
 ## Run warren
 
+- [Локальная фабрика](factory-local.md): запуск на Mac, управление планом и общим набором инструментов.
+- [Чистая установка](factory-clean-install-acceptance.md): проверка собранного пакета с новой базой.
+- [Общий инструментарий](factory-toolkit.md): версии, бесплатные MCP и проверка реальными вызовами.
+- [Проверка через workflow](factory-workflow-verification.md): проверяемый выпуск защищённого приложения.
 - [Production delivery](production-delivery.md): opt-in deploy, exact commit verification, smoke and incident recovery.
 - [Factory merge safety](factory-merge-safety.md): mandatory risk paths and diff limits.
 
 
-- [`quickstart.md`](quickstart.md) — the casual path end to end: install script, `warren up`, credential wizard, GitHub App connect, first run.
-- [`credentials.md`](credentials.md) — the two model paths and the two GitHub paths, including machine-account guidance.
-- [`self-host/docker.md`](self-host/docker.md) — local and sibling-container Docker topologies, agent images, persistence, and macOS Docker Desktop requirements.
-- [`operations.md`](operations.md) — probes, structured logs, metrics, run events, cost, backups, and common triage.
-- [`../.env.example`](../.env.example) — annotated deployment environment reference.
-- [`project-setup.md`](project-setup.md) — repository permissions, CI, auto-merge, and branch cleanup.
-- [`onboarding-external-repos.md`](onboarding-external-repos.md) — configure a mirror or repository that you do not control.
-- [`previews.md`](previews.md) — optional per-run preview environments, DNS, TLS, auth, and lifecycle.
+- [`quickstart.md`](quickstart.md): the casual path end to end: install script, `warren up`, credential wizard, GitHub App connect, first run.
+- [`credentials.md`](credentials.md): the two model paths and the two GitHub paths, including machine-account guidance.
+- [`self-host/docker.md`](self-host/docker.md): retirement notice for factory Docker execution, with the local runtime successor.
+- [`operations.md`](operations.md): probes, structured logs, metrics, run events, cost, backups, and common triage.
+- [`../.env.example`](../.env.example): annotated deployment environment reference.
+- [`project-setup.md`](project-setup.md): repository permissions, CI, auto-merge, and branch cleanup.
+- [`onboarding-external-repos.md`](onboarding-external-repos.md): configure a mirror or repository that you do not control.
+- [`previews.md`](previews.md): optional per-run preview environments, DNS, TLS, auth, and lifecycle.
 - [`local-models.md`](local-models.md): dispatch pi runs against a local OpenAI-compatible model server (unsupported but verified).
-- [`pr-templates.md`](pr-templates.md) — customize generated pull request body fragments.
+- [`pr-templates.md`](pr-templates.md): customize generated pull request body fragments.
 
 ## Integrate with warren
 
-- [`cli-reference.md`](cli-reference.md) — every `warren` command, flag, output mode, and exit code.
-- [`sdk.md`](sdk.md) — TypeScript client setup, dispatch, events, intervention, and errors.
-- [`http-api.md`](http-api.md) — generated route catalog and auth posture.
-- [`openapi.yaml`](openapi.yaml) — generated OpenAPI 3.1 schema.
-- [`architecture.md`](architecture.md) — run kernel, harness adapters, runtime providers, seams, storage, and source map.
-- [`design/warren-config.md`](design/warren-config.md) — `.warren/config.yaml` contract.
+- [`cli-reference.md`](cli-reference.md): every `warren` command, flag, output mode, and exit code.
+- [`sdk.md`](sdk.md): TypeScript client setup, dispatch, events, intervention, and errors.
+- [`http-api.md`](http-api.md): generated route catalog and auth posture.
+- [`openapi.yaml`](openapi.yaml): generated OpenAPI 3.1 schema.
+- [`architecture.md`](architecture.md): run kernel, harness adapters, runtime providers, seams, storage, and source map.
+- [`design/warren-config.md`](design/warren-config.md): `.warren/config.yaml` contract.
 
 ## Understand the project
 
-- [`PHILOSOPHY.md`](PHILOSOPHY.md) — product and architecture policy.
-- [`design/README.md`](design/README.md) — complete design-record catalog with delivery state.
-- [`../ROADMAP.md`](../ROADMAP.md) — archived upstream direction and sequencing.
-- [`../SECURITY.md`](../SECURITY.md) — threat model and vulnerability reporting.
-- [`CONSTITUTION.md`](CONSTITUTION.md) — governance for warren-authored changes.
+- [`PHILOSOPHY.md`](PHILOSOPHY.md): product and architecture policy.
+- [`design/README.md`](design/README.md): complete design-record catalog with delivery state.
+- [`../ROADMAP.md`](../ROADMAP.md): archived upstream direction and sequencing.
+- [`../SECURITY.md`](../SECURITY.md): threat model and vulnerability reporting.
+- [`CONSTITUTION.md`](CONSTITUTION.md): governance for warren-authored changes.
 
 ## Change warren
 
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — branch names, build commands, tests, and pull request expectations.
-- [`../AGENTS.md`](../AGENTS.md) — canonical coding-agent instructions and repository map.
-- [`labels.md`](labels.md) — issue and pull request label taxonomy.
-- [`../ACCEPTANCE.md`](../ACCEPTANCE.md) — scenario harness for a live stack.
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md): branch names, build commands, tests, and pull request expectations.
+- [`../AGENTS.md`](../AGENTS.md): canonical coding-agent instructions and repository map.
+- [`labels.md`](labels.md): issue and pull request label taxonomy.
+- [`../ACCEPTANCE.md`](../ACCEPTANCE.md): scenario harness for a live stack.
 
 ## Generated and authored docs
 
@@ -61,9 +69,17 @@ Docs paths are a public surface (warren-d602). When maintainers delete or move a
 
 ## History
 
-- [`CHANGELOG-archive.md`](CHANGELOG-archive.md) — releases older than the window in the current [`../CHANGELOG.md`](../CHANGELOG.md).
+- [`CHANGELOG-archive.md`](CHANGELOG-archive.md): releases older than the window in the current [`../CHANGELOG.md`](../CHANGELOG.md).
 
 ## Retired public paths
 
 - `docs/RUNBOOK-K8S.md` -> [the supported runtime](codex-runtime.md). Kubernetes was removed from this fork.
 - `docs/design/k8s-migration.md` -> [the fork plan](PLAN.md). The migration does not apply to this fork.
+
+- [Общий каталог навыков](shared-skills.md): версия, личная установка и защита посторонних файлов.
+
+## Retired integrations
+
+The judge, campaign-controller, audit-log and tracker-conformance extensions
+and remote trackers are retired. Built-in [HTTP events, history and diagnostics](./http-api.md)
+remain available; plans use [internal Seeds](./design/issue-tracker.md).

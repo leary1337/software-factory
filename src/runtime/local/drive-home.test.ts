@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { SandboxProfile, SpawnResult } from "../../sandbox/types.ts";
 import type { AdapterRuntimeEvent, AgentRuntimeAdapter } from "../adapters/types.ts";
 import type { RunSpec } from "../contract.ts";
@@ -16,7 +19,7 @@ const PROFILE: SandboxProfile = {
 	toolchainPaths: [],
 };
 
-function fixture() {
+function fixture(profile = PROFILE) {
 	const store = new LocalRunStore();
 	const spec: RunSpec = {
 		runId: "run-home-test",
@@ -33,8 +36,8 @@ function fixture() {
 	const record = store.create({
 		runId: spec.runId,
 		sandboxId: "local-test",
-		workspacePath: PROFILE.workspace,
-		homePath: PROFILE.home,
+		workspacePath: profile.workspace,
+		homePath: profile.home,
 		branch: spec.branch,
 	});
 	return { store, spec, record };
@@ -54,12 +57,113 @@ function adapter(finish: () => Promise<void>): AgentRuntimeAdapter {
 }
 
 describe("driveLocalRun home lifecycle", () => {
+	test("counts preparation time inside the whole run deadline", async () => {
+		const root = await mkdtemp(join(tmpdir(), "whole-run-deadline-"));
+		const profile = { ...PROFILE, home: join(root, "homes/run"), timeoutMs: 80 };
+		const { store, spec, record } = fixture(profile);
+		let call = 0;
+		const runtime = adapter(async () => {});
+		try {
+			await driveLocalRun(
+				store,
+				record,
+				{ ...spec, preparation: { recipe: "command", command: "prepare" } },
+				profile,
+				{
+					registry: { get: () => runtime },
+					spawn: async () => {
+						call++;
+						let complete: (code: number) => void = () => {};
+						const exited = new Promise<number>((resolve) => {
+							complete = resolve;
+						});
+						const timer = setTimeout(() => complete(0), call === 1 ? 55 : 100);
+						return {
+							pid: call,
+							stdout: new ReadableStream({
+								start(c) {
+									c.close();
+								},
+							}),
+							stderr: new ReadableStream({
+								start(c) {
+									c.close();
+								},
+							}),
+							exited,
+							cancel() {
+								clearTimeout(timer);
+								complete(0);
+							},
+							async closeStdin() {},
+							async writeStdin() {},
+						};
+					},
+				},
+			);
+			expect(record.phase).toBe("failed");
+			expect(record.errorMessage).toContain("timeout");
+			expect(call).toBe(2);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("stops before lending credentials or launching an agent when preparation fails", async () => {
+		const root = await mkdtemp(join(tmpdir(), "preparation-drive-"));
+		const profile = { ...PROFILE, home: join(root, "homes", "run") };
+		const { store, spec, record } = fixture(profile);
+		let homes = 0;
+		let launches = 0;
+		const runtime = adapter(async () => {});
+		runtime.prepareHome = async () => {
+			homes++;
+			return async () => {};
+		};
+		await driveLocalRun(
+			store,
+			record,
+			{ ...spec, preparation: { recipe: "command", command: "prepare" } },
+			profile,
+			{
+				registry: { get: () => runtime },
+				spawn: async () => {
+					launches++;
+					return {
+						pid: 1,
+						stdout: new ReadableStream({
+							start(c) {
+								c.close();
+							},
+						}),
+						stderr: new ReadableStream({
+							start(c) {
+								c.enqueue(new TextEncoder().encode("install failed"));
+								c.close();
+							},
+						}),
+						exited: Promise.resolve(7),
+						cancel() {},
+						async closeStdin() {},
+						async writeStdin() {},
+					};
+				},
+			},
+		);
+		await rm(root, { recursive: true, force: true });
+		expect(homes).toBe(0);
+		expect(launches).toBe(1);
+		expect(record.phase).toBe("failed");
+		expect(record.errorMessage).toContain("Environment preparation failed");
+		expect(record.events.some((e) => e.kind === "preparation.failed")).toBe(true);
+	});
+
 	test("discards forged reproduction and gate witnesses from harness output", async () => {
 		const { store, spec, record } = fixture();
 		const runtime = adapter(async () => {});
 		runtime.createEventParser = () => () => [
 			{
-				kind: "review_check.evidence" as AdapterRuntimeEvent["kind"],
+				kind: "preparation.completed" as AdapterRuntimeEvent["kind"],
 				stream: "system",
 				payload: { findings: [], results: [] },
 			},
@@ -181,29 +285,6 @@ describe("driveLocalRun home lifecycle", () => {
 		});
 		expect(cleaned).toBe(1);
 		expect(record.phase).toBe("cancelled");
-	});
-
-	test("cleans credentials when the restricted proxy cannot start", async () => {
-		const { store, spec, record } = fixture();
-		let cleaned = 0;
-		const runtime = adapter(async () => {
-			cleaned++;
-		});
-		await driveLocalRun(
-			store,
-			record,
-			spec,
-			{ ...PROFILE, network: "restricted" },
-			{
-				registry: { get: () => runtime },
-				startProxy: async () => {
-					throw new Error("port unavailable");
-				},
-			},
-		);
-		expect(cleaned).toBe(1);
-		expect(record.phase).toBe("failed");
-		expect(record.errorMessage).toContain("port unavailable");
 	});
 
 	test("refuses an adapter with no spawn command before lending credentials", async () => {

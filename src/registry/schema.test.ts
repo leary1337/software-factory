@@ -162,8 +162,8 @@ describe("readRuntimeId", () => {
 		frontmatter: { source: "builtin" },
 	};
 
-	test("falls back to the pi default when frontmatter.runtime is absent (warren-16f8)", () => {
-		expect(readRuntimeId(NAME_MATCH)).toBe("pi");
+	test("falls back to the Codex default when frontmatter.runtime is absent (warren-16f8)", () => {
+		expect(readRuntimeId(NAME_MATCH)).toBe("codex");
 	});
 
 	test("prefers frontmatter.runtime over agent.name", () => {

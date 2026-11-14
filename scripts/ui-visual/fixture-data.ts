@@ -65,14 +65,12 @@ export interface FixtureIds {
 	readonly agents: { readonly builtin: readonly string[]; readonly legacyLibrary: string };
 	readonly events: { readonly runId: string; readonly count: number };
 	/** Terminal runs spread over the last 14 days that feed every Telemetry tab. */
-	readonly telemetry: { readonly historyRunIds: readonly string[]; readonly judgeRows: number };
+	readonly telemetry: { readonly historyRunIds: readonly string[] };
 }
 
 /** Everything the boot needs back from the seeder. */
 export interface SeedResult {
 	readonly ids: FixtureIds;
-	/** NDJSON body the fake judge export serves (newest first). */
-	readonly judgeRuns: readonly { readonly runId: string; readonly endedAt: string }[];
 }
 
 const RUN_IDS = {
@@ -311,12 +309,8 @@ function historySpec(i: number, projectId: string): RunSpec & { readonly endedMi
 }
 
 /** Terminal history runs over the last 14 days, with transcripts and tool calls. */
-async function seedHistory(
-	repos: Repos,
-	projects: readonly string[],
-): Promise<{ ids: string[]; judgeRuns: { runId: string; endedAt: string }[] }> {
+async function seedHistory(repos: Repos, projects: readonly string[]): Promise<{ ids: string[] }> {
 	const ids: string[] = [];
-	const judgeRuns: { runId: string; endedAt: string }[] = [];
 	for (let i = 0; i < HISTORY_COUNT; i++) {
 		const spec = historySpec(i, projects[i % projects.length] ?? "");
 		await seedRun(repos, spec);
@@ -333,11 +327,8 @@ async function seedHistory(
 			}),
 		);
 		ids.push(spec.id);
-		if (spec.terminal !== "cancelled") {
-			judgeRuns.push({ runId: spec.id, endedAt: endedAt.toISOString() });
-		}
 	}
-	return { ids, judgeRuns };
+	return { ids };
 }
 
 export interface SeedFixtureInput {
@@ -404,9 +395,9 @@ export async function seedFixtureDb(input: SeedFixtureInput): Promise<SeedResult
 			tracker: { dispatchedPlanId: planRun.planId, readyPlanId: "pl-fx02" },
 			agents: { builtin: BUILTIN_AGENTS.map((a) => a.name), legacyLibrary: LEGACY_AGENT },
 			events: { runId: RUN_IDS.running, count: eventCount },
-			telemetry: { historyRunIds: history.ids, judgeRows: history.judgeRuns.length },
+			telemetry: { historyRunIds: history.ids },
 		};
-		return { ids, judgeRuns: history.judgeRuns };
+		return { ids };
 	} finally {
 		await db.close();
 	}

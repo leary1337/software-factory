@@ -1,38 +1,13 @@
 /**
- * The salvage intake endpoint for the K8s backend (warren-cd3b) — the
- * control-plane half of salvage-before-destroy.
- *
- * When a run pod's in-pod finalize determines the run's committed work would
- * otherwise be lost — the primary branch push was rejected (`push_failed`,
- * e.g. GitHub push protection) or no reap intent ever arrived before the pod
- * had to exit (`no_intent`, e.g. a control-plane rollout severed the finalize
- * loop) — the pod captures the work itself (a control-plane salvage cannot
- * reach the pod's `emptyDir`) and POSTs a `SalvageEnvelope` here:
- *
- *   - `rescueRef` — the `warren/rescue/<runId>` branch the pod pushed to
- *     origin, when that push landed;
- *   - `bundleBase64` — a git bundle of the run's commits, stored durably at
- *     `<salvageDir>/<runId>.bundle` so it survives the pod AND a warren
- *     restart (the data dir is the persistent volume).
- *
- * The handler records the salvage location on the run row (`salvage_ref` /
- * `salvage_path`) and appends a `reap.workspace_salvaged` run event so the
- * recovery path is operator-visible on the run object and the event stream.
- * Both writes are best-effort past the bundle store: a deleted run row (or a
- * colliding event seq) must not turn the pod's only recoverable copy into a
- * 500 — the bundle on disk is the durable artifact.
- *
- * Bearer-gated like every other `/runs` route; the pod carries its per-run
- * scoped callback token (warren-57fd). Idempotent: a retried POST rewrites
- * the same file and re-stamps the same location, so redelivery is safe.
+ * Authenticated salvage intake for work captured before a workspace is lost.
+ * Stores a rescue ref and/or durable git bundle, then records the location and
+ * recovery event on a best-effort basis. Retried uploads keep the same location.
+ * Storage paths, event vocabulary and run history are independent of the runtime.
  */
 
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { ValidationError } from "../../../core/errors.ts";
-import {
-	parseSalvageEnvelope,
-	type SalvageEnvelope,
-} from "../../../runtime/container/finalize-wire.ts";
+import { parseSalvageEnvelope, type SalvageEnvelope } from "../../../runtime/finalization/wire.ts";
 import { MAX_SALVAGE_BUNDLE_BYTES, salvageBundlePath } from "../../../runtime/salvage.ts";
 import { jsonResponse } from "../../response.ts";
 import { EventStreamLimiter } from "../../stream-limits.ts";

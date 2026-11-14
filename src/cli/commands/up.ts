@@ -1,30 +1,4 @@
-/**
- * `warren up` — the casual-user boot command (warren-c18a, pl-26f3 step 2).
- *
- * One command takes a fresh machine from installed-CLI to a running warren
- * instance with the operator already logged in:
- *
- *   1. Detect the runtime: darwin → local (sandbox-exec); linux with bwrap
- *      on PATH → local (bwrap); otherwise, when a docker daemon looks
- *      reachable, print the compose guidance and exit 0 (no docker
- *      orchestration here); otherwise exit non-zero naming what is missing.
- *      An explicit WARREN_RUNTIME is never overridden.
- *   2. Default WARREN_DATA_DIR to ~/.warren/data (created 0700) when unset;
- *      an explicit env value is left alone.
- *   3. Boot the server in-process exactly as `warren serve` does, by
- *      delegating to `runServe` (serve.ts holds the one sanctioned
- *      CLI→server import; `up` never adds a second exception).
- *   4. After boot, persist base URL + operator token to the client config
- *      via the `warren login` persistence function (mode 0600) so the user
- *      never greps a log for the minted token.
- *
- * Scope guard (pl-26f3): the two stages live here, in order. The
- * credential wizard (warren-80e9) runs first, before boot. The browser
- * handoff (warren-48f8) runs after boot: the server arms the one-time
- * setup code and this command opens the browser at the redemption URL
- * (open(1) / xdg-open), suppressed by --no-open or a non-TTY stdout; the
- * URL is always printed as the fallback.
- */
+/** Start the local macOS factory, configure credentials and open the authenticated interface. */
 
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -49,13 +23,9 @@ export interface UpArgs {
 	readonly wizard?: boolean;
 }
 
-/** Platform/binary seams the runtime detection reads. */
+/** Host platform for local runtime support. */
 export interface UpRuntimeProbe {
 	readonly platform: NodeJS.Platform;
-	/** Is a binary resolvable on PATH? (sandbox-exec / bwrap) */
-	readonly hasBinary: (name: string) => boolean;
-	/** Best-effort "is a docker daemon reachable" heuristic. */
-	readonly dockerDaemonReachable: () => boolean;
 }
 
 export interface UpDeps {
@@ -86,45 +56,19 @@ export interface UpResult {
 /** What runtime detection decided. */
 export type UpRuntimeDecision =
 	| { readonly choice: "boot"; readonly runtime?: string; readonly sentence: string }
-	| { readonly choice: "docker-guidance" }
 	| { readonly choice: "fail"; readonly message: string };
 
-/**
- * Detect the runtime for `warren up`. An explicit WARREN_RUNTIME always
- * wins (never overridden — a typo still reaches boot's loud validation).
- * darwin with sandbox-exec and linux with bwrap pick the local provider;
- * anything else falls to the docker-daemon check.
- */
+/** Boot only the supported local host; do not suggest retired sandbox/container runtimes. */
 export function detectUpRuntime(env: EnvLike, probe: UpRuntimeProbe): UpRuntimeDecision {
 	const explicit = env.WARREN_RUNTIME?.trim();
-	if (explicit !== undefined && explicit !== "") {
+	if (explicit && explicit !== "local")
+		return { choice: "fail", message: `Runtime '${explicit}' is retired; use local` };
+	if (probe.platform !== "darwin")
 		return {
-			choice: "boot",
-			runtime: explicit,
-			sentence: `runtime: ${explicit} (from WARREN_RUNTIME — not overridden)`,
+			choice: "fail",
+			message: "Local execution currently requires macOS; Linux deployment is deferred",
 		};
-	}
-	if (probe.platform === "darwin" && probe.hasBinary("sandbox-exec")) {
-		return { choice: "boot", runtime: "local", sentence: "runtime: local (darwin sandbox-exec)" };
-	}
-	if (probe.platform === "linux" && probe.hasBinary("bwrap")) {
-		return { choice: "boot", runtime: "local", sentence: "runtime: local (linux bwrap)" };
-	}
-	if (probe.dockerDaemonReachable()) {
-		return { choice: "docker-guidance" };
-	}
-	const native =
-		probe.platform === "darwin"
-			? "sandbox-exec"
-			: probe.platform === "linux"
-				? "bwrap on PATH"
-				: "a native sandbox on this platform";
-	return {
-		choice: "fail",
-		message:
-			`no usable sandbox (${native}) and no reachable docker daemon — ` +
-			"install the sandbox tool or start docker, then re-run `warren up`",
-	};
+	return { choice: "boot", runtime: "local", sentence: "runtime: local (macOS host process)" };
 }
 
 /** Default WARREN_DATA_DIR for `warren up` when the env leaves it unset. */
@@ -132,24 +76,9 @@ export function defaultUpDataDir(home: string): string {
 	return join(home, ".warren", "data");
 }
 
-/** Does `name` resolve anywhere on PATH? */
+/** Whether an executable name resolves on the configured PATH. */
 export function binaryOnPath(name: string, env: EnvLike = process.env): boolean {
-	for (const dir of (env.PATH ?? "").split(delimiter)) {
-		if (dir !== "" && existsSync(join(dir, name))) return true;
-	}
-	return false;
-}
-
-/**
- * Best-effort "is a docker daemon reachable" heuristic: DOCKER_HOST is set,
- * or the default unix socket exists. Precise enough to choose between
- * guidance and failure; a full `docker info` round-trip would be slower and
- * untestable for what a casual `warren up` needs.
- */
-export function dockerDaemonLikelyReachable(env: EnvLike = process.env): boolean {
-	const host = env.DOCKER_HOST?.trim();
-	if (host !== undefined && host !== "") return true;
-	return existsSync("/var/run/docker.sock") || existsSync("/run/docker.sock");
+	return (env.PATH ?? "").split(delimiter).some((dir) => dir !== "" && existsSync(join(dir, name)));
 }
 
 /** Which command opens a URL on this platform (best-effort). */
@@ -182,21 +111,9 @@ function exportStoredEnv(
 export async function runUp(context: CliContext, deps: UpDeps, args: UpArgs): Promise<UpResult> {
 	const probe: UpRuntimeProbe = deps.probe ?? {
 		platform: process.platform,
-		hasBinary: (name) => binaryOnPath(name, context.env),
-		dockerDaemonReachable: () => dockerDaemonLikelyReachable(context.env),
 	};
 
 	const decision = detectUpRuntime(context.env, probe);
-	if (decision.choice === "docker-guidance") {
-		context.stdio.stdout.write(
-			"warren up: no native sandbox on this machine, but a docker daemon looks reachable.\n" +
-				"Boot warren with docker compose instead:\n" +
-				"  docker compose up -d\n" +
-				"then run `warren login --url <server url>` with the operator token from the\n" +
-				"server logs (see docker-compose.yml and README.md for the full compose path).\n",
-		);
-		return { exitCode: 0 };
-	}
 	if (decision.choice === "fail") {
 		context.stdio.stderr.write(`warren up: ${decision.message}\n`);
 		return { exitCode: 1 };

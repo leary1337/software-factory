@@ -1,4 +1,6 @@
+import type { ExecutionProfile } from "../../core/execution-profiles.ts";
 import type { ReviewFinding } from "../../core/review-findings.ts";
+import type { DefaultsConfig } from "../../warren-config/schema.ts";
 /**
  * Shared types for the spawn flow. Kept in their own module so the
  * source files (`dispatch.ts`, `seed-extensions.ts`,
@@ -60,6 +62,12 @@ export const DISPATCH_ORIGINS = [
 export type DispatchOrigin = (typeof DISPATCH_ORIGINS)[number];
 
 export interface SpawnRunInput {
+	readonly approvedDefaults?: DefaultsConfig;
+	readonly agentSnapshot?: AgentDefinition;
+	readonly timeoutMs?: number;
+	/** Immutable tool bundle selected by an approved plan. */
+	readonly toolkitVersion?: string;
+	readonly executionProfile?: ExecutionProfile;
 	readonly reviewFindings?: readonly ReviewFinding[];
 	readonly repos: Repos;
 	/**
@@ -107,7 +115,7 @@ export interface SpawnRunInput {
 	readonly modelOverride?: string;
 	/**
 	 * Mulch experiment arm (`src/runtime/adapters/mulch-arm.ts`), folded onto
-	 * `frontmatter.mulch`. Omitted = default behavior, unchanged.
+	 * `frontmatter.mulch`. Omitted inherits the saved memory setting, defaulting to off.
 	 */
 	readonly mulchArm?: MulchArm;
 	readonly now?: () => Date;

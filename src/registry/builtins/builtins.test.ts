@@ -15,7 +15,6 @@ import {
 	BUILTIN_AGENTS,
 	CLAUDE_CODE_BUILTIN,
 	HEALER_BUILTIN,
-	PI_BUILTIN,
 	PLANNER_BUILTIN,
 	PR_FIXER_BUILTIN,
 	readAgentSource,
@@ -25,10 +24,10 @@ import {
 import { GATE_FINAL_RUN_RULE, VALIDATION_DISCIPLINE_BULLETS } from "./prompt-fragments.ts";
 
 describe("BUILTIN_AGENTS", () => {
-	test("includes claude-code, pi, planner, pr-fixer, and healer", () => {
+	test("includes claude-code, planner, pr-fixer, and healer", () => {
 		expect(BUILTIN_AGENT_NAMES.has("claude-code")).toBe(true);
 		expect(BUILTIN_AGENT_NAMES.has("sapling")).toBe(false);
-		expect(BUILTIN_AGENT_NAMES.has("pi")).toBe(true);
+		expect(BUILTIN_AGENT_NAMES.has("pi")).toBe(false);
 		expect(BUILTIN_AGENT_NAMES.has("brainstorm")).toBe(false);
 		expect(BUILTIN_AGENT_NAMES.has("planner")).toBe(true);
 		expect(BUILTIN_AGENT_NAMES.has("pr-fixer")).toBe(true);
@@ -94,8 +93,8 @@ describe("BUILTIN_AGENTS", () => {
 	// This regression test prevents the bullet from drifting back to softer
 	// "run gates before committing" wording that lets agents declare success
 	// on a red tree.
-	test("claude-code / pi declare the quality gate as terminal (warren-6a34)", () => {
-		for (const builtin of [CLAUDE_CODE_BUILTIN, PI_BUILTIN]) {
+	test("claude-code declares the quality gate as terminal (warren-6a34)", () => {
+		for (const builtin of [CLAUDE_CODE_BUILTIN]) {
 			const system = builtin.sections.system ?? "";
 			expect(system).toContain("$WARREN_QUALITY_GATE");
 			expect(system).toContain("NOT done until the gate exits zero");
@@ -109,7 +108,7 @@ describe("BUILTIN_AGENTS", () => {
 	// unchanged inputs. Every source-editing builtin keeps the mandatory
 	// final green run but carries the no-unchanged-rerun discipline instead.
 	test("source-editing builtins keep one final green gate without unchanged reruns (warren-7e82)", () => {
-		for (const builtin of [CLAUDE_CODE_BUILTIN, PI_BUILTIN, PR_FIXER_BUILTIN, HEALER_BUILTIN]) {
+		for (const builtin of [CLAUDE_CODE_BUILTIN, PR_FIXER_BUILTIN, HEALER_BUILTIN]) {
 			const system = builtin.sections.system ?? "";
 			expect(system).not.toContain("again before reporting completion");
 			expect(system).toContain(GATE_FINAL_RUN_RULE);
@@ -135,7 +134,6 @@ describe("BUILTIN_AGENTS", () => {
 describe("readAgentSource", () => {
 	test("returns 'builtin' when frontmatter.source === 'builtin'", () => {
 		expect(readAgentSource(CLAUDE_CODE_BUILTIN)).toBe("builtin");
-		expect(readAgentSource(PI_BUILTIN)).toBe("builtin");
 		expect(readAgentSource(PLANNER_BUILTIN)).toBe("builtin");
 	});
 

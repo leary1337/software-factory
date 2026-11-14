@@ -120,6 +120,7 @@ export class LocalEngine {
 	 * mirroring burrow's enqueue-then-async-fail shape.
 	 */
 	async create(spec: RunSpec): Promise<RunHandle> {
+		const startedAt = Date.now();
 		if (spec.hostClonePathHint === undefined || spec.hostClonePathHint === "") {
 			throw new RuntimeProviderError(
 				"LocalProvider.create requires spec.hostClonePathHint (the host clone projectRoot)",
@@ -161,8 +162,6 @@ export class LocalEngine {
 			});
 			await writeWorkspaceSeedFiles(workspacePath, spec.seedFiles);
 		} catch (err) {
-			// Partial-failure cleanup (the rollback posture burrow's provider owned):
-			// reclaim the dirs we made and rethrow the ORIGINAL error.
 			await reclaimDirs();
 			throw err;
 		}
@@ -171,8 +170,6 @@ export class LocalEngine {
 		const frontmatter = readFrontmatterForProfile(spec.metadata);
 		let profile: Awaited<ReturnType<typeof buildLocalSandboxProfile>>;
 		try {
-			// warren-8926/3c1e: validate the private git scope BEFORE the agent
-			// runs and pin host-side git for this workspace to it.
 			const gitScope = pinWorkspaceGit(workspace.workspacePath, workspace.source);
 			profile = await buildLocalSandboxProfile({
 				spec,
@@ -191,6 +188,11 @@ export class LocalEngine {
 			throw err;
 		}
 
+		if (profile.timeoutMs !== undefined)
+			profile = {
+				...profile,
+				timeoutMs: Math.max(1, profile.timeoutMs - (Date.now() - startedAt)),
+			};
 		const record = this.store.create({
 			runId: spec.runId,
 			sandboxId,
@@ -219,7 +221,6 @@ export class LocalEngine {
 			throw error;
 		}
 
-		// Fire-and-forget: the drive loop terminalizes the record itself.
 		record.driveDone = driveLocalRun(this.store, record, spec, profile, this.deps.drive ?? {});
 		return { runId: spec.runId, sandboxId, providerRunId: record.providerRunId };
 	}
@@ -348,14 +349,12 @@ export class LocalEngine {
 		}
 		if (this.store.isTerminal(record)) {
 			await record.driveDone;
+			await this.deps.sidecars?.cascadeDelete(handle.sandboxId);
 			return;
 		}
 		record.cancelRequested = true;
 		// Terminalize BEFORE killing the child. Order matters (warren-8a6e):
-		// killing first can let a late agent `result` envelope land, the bridge
-		// detectRuntimeTerminal path reaps `failed`, and cancel's own inline
-		// reap then races it. Settling cancelled first means streamEvents ends
-		// cleanly and store.terminalize is idempotent against any late write.
+		// Latch cancellation before late terminal events can race the reaper.
 		this.store.terminalize(record, {
 			phase: "cancelled",
 			exitCode: null,
@@ -364,6 +363,7 @@ export class LocalEngine {
 		});
 		record.proc?.cancel();
 		await record.driveDone;
+		await this.deps.sidecars?.cascadeDelete(handle.sandboxId);
 	}
 
 	/**

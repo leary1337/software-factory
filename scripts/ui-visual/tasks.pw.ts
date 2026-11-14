@@ -84,6 +84,9 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await page.unrouteAll({ behavior: "wait" });
 		});
 		test("shows empty and failed inventory with an explicit retry", async ({ page }) => {
+			await page.route(/\/runs(?:\?.*)?$/, (route) =>
+				route.fulfill({ json: { runs: [], total: 0 } }),
+			);
 			await page.route("**/plan-runs", (route) => route.fulfill({ json: { planRuns: [] } }));
 			await openCase(page, c, fixture);
 			await expect(page.getByText("No tasks to show", { exact: true })).toBeVisible();

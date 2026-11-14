@@ -28,17 +28,19 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 <!-- design-catalog:start -->
 | Record | Kind | Design state | Delivery | Arrived |
 |---|---|---|---|---|
+| [Approved plans, bounded work, and recovery](./approved-plans.md) | `contract` | `approved` | `shipped` | 2026-11-14 |
+| [Local installation backup and single ownership](./local-state-recovery.md) | `contract` | `approved` | `shipped` | 2026-11-14 |
 | [The corpus flywheel](./corpus-flywheel.md) | `direction` | `draft` | `unscheduled` | 2026-08-15 |
 | [MCP server](./mcp-server.md) | `proposal` | `draft` | `unscheduled` | 2026-08-26 |
 | [Team identity, grants, and brokered credentials](./team-identity.md) | `direction` | `proposed` | `unscheduled` | 2026-09-24 |
 | [External-repository mirror pilot](./external-repository-mirror-pilot.md) | `pilot` | `approved` | `now` | 2026-08-20 |
-| [Campaign controller](./campaign-controller.md) | `direction` | `approved` | `next` | 2026-08-20 |
+| [Campaign controller](./campaign-controller.md) | `direction` | `retired` | `not-applicable` | 2026-08-20 |
 | [Resumable agent environments](./resumable-agent-environments.md) | `proposal` | `proposed` | `unscheduled` | 2026-08-20 |
 | [Agent analytics](./agent-analytics.md) | `direction` | `approved` | `mixed` | 2026-08-11 |
-| [TypeSafe judge backend and routing exploration](./typesafe-judge.md) | `proposal` | `proposed` | `unscheduled` | 2026-09-17 |
-| [Judge on-demand evaluation](./judge-on-demand-evaluation.md) | `proposal` | `proposed` | `unscheduled` | 2026-10-08 |
-| [Extensions](./extensions.md) | `direction` | `proposed` | `mixed` | 2026-08-04 |
-| [Agent composition and Pi runtime](./agent-composition.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
+| [TypeSafe judge backend and routing exploration](./typesafe-judge.md) | `proposal` | `retired` | `not-applicable` | 2026-09-17 |
+| [Judge on-demand evaluation](./judge-on-demand-evaluation.md) | `proposal` | `retired` | `not-applicable` | 2026-10-08 |
+| [Extensions](./extensions.md) | `direction` | `retired` | `not-applicable` | 2026-08-04 |
+| [Agent composition and runtime compatibility](./agent-composition.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
 | [Automatic run admission](./automatic-run-admission.md) | `contract` | `proposed` | `unscheduled` | 2026-10-02 |
 | [UI design review rubric](./ui-design-review.md) | `contract` | `approved` | `mixed` | 2026-10-08 |
 | [UI visual gate and baseline approval](./ui-visual-gate.md) | `contract` | `approved` | `mixed` | 2026-10-08 |
@@ -48,7 +50,7 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 | [Preview environments](./preview-environments.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
 | [Provider-error retry](./provider-retry.md) | `contract` | `approved` | `shipped` | 2026-08-22 |
 | [Runtime and supervisor](./runtime-and-supervisor.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
-| [Docker runtime provider](./runtime-docker-provider.md) | `contract` | `approved` | `shipped` | 2026-08-17 |
+| [Retired Docker runtime compatibility](./runtime-docker-provider.md) | `contract` | `approved` | `shipped` | 2026-08-17 |
 | [RuntimeProvider contract](./runtime-provider-contract.md) | `contract` | `approved` | `shipped` | 2026-07-09 |
 | [Scheduler](./scheduler.md) | `contract` | `approved` | `shipped` | 2026-08-01 |
 | [Tier-1 observation bus](./tier1-observation-bus.md) | `contract` | `approved` | `shipped` | 2026-07-28 |
@@ -60,7 +62,7 @@ This table is the complete inventory. `Approved` means a design is coherent enou
 
 ## Pre-roadmap discovery
 
-The current unscheduled records are the draft [corpus flywheel](./corpus-flywheel.md), the draft [MCP server](./mcp-server.md), the proposed [resumable agent environments](./resumable-agent-environments.md), the proposed [TypeSafe judge backend](./typesafe-judge.md), the proposed [judge on-demand evaluation](./judge-on-demand-evaluation.md) plan, and the proposed [team identity direction](./team-identity.md). They remain ideas until the roadmap promotes them.
+The current unscheduled records are the draft [corpus flywheel](./corpus-flywheel.md), the draft [MCP server](./mcp-server.md), the proposed [resumable agent environments](./resumable-agent-environments.md), and the proposed [team identity direction](./team-identity.md). They remain ideas until the roadmap promotes them.
 
 ## Build order
 

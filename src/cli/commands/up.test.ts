@@ -17,53 +17,22 @@ import { type UpWizardDeps, wizardEnvPath, writeWizardEnv } from "./up-wizard.ts
 function probe(over: Partial<UpRuntimeProbe>): UpRuntimeProbe {
 	return {
 		platform: "linux",
-		hasBinary: () => false,
-		dockerDaemonReachable: () => false,
 		...over,
 	};
 }
 
 describe("detectUpRuntime", () => {
-	test("picks the local provider on darwin when sandbox-exec is present", () => {
-		const d = detectUpRuntime({}, probe({ platform: "darwin", hasBinary: () => true }));
-		expect(d).toEqual({
+	test("boots macOS without any sandbox or Docker probes", () => {
+		expect(detectUpRuntime({}, { platform: "darwin" })).toMatchObject({
 			choice: "boot",
 			runtime: "local",
-			sentence: "runtime: local (darwin sandbox-exec)",
 		});
 	});
-
-	test("picks the local provider on linux when bwrap is on PATH", () => {
-		const d = detectUpRuntime(
-			{},
-			probe({
-				platform: "linux",
-				hasBinary: (name) => name === "bwrap",
-			}),
+	test("refuses retired runtimes and deferred platforms", () => {
+		expect(detectUpRuntime({ WARREN_RUNTIME: "docker" }, { platform: "darwin" }).choice).toBe(
+			"fail",
 		);
-		expect(d.choice).toBe("boot");
-		if (d.choice === "boot") expect(d.runtime).toBe("local");
-	});
-
-	test("never overrides an explicit WARREN_RUNTIME", () => {
-		const d = detectUpRuntime({ WARREN_RUNTIME: "docker" }, probe({ platform: "linux" }));
-		expect(d).toMatchObject({ choice: "boot", runtime: "docker" });
-	});
-
-	test("falls to docker guidance when no native sandbox but a daemon answers", () => {
-		const d = detectUpRuntime({}, probe({ dockerDaemonReachable: () => true }));
-		expect(d.choice).toBe("docker-guidance");
-	});
-
-	test("fails naming the missing sandbox when nothing is usable", () => {
-		const d = detectUpRuntime({}, probe({}));
-		expect(d.choice).toBe("fail");
-		if (d.choice === "fail") expect(d.message).toContain("bwrap");
-	});
-
-	test("falls to docker guidance on darwin without sandbox-exec", () => {
-		const d = detectUpRuntime({}, probe({ platform: "darwin", dockerDaemonReachable: () => true }));
-		expect(d.choice).toBe("docker-guidance");
+		expect(detectUpRuntime({}, { platform: "linux" }).choice).toBe("fail");
 	});
 });
 
@@ -101,12 +70,12 @@ function bootedHandle(token?: string, setupUrl?: string): WarrenServerHandle {
 function wizardDeps(over: Partial<UpWizardDeps> = {}): UpWizardDeps {
 	return {
 		homeDir: () => "/home/op",
+		hasBinary: () => false,
 		isInteractive: () => false,
 		prompt: async () => {
 			throw new Error("prompt must not run in this test");
 		},
 		runCommand: async () => ({ stdout: "", exitCode: 1 }),
-		hasBinary: () => false,
 		fetchGitHubLogin: async () => undefined,
 		...over,
 	};
@@ -114,7 +83,7 @@ function wizardDeps(over: Partial<UpWizardDeps> = {}): UpWizardDeps {
 
 function happyDeps(over: Partial<UpDeps> = {}): UpDeps {
 	return {
-		probe: probe({ platform: "linux", hasBinary: (n) => n === "bwrap" }),
+		probe: probe({ platform: "darwin" }),
 		homeDir: () => "/home/op",
 		mkdir: () => undefined,
 		saveConfig: () => "/home/op/.warren/client.json",
@@ -158,7 +127,7 @@ describe("runUp", () => {
 
 		expect(result.exitCode).toBe(0);
 		expect(result.url).toBe("http://127.0.0.1:8080");
-		expect(out.join("")).toContain("runtime: local (linux bwrap)");
+		expect(out.join("")).toContain("runtime: local (macOS host process)");
 		expect(out.join("")).toContain("✔ logged in to http://127.0.0.1:8080");
 		expect(saved).toEqual([{ baseUrl: "http://127.0.0.1:8080", token: "tok123" }]);
 		// The patched env carries both defaults into the boot.
@@ -185,24 +154,6 @@ describe("runUp", () => {
 		);
 		expect(made).toEqual([]);
 		expect(seenEnv?.WARREN_DATA_DIR).toBe("/data");
-	});
-
-	test("exits 0 with compose guidance when only docker is available", async () => {
-		const { context, out } = captureContext();
-		const result = await runUp(
-			context,
-			happyDeps({ probe: probe({ dockerDaemonReachable: () => true }) }),
-			{},
-		);
-		expect(result.exitCode).toBe(0);
-		expect(out.join("")).toContain("docker compose up -d");
-	});
-
-	test("exits non-zero naming the missing sandbox when nothing is usable", async () => {
-		const { context, err } = captureContext();
-		const result = await runUp(context, happyDeps({ probe: probe({}) }), {});
-		expect(result.exitCode).toBe(1);
-		expect(err.join("")).toContain("bwrap");
 	});
 
 	test("skips the client-config write when the boot carried no minted token", async () => {

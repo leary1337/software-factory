@@ -91,6 +91,33 @@ describe("spawnRun: provider-neutral dispatch (container backend)", () => {
 		await db.close();
 	});
 
+	test("rejects retired Pi before creating a run or invoking the provider", async () => {
+		await repos.agents.upsert({
+			name: "old-pi-agent",
+			renderedJson: {
+				name: "old-pi-agent",
+				version: 1,
+				sections: { system: "historical prompt" },
+				resolvedFrom: [],
+				frontmatter: { runtime: "pi" },
+			},
+		});
+		const { provider, specs } = makeRecordingProvider();
+		await expect(
+			spawnRun({
+				repos,
+				runtimeProvider: provider,
+				agentName: "old-pi-agent",
+				projectId: "prj_xxxxxxxxxxxx",
+				prompt: "do the thing",
+			}),
+		).rejects.toThrow("retired runtime");
+		expect(specs).toEqual([]);
+		expect(await repos.runs.listAll()).toEqual([]);
+		const saved = await repos.agents.get("old-pi-agent");
+		expect(saved?.renderedJson).toMatchObject({ frontmatter: { runtime: "pi" } });
+	});
+
 	test("hands a neutral RunSpec to provider.create and attaches the pod-shaped handle ids", async () => {
 		const { provider, specs } = makeRecordingProvider();
 		const result = await spawnRun({
@@ -109,7 +136,7 @@ describe("spawnRun: provider-neutral dispatch (container backend)", () => {
 		expect(spec.originUrl).toBe("https://github.com/x/y.git");
 		expect(spec.baseBranch).toBe("main");
 		expect(spec.branch).toContain(result.run.id);
-		expect(spec.runtimeId).toBe("pi");
+		expect(spec.runtimeId).toBe("codex");
 		expect(spec.prompt).toContain("do the thing");
 		expect(spec.network).toBe("none");
 		expect(spec.seedFiles.map((f) => f.path)).toContain(".warren/agent.json");
@@ -122,6 +149,7 @@ describe("spawnRun: provider-neutral dispatch (container backend)", () => {
 		expect(reread.sandboxId).toBe("warren-run-pod-abc");
 		expect(reread.sandboxRunId).toBe("pod-uid-xyz");
 		expect(reread.state).toBe("queued");
+		expect(reread.renderedAgentJson).toMatchObject({ frontmatter: { runtime: "codex" } });
 	});
 
 	// warren-dac8: a ref/targetBranch dispatch must hand the provider the

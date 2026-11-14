@@ -11,6 +11,7 @@ import type { ChangedPaths } from "./auto-merge-policy.ts";
 import type { ReapExec } from "./types.ts";
 
 export interface AutoMergeSnapshot {
+	diffText?: string;
 	headCommit?: string;
 	baseCommit?: string;
 	/** True only when the tested head already contains the fetched base. */
@@ -49,6 +50,13 @@ export async function readAutoMergeSnapshot(
 			baseCommit: base,
 			baseIsAncestor: await includesBase(exec, cwd, base, head),
 			changedPaths: await computeAutoMergeChangedPaths(exec, cwd, base, head, mode),
+			diffText: (
+				await exec.run(
+					"git",
+					["diff", "--no-ext-diff", "--no-textconv", "--unified=0", base, head, "--"],
+					{ cwd, timeoutMs: 30_000 },
+				)
+			).stdout,
 		};
 	} catch {
 		// Never expose fetch errors: their text can contain the minted credential.

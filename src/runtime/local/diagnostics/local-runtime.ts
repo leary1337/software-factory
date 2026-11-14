@@ -70,7 +70,7 @@ export async function doctorLocalRuntimeCheck(
 		const value = env[name];
 		return value !== undefined && value !== "";
 	});
-	const base = "in-process sandbox engine (no co-tenanted burrow daemon)";
+	const base = "local Codex process (no OS sandbox or enforced resource/network limits)";
 	if (stale.length === 0) {
 		return { name: "local_runtime", ok: true, message: base };
 	}

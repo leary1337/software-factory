@@ -28,13 +28,13 @@ function makeHarness(known: boolean) {
 		profileFor: () => (known ? makeProfile() : null),
 		spawn: async (_profile, command) => {
 			created.push({ sandboxId: "local-run_1", command: command.argv });
-			const exited = new Promise<number>(() => {});
+			const { promise: exited, resolve: exit } = Promise.withResolvers<number>();
 			return {
 				pid: 4321,
 				stdout: new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
 				stderr: new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
 				exited,
-				cancel: () => {},
+				cancel: () => exit(143),
 			};
 		},
 	});

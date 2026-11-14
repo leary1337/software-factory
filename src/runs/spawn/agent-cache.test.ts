@@ -79,9 +79,9 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 
 	test("folds providerOverride + modelOverride onto frontmatter before freeze and seed", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				frontmatter: { source: "builtin", provider: "anthropic", model: "claude-sonnet-4-6" },
 			}),
 		});
@@ -89,7 +89,7 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "run",
 			providerOverride: "openai",
@@ -113,7 +113,7 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 		expect(stored.frontmatter.model).toBe("gpt-4o");
 
 		// Cached agent row is untouched — the override is per-run, not per-agent
-		const reread = (await repos.agents.require("pi")).renderedJson as {
+		const reread = (await repos.agents.require("codex")).renderedJson as {
 			frontmatter: Record<string, unknown>;
 		};
 		expect(reread.frontmatter.provider).toBe("anthropic");
@@ -122,17 +122,17 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 
 	test("falls back to .warren/defaults.json provider/model when no per-run override", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
-				frontmatter: { source: "builtin", provider: "pi", model: "pi-default" },
+				name: "codex",
+				frontmatter: { source: "builtin", provider: "codex", model: "codex-default" },
 			}),
 		});
 		const { client, calls } = makeSandboxClient();
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "run",
 			warrenConfigs: {
@@ -163,17 +163,17 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 
 	test("per-run override beats .warren/defaults.json beats agent frontmatter", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
-				frontmatter: { provider: "pi", model: "pi-default" },
+				name: "codex",
+				frontmatter: { provider: "codex", model: "codex-default" },
 			}),
 		});
 		const { client } = makeSandboxClient();
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "run",
 			providerOverride: "openai",
@@ -200,9 +200,9 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 
 	test("leaves frontmatter alone when overrides are empty / whitespace", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				frontmatter: { provider: "anthropic" },
 			}),
 		});
@@ -210,7 +210,7 @@ describe("provider/model override resolution (warren-618b / warren-f8c0)", () =>
 		const result = await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "run",
 			providerOverride: "  ",

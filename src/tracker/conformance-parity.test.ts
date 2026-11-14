@@ -1,30 +1,4 @@
-/**
- * SeedsTracker parity subset (warren-53ea, plan pl-a37b Track B).
- *
- * The published conformance suite (extensions/tracker-conformance/)
- * proves a warren-tracker/v1 SERVER over HTTP. This file runs the
- * suite's SEMANTIC assertions — the cases that are about contract
- * behavior, not wire shape — against SeedsTracker, implementation #1,
- * so both implementations provably agree on the base-contract
- * semantics the suite names:
- *
- *   - `issues/close-idempotent`   — closing an already-closed issue is
- *     a success, never an error.
- *   - `errors/*-not-found`        — a missing id surfaces as
- *     IssueNotFoundError on both the read and the close path, never as
- *     a generic TrackerError.
- *   - `issues/status-normalization` — the tracker's RAW statuses fold
- *     onto warren's three-state vocabulary (open/closed/other) at the
- *     implementation boundary, the way a remote server folds its own
- *     states before they reach the RemoteTracker bridge.
- *   - `issues/close-status-consistency` — after a close, the single
- *     issue read and the id → status map agree.
- *
- * If a case here ever needs to diverge from the suite's semantics, the
- * CONTRACT changed — change the suite (and the protocol doc) in the
- * same commit, not just this file.
- */
-
+/** Built-in Seeds tracker contract: idempotent close, missing IDs and status normalization. */
 import { describe, expect, test } from "bun:test";
 
 import { IssueNotFoundError, type TrackerContext, TrackerError } from "../core/wire-tracker.ts";

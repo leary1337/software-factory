@@ -1,7 +1,14 @@
 import type { PlanRunChildRow, PlanRunRow } from "@/api/types.ts";
-import { formatPlanRunFailureReason } from "../../lib/labels.ts";
+import { hasVerifiedRelease } from "./task-evidence.ts";
 
-export type TaskGroup = "attention" | "active" | "waiting" | "complete" | "closed" | "stopped";
+export type TaskGroup =
+	| "attention"
+	| "active"
+	| "waiting"
+	| "complete"
+	| "closed"
+	| "stopped"
+	| "history";
 
 export type TaskPhase = "Implementation" | "Review" | "Delivery" | "Complete";
 export interface TaskStatus {
@@ -20,10 +27,10 @@ export function taskStatus(child: PlanRunChildRow, plan: PlanState) {
 }
 
 function taskPhase(child: PlanRunChildRow): TaskPhase | null {
-	if (child.state === "merged") return "Complete";
+	if (child.failureReason === "deployment_incident") return "Delivery";
+	if (child.state === "merged") return hasVerifiedRelease(child) ? "Complete" : "Delivery";
 	if (child.state === "skipped" || child.state === "pending") return null;
-	if (child.reviewMerge || child.prMergedAt || child.failureReason === "deployment_incident")
-		return "Delivery";
+	if (child.reviewMerge || child.prMergedAt) return "Delivery";
 	if (child.reviewStage === "ready_to_merge" || (child.state === "pr_open" && !child.reviewStage))
 		return "Delivery";
 	return child.reviewStage ? "Review" : "Implementation";
@@ -70,7 +77,7 @@ function resolveTaskStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus 
 		return {
 			group: "waiting",
 			label: "Queued",
-			action: "Starts when the preceding task has been delivered.",
+			action: "Starts when its dependencies are complete and an executor is available.",
 		};
 	return {
 		group: "active",
@@ -84,6 +91,7 @@ export const TASK_GROUPS: { key: TaskGroup; title: string }[] = [
 	{ key: "attention", title: "Needs attention" },
 	{ key: "waiting", title: "Waiting" },
 	{ key: "complete", title: "Completed" },
+	{ key: "history", title: "Earlier tasks" },
 	{ key: "closed", title: "Previously closed" },
 	{ key: "stopped", title: "Stopped attempts" },
 ];
@@ -101,21 +109,23 @@ function mergeStatus(child: PlanRunChildRow): TaskStatus | null {
 }
 
 function terminalStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus | null {
-	if (child.state === "merged")
-		return { group: "complete", label: "Completed", action: "The change has been delivered." };
-	if (child.state === "skipped")
-		return {
-			group: "closed",
-			label: "Previously closed",
-			action: "Closed in the tracker before dispatch. Delivery is not confirmed by this status.",
-		};
 	if (child.failureReason === "deployment_incident")
 		return {
 			group: "attention",
 			label: "Production incident",
 			action: "Inspect production, repair or roll back, then resume verification.",
 		};
-	if (plan.state === "cancelled" || (plan.state === "failed" && child.state === "pending"))
+	if (child.state === "merged") return mergedStatus(child, plan);
+	if (child.state === "skipped")
+		return {
+			group: "closed",
+			label: "Previously closed",
+			action: "Closed in the tracker before dispatch. Delivery is not confirmed by this status.",
+		};
+	if (
+		(plan.state === "cancelled" && child.state !== "failed") ||
+		(plan.state === "failed" && child.state === "pending")
+	)
 		return {
 			group: "stopped",
 			label: plan.state === "cancelled" ? "Cancelled" : "Not started",
@@ -132,7 +142,37 @@ function terminalStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus | n
 }
 
 function failureDetail(child: PlanRunChildRow): string | undefined {
-	if (child.failureReason) return formatPlanRunFailureReason(child.failureReason);
+	if (child.failureReason) return taskFailureMessage(child.failureReason);
 	const latest = child.reviewSteps?.at(-1)?.summary;
 	return latest && latest.status !== "passed" ? (latest.reason ?? undefined) : undefined;
+}
+
+function taskFailureMessage(reason: string): string {
+	const category = reason.split(":")[0]?.trim().replaceAll(" ", "_");
+	if (category === "linked_run_failed")
+		return reason.includes("provider_error")
+			? "The agent service returned an error before the task finished."
+			: "The executor stopped before completing the task.";
+	if (category === "dispatch_failed") return "The execution environment could not start the task.";
+	if (category === "child_seed_not_found")
+		return "The planned task could not be found in the project.";
+	if (category === "pr_closed_without_merge") return "The pull request was closed without merging.";
+	if (category === "parent_pr_merge_timeout")
+		return "The previous task's merge did not finish in time.";
+	return "The task could not finish. Open its diagnostics to inspect the recorded cause.";
+}
+
+function mergedStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus {
+	return hasVerifiedRelease(child)
+		? {
+				group: "complete",
+				label: "Release verified",
+				action: "The published version and user scenario were verified.",
+			}
+		: {
+				group: plan.state === "running" || plan.state === "queued" ? "waiting" : "history",
+				label: "Release not verified",
+				detail: "Code is merged. Release verification has not been recorded.",
+				action: "Open the project to check delivery.",
+			};
 }

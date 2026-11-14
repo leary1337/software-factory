@@ -153,11 +153,11 @@ describe("auto-merge remote snapshot", () => {
 				]);
 			}
 			expect(armed).toBe(false);
-			expect(
-				calls
-					.filter((call) => call.args[0] === "diff")
-					.every((call) => call.args.at(-1) === `${base}...${head}`),
-			).toBe(true);
+			for (const call of calls.filter((entry) => entry.args[0] === "diff")) {
+				if (call.args.includes("--unified=0")) {
+					expect(call.args.slice(-3)).toEqual([base, head, "--"]);
+				} else expect(call.args.at(-1)).toBe(`${base}...${head}`);
+			}
 			expect(calls.every((call) => call.cwd !== host && !existsSync(call.cwd))).toBe(true);
 		} finally {
 			await rm(root, { recursive: true, force: true });

@@ -43,6 +43,7 @@ import type { PlanRunSource } from "../../core/wire.ts";
 import type { SqliteDrizzleDb } from "../client.ts";
 import type { PlanRunChildRow, PlanRunChildState, PlanRunRow, PlanRunState } from "../schema.ts";
 import type { DrizzleAdapter } from "./drizzle-adapter.ts";
+import { existingApprovalExecution } from "./plan-approvals.ts";
 
 const ALLOWED_TRANSITIONS: Record<PlanRunState, readonly PlanRunState[]> = {
 	queued: ["running", "cancelled"],
@@ -79,7 +80,7 @@ const CHILD_ALLOWED_TRANSITIONS: Record<PlanRunChildState, readonly PlanRunChild
 	// first run terminalized with a retryable cause and the coordinator
 	// re-dispatched a fresh run for the same child.
 	running: ["pr_open", "merged", "failed", "dispatched"],
-	pr_open: ["merged", "failed"],
+	pr_open: ["merged", "failed", "dispatched"],
 	merged: [],
 	// warren-1eff: resume resets the merge-timed-out child back to pr_open so
 	// the coordinator re-polls the EXISTING PR (runId/prUrl preserved).
@@ -107,6 +108,7 @@ export interface CreatePlanRunChildInput {
 }
 
 export interface CreatePlanRunInput {
+	approvalId?: string;
 	id?: string;
 	/**
 	 * Tracker plan id (`pl-XXXX`). Null on the warren-de42 `issues` form —
@@ -239,10 +241,19 @@ export class PlanRunsRepo {
 		}));
 		return this.adapter.runInTransaction(async (tx) => {
 			const txDb = tx.drizzle as SqliteDrizzleDb;
+			const existing = await existingApprovalExecution(tx, input.approvalId, input.projectId);
+			if (existing) return existing;
 			await tx.runWrite(txDb.insert(tx.schema.planRuns).values(planRunRow));
 			for (const row of childRows) {
 				await tx.runWrite(txDb.insert(tx.schema.planRunChildren).values(row));
 			}
+			if (input.approvalId)
+				await tx.runWrite(
+					txDb
+						.update(tx.schema.planApprovals)
+						.set({ planRunId: id })
+						.where(eq(tx.schema.planApprovals.id, input.approvalId)),
+				);
 			return { planRun: planRunRow, children: childRows };
 		});
 	}

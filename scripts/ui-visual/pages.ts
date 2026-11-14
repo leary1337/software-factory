@@ -89,7 +89,6 @@ export const PAGES: readonly PageSpec[] = [
 	{ id: "agents", route: "/agents", path: at("/agents") },
 	{ id: "telemetry-loop", route: "/telemetry/loop", path: at("/telemetry/loop") },
 	{ id: "telemetry-behavior", route: "/telemetry/behavior", path: at("/telemetry/behavior") },
-	{ id: "telemetry-judge", route: "/telemetry/judge", path: at("/telemetry/judge") },
 	{ id: "events", route: "/events", path: at("/events") },
 	{ id: "instance", route: "/instance", path: at("/instance") },
 	{ id: "setup", route: "/setup", path: at("/setup") },

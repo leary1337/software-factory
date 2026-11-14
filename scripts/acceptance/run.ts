@@ -1,16 +1,14 @@
 /**
  * Acceptance harness entry — `bun run scripts/acceptance/run.ts`.
  *
- * Phase 14 (warren-3ee3): exercises the ACCEPTANCE.md V1 acceptance criteria
- * against a real warren+burrow process pair (in-proc by default,
- * `--mode container` brings up the docker-compose stack and runs the
- * container-supported scenarios on top of it).
+ * Exercises the active local factory against isolated test fixtures.
+ * Container task execution has been retired.
  *
  * Flags:
- *   --mode in-proc | container       boot mode (default in-proc)
+ *   --mode in-proc       boot mode (default in-proc)
  *   --only <id1,id2,...>             run a subset of scenarios by id
  *   --stop-on-failure                exit on first failure
- *   --keep-tmp                       leave the temp dir / compose stack after run (debug)
+ *   --keep-tmp                       leave the temp dir after run (debug)
  *   --real                           opt into real-LLM scenarios; today
  *                                    a no-op flag — ACCEPTANCE.md
  *                                    documents the manual gate
@@ -28,7 +26,6 @@ import {
 	type ScenarioCtx,
 	type ScenarioLogger,
 } from "./lib/assert.ts";
-import { bootCompose, type ComposeBootHandle } from "./lib/compose.ts";
 import { type BuiltFixtures, buildFixtures } from "./lib/fixtures.ts";
 import { type BootHandle, bootInProc } from "./lib/inproc.ts";
 import { reportOutcomes } from "./lib/report.ts";
@@ -43,10 +40,8 @@ import { scenario as scenario08 } from "./scenarios/08-cancel.ts";
 import { scenario as scenario09 } from "./scenarios/09-reap-mulch-roundtrip.ts";
 import { scenario as scenario10 } from "./scenarios/10-reap-seeds-roundtrip.ts";
 import { scenario as scenario11 } from "./scenarios/11-doctor-exit-codes.ts";
-import { scenario as scenario13 } from "./scenarios/13-container-smoke.ts";
 import { scenario as scenario14 } from "./scenarios/14-warren-config.ts";
 import { scenario as scenario15 } from "./scenarios/15-triggers-roundtrip.ts";
-import { scenario as scenario16 } from "./scenarios/16-pi-parity-smoke.ts";
 import { scenario as scenario17 } from "./scenarios/17-init-scaffold.ts";
 import { scenario as scenario19 } from "./scenarios/19-warren-on-postgres.ts";
 import { scenario as scenario20 } from "./scenarios/20-preview.ts";
@@ -55,14 +50,11 @@ import { scenario as scenario21 } from "./scenarios/21-claude-code-usage-smoke.t
 import { scenario as scenario22 } from "./scenarios/22-seeds-extensions-roundtrip.ts";
 import { scenario as scenario24 } from "./scenarios/24-preview-node-runtime.ts";
 import { scenario as scenario26 } from "./scenarios/26-plan-run-roundtrip.ts";
-import { scenario as scenario30 } from "./scenarios/30-pi-multi-provider-env.ts";
 import { scenario as scenario35 } from "./scenarios/35-ci-fixer-roundtrip.ts";
 import { scenario as scenario36 } from "./scenarios/36-ready-to-dispatch-plans.ts";
 import { scenario as scenario39 } from "./scenarios/39-public-exposure.ts";
 import { scenario as scenario40 } from "./scenarios/40-fake-forge-roundtrip.ts";
 import { scenario as scenario41 } from "./scenarios/41-local-topology-self-host.ts";
-import { scenario as scenario42 } from "./scenarios/42-self-host-one-liner.ts";
-import { scenario as scenario43 } from "./scenarios/43-remote-tracker-roundtrip.ts";
 import { scenario as scenario44 } from "./scenarios/44-existing-branch.ts";
 import { scenario as scenario45 } from "./scenarios/45-auto-merge-arm.ts";
 import { scenario as scenario46 } from "./scenarios/46-gitlab-forge-roundtrip.ts";
@@ -78,10 +70,8 @@ const SCENARIOS: readonly Scenario[] = [
 	scenario09,
 	scenario10,
 	scenario11,
-	scenario13,
 	scenario14,
 	scenario15,
-	scenario16,
 	scenario17,
 	scenario19,
 	scenario20,
@@ -90,14 +80,12 @@ const SCENARIOS: readonly Scenario[] = [
 	scenario22,
 	scenario24,
 	scenario26,
-	scenario30,
 	scenario35,
 	scenario36,
 	scenario39,
 	scenario40,
 	scenario41,
-	scenario42,
-	scenario43,
+
 	scenario44,
 	scenario45,
 	scenario46,
@@ -122,8 +110,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 		switch (arg) {
 			case "--mode": {
 				const next = argv[++i];
-				if (next !== "in-proc" && next !== "container") {
-					throw new Error(`--mode expects "in-proc" or "container", got ${JSON.stringify(next)}`);
+				if (next !== "in-proc") {
+					throw new Error(
+						`Container execution is retired; --mode expects "in-proc", got ${JSON.stringify(next)}`,
+					);
 				}
 				mode = next;
 				break;
@@ -164,7 +154,7 @@ function printHelp(): void {
 	console.log(`Usage: bun run scripts/acceptance/run.ts [options]
 
 Options:
-  --mode in-proc|container   boot mode (default: in-proc)
+  --mode in-proc   boot mode (default: in-proc)
   --only id1,id2,...         run only scenarios with these ids
   --stop-on-failure          exit on the first failing scenario
   --keep-tmp                 leave the temp dir for inspection
@@ -194,9 +184,6 @@ async function main(): Promise<number> {
 
 	const token = randomToken();
 
-	if (args.mode === "container") {
-		return await runContainerMode({ tmpRoot, token, args, logger });
-	}
 	return await runInProcMode({ tmpRoot, token, args, logger });
 }
 
@@ -384,79 +371,6 @@ function findUserKeys(configBody: string): readonly string[] {
 		if (m !== null && m[1] !== undefined) found.push(`user.${m[1]}`);
 	}
 	return found;
-}
-
-async function runContainerMode(opts: RunModeArgs): Promise<number> {
-	const { tmpRoot, token, args, logger } = opts;
-	// Fixtures are host-side and not bind-mounted into the container (see
-	// lib/compose.ts header). Container-mode scenarios that need them
-	// declare in-proc-only via `modes: [...]` and skip cleanly here. We
-	// still hand the harness empty placeholders for ctx.fixtures so the
-	// type contract holds.
-	let handle: ComposeBootHandle | undefined;
-	try {
-		logger.info("acceptance: docker compose up (this builds the image on first run)…");
-		handle = await bootCompose({
-			tmpRoot,
-			token,
-			repoRoot: process.cwd(),
-		});
-		logger.info(
-			`acceptance: warren ready at ${handle.warrenUrl} (compose project=${handle.projectName} port=${handle.hostPort})`,
-		);
-
-		const ctx: ScenarioCtx = {
-			mode: args.mode,
-			warrenUrl: handle.warrenUrl,
-			token: handle.token,
-			fixtures: {
-				canopyRepoUrl: "",
-				canopyRepoPath: "",
-				sampleProjectGitUrl: "",
-				sampleProjectName: "",
-				sampleProjectPath: "",
-				stubAgentName: "",
-				knownSeedTitle: "",
-				knownMulchDomain: "",
-				gitConfigPath: "",
-				shimBinDir: "",
-				seedAgentsFilePath: "",
-			},
-			logger,
-			tmp: tmpRoot,
-			// lifecycle is intentionally undefined in container mode — the
-			// supervisor inside the container owns burrow lifecycle and
-			// scenarios that need to drive process control are in-proc only.
-		};
-
-		const { outcomes, exitCode } = await runScenarios(SCENARIOS, ctx, {
-			mode: args.mode,
-			stopOnFailure: args.stopOnFailure,
-			...(args.only !== undefined ? { only: args.only } : {}),
-		});
-
-		await reportOutcomes(outcomes);
-		return exitCode;
-	} catch (err) {
-		const message = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
-		console.error(`acceptance: container boot failed:\n${message}`);
-		return 1;
-	} finally {
-		if (handle !== undefined) {
-			try {
-				if (args.keepTmp) {
-					console.log(
-						`acceptance: --keep-tmp set; leaving compose stack ${handle.projectName} running. Tear down with: docker compose -p ${handle.projectName} down -v`,
-					);
-				} else {
-					await handle.stop();
-				}
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				console.error(`acceptance: teardown error: ${message}`);
-			}
-		}
-	}
 }
 
 function makeLogger(): ScenarioLogger {

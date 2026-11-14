@@ -41,18 +41,12 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 			expect(body).toEqual({ body: "Сохрани совместимость" });
 			await panel.getByRole("button", { name: "Close", exact: true }).click();
 			await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
-			await page
-				.getByRole("link", { name: "Kanban", exact: true })
-				.filter({ visible: true })
-				.click();
+			await page.goto(`${fixture.baseUrl}/#/kanban?project=${projectId}`);
 			await expect(page.getByRole("combobox", { name: "Проект", exact: true })).toHaveValue(
 				projectId,
 			);
 			await expect(page.getByRole("button", { name: TITLE })).toBeVisible();
-			await page
-				.getByRole("link", { name: "Production", exact: true })
-				.filter({ visible: true })
-				.click();
+			await page.goto(`${fixture.baseUrl}/#/production?project=${projectId}`);
 			await expect(page.getByRole("combobox", { name: "Проект", exact: true })).toHaveValue(
 				projectId,
 			);

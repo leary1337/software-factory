@@ -87,7 +87,23 @@ describe("buildWorkspaceTasks", () => {
 					plan({
 						state: "merged",
 						productionVerification: {
-							sha: "abc",
+							sha: "a".repeat(40),
+							environment: "production",
+							verifiedAt: "2026-01-02",
+						},
+					}),
+				],
+				[],
+			)[0]?.column,
+		).toBe("Merged");
+		expect(
+			buildWorkspaceTasks(
+				[
+					plan({
+						state: "merged",
+						productionVerification: {
+							sha: "a".repeat(40),
+							checks: { availability: true, version: true, scenario: true },
 							environment: "production",
 							verifiedAt: "2026-01-02",
 						},

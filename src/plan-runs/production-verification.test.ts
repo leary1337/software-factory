@@ -19,7 +19,11 @@ describe("loadProductionVerification", () => {
 		const event = {
 			kind: "plan_run.deployment_verified",
 			ts: "2026-01-01",
-			payloadJson: { expectedSha: "a".repeat(40), environment: "production" },
+			payloadJson: {
+				expectedSha: "a".repeat(40),
+				environment: "production",
+				verification: { availability: true, version: true, scenario: true },
+			},
 		};
 		expect(
 			await loadProductionVerification(
@@ -31,6 +35,19 @@ describe("loadProductionVerification", () => {
 				]),
 				"run",
 			),
-		).toEqual({ sha: "a".repeat(40), environment: "production", verifiedAt: "2026-01-01" });
+		).toEqual({
+			sha: "a".repeat(40),
+			environment: "production",
+			verifiedAt: "2026-01-01",
+			checks: { availability: true, version: true, scenario: true },
+		});
+	});
+	test("keeps legacy availability-only receipts out of verified release results", async () => {
+		const event = {
+			kind: "plan_run.deployment_verified",
+			ts: "2026-01-01",
+			payloadJson: { expectedSha: "a".repeat(40), environment: "production", verification: null },
+		};
+		expect(await loadProductionVerification(repos([event]), "run")).toBeNull();
 	});
 });

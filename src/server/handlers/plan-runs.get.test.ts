@@ -243,7 +243,9 @@ describe("GET /plan-runs/:id", () => {
 			planRun: { id: string };
 			children: {
 				seq: number;
-				productionVerification: { sha: string; environment: string; verifiedAt: string } | null;
+				productionVerification:
+					| import("../../core/production-verification.ts").ProductionVerification
+					| null;
 				metrics: { runCount: number; reviewCount: number };
 				runId: string | null;
 				reviewMerge: { kind: string; reason: string; nextAction: string; paths: string[] } | null;
@@ -268,7 +270,11 @@ describe("GET /plan-runs/:id", () => {
 			ts: "2026-11-12T00:00:00Z",
 			kind: "plan_run.deployment_verified",
 			stream: "system",
-			payload: { expectedSha: commit, environment: "production" },
+			payload: {
+				expectedSha: commit,
+				environment: "production",
+				verification: { availability: true, version: true, scenario: true },
+			},
 		});
 		const verified = await fetch(`${tcpUrl(handle)}/plan-runs/${created.planRun.id}`);
 		const verifiedBody = (await verified.json()) as typeof body;
@@ -276,6 +282,7 @@ describe("GET /plan-runs/:id", () => {
 			sha: commit,
 			environment: "production",
 			verifiedAt: "2026-11-12T00:00:00Z",
+			checks: { availability: true, version: true, scenario: true },
 		});
 		expect(verifiedBody.children[1]?.productionVerification).toBeNull();
 		expect(body.children[0]?.reviewSteps[0]).toMatchObject({

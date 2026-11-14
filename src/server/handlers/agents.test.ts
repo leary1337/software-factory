@@ -76,6 +76,39 @@ describe("GET /agents — listing with source provenance (warren-d3e9)", () => {
 		await db.close();
 	});
 
+	test("hides retired runtimes from choices and preserves direct historical reads", async () => {
+		for (const [name, runtime] of [
+			["old-pi", "pi"],
+			["executor", "codex"],
+		]) {
+			if (!name) throw new Error("missing fixture name");
+			await repos.agents.upsert({
+				name,
+				renderedJson: {
+					name,
+					version: 1,
+					sections: { system: "..." },
+					resolvedFrom: [],
+					frontmatter: { runtime },
+				},
+			});
+		}
+		const deps = await depsFor(repos, new FakeProvider());
+		handle = startServer(deps, {
+			transport: { kind: "tcp", hostname: "127.0.0.1", port: 0 },
+			auth: NO_AUTH,
+			logger: silentLogger,
+		});
+		const list = await fetch(`${tcpUrl(handle)}/agents`);
+		const body = (await list.json()) as { agents: { name: string }[] };
+		expect(body.agents.map((agent) => agent.name)).toEqual(["executor"]);
+		const historical = await fetch(`${tcpUrl(handle)}/agents/old-pi`);
+		expect(historical.status).toBe(200);
+		expect(await historical.json()).toMatchObject({
+			renderedJson: { frontmatter: { runtime: "pi" } },
+		});
+	});
+
 	test("returns source: 'builtin' when frontmatter.source === 'builtin'", async () => {
 		await repos.agents.upsert({
 			name: "claude-code",

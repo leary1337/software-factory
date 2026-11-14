@@ -12,8 +12,8 @@ import { depsFor, makeSandboxClient, silentLogger, tcpUrl } from "./runs.test-he
 /**
  * The per-run mulch experiment arm at the HTTP boundary: `mulch` is an
  * optional "on" | "off" enum folded onto the frozen frontmatter
- * (`renderedAgentJson.frontmatter.mulch`); omitted leaves the frontmatter
- * untouched; anything else is a 400.
+ * (`renderedAgentJson.frontmatter.mulch`); omitted inherits the project
+ * setting, defaulting to off; anything else is a 400.
  */
 describe("POST /runs — mulch experiment arm", () => {
 	let db: WarrenDb;
@@ -90,10 +90,20 @@ describe("POST /runs — mulch experiment arm", () => {
 		expect((await frozenFrontmatter(on)).mulch).toBe("on");
 	});
 
-	test("an omitted arm leaves the frontmatter unchanged", async () => {
+	test("an omitted arm defaults to off", async () => {
 		const res = await post({});
 		expect(res.status).toBe(201);
-		expect(await frozenFrontmatter(res)).not.toHaveProperty("mulch");
+		expect((await frozenFrontmatter(res)).mulch).toBe("off");
+	});
+
+	test("inherits saved memory while an explicit off overrides it", async () => {
+		await repos.projectSettings.compareAndSet(projectId, 0, { memoryEnabled: true });
+		const inherited = await post({});
+		expect(inherited.status).toBe(201);
+		expect((await frozenFrontmatter(inherited)).mulch).toBe("on");
+		const disabled = await post({ mulch: "off" });
+		expect(disabled.status).toBe(201);
+		expect((await frozenFrontmatter(disabled)).mulch).toBe("off");
 	});
 
 	test("an unknown arm is a 400", async () => {

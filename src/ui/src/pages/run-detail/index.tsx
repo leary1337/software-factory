@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { projectsApi, runsApi } from "@/api/client.ts";
 import type { RunEvent, RunRow } from "@/api/types.ts";
 import { isTerminalRunState } from "@/api/types.ts";
@@ -26,6 +26,7 @@ import {
 import { CancelRunButton, SteerForm } from "@/pages/run-detail/steering-panel.tsx";
 import { extractReapSummary, isBridgeStalled } from "@/pages/run-detail-format.ts";
 import { projectLabel } from "@/pages/runs/runs-format.ts";
+import { StandaloneTaskDetail } from "../tasks/standalone-task-detail.tsx";
 import { RunReviewPanel } from "./review-panel.tsx";
 import { formatRunElapsed } from "./run-detail-format.ts";
 
@@ -313,7 +314,7 @@ function RunHeader({
 	);
 }
 
-export function RunDetailPage() {
+function DiagnosticRunDetailPage() {
 	const { id = "" } = useParams<{ id: string }>();
 	const qc = useQueryClient();
 
@@ -470,4 +471,9 @@ export function RunDetailPage() {
 			</div>
 		</div>
 	);
+}
+
+export function RunDetailPage() {
+	const [params] = useSearchParams();
+	return params.get("view") === "task" ? <StandaloneTaskDetail /> : <DiagnosticRunDetailPage />;
 }

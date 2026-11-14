@@ -4,6 +4,7 @@ import type { ReviewDecision, ReviewStepRecord } from "./review.ts";
 export const MAX_REWORKS = 8;
 export interface ReviewLoopBudget {
 	readonly maxReworks?: number;
+	readonly stopOnNoProgress?: boolean;
 	readonly maxSteps?: number;
 	readonly maxActiveMs?: number;
 }

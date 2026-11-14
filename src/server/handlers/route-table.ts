@@ -1,11 +1,14 @@
-/**
- * The canonical HTTP route table (`ROUTE_TABLE`) and everything derived
- * from it: the route builder, the API path prefixes, the auth-exemption
- * predicate, and the policy projections consumed by tests and the docs
- * generators (split out of `./index.ts`, warren-a647/c9ac).
- * `scripts/generate-docs.ts` and `scripts/generate-openapi.ts` parse
- * `ROUTE_TABLE` out of THIS file textually.
- */
+import {
+	getPlanApprovalHandler,
+	planApprovalHistoryHandler,
+	preparePlanApprovalHandler,
+	revisePlanApprovalHandler,
+	startPlanApprovalHandler,
+} from "./plan-approvals.ts";
+import { createNewProjectHandler, previewNewProjectHandler } from "./projects.new.ts";
+import { projectReadinessHandler, projectSetupHandler } from "./projects.readiness.ts";
+import { toolkitApplyHandler, toolkitCheckHandler, toolkitStatusHandler } from "./toolkit.ts";
+/** Canonical routes parsed by the HTTP/OpenAPI documentation generators. */
 
 import type { Route, RouteHandler, RoutePolicy, ServerDeps } from "../types.ts";
 import { getAgentHandler, listAgentsHandler } from "./agents.ts";
@@ -23,7 +26,6 @@ import {
 	registerGitHubAppHandler,
 } from "./github-app.ts";
 import { instanceFactsHandler } from "./instance.ts";
-import { judgeVerdictsProxyHandler } from "./judge-proxy.ts";
 import { healthzHandler, previewConfigHandler, versionHandler, whoamiHandler } from "./meta.ts";
 import { metricsHandler } from "./metrics.ts";
 import { opsOverviewHandler } from "./ops-overview.ts";
@@ -38,6 +40,7 @@ import {
 import { retryPlanRunReviewHandler } from "./plan-runs-retry-review.ts";
 import { getProjectDeployHandler, startProjectDeployHandler } from "./projects.deploy.ts";
 import { configMigrateProjectHandler, initProjectHandler } from "./projects.init.ts";
+import { projectSettingsHandler } from "./projects.settings.ts";
 import {
 	createProjectHandler,
 	deleteProjectHandler,
@@ -78,8 +81,7 @@ import { setupHandoffHandler } from "./setup.ts";
 interface RouteEntry {
 	readonly method: Route["method"];
 	readonly pattern: string;
-	/**
-	 * The capability this route demands (warren-b875). Required — TypeScript
+	/** The capability this route demands (warren-b875). Required — TypeScript
 	 * refuses an entry that omits it, so a new route can never default to
 	 * open. Enforced once, in `handleRequest` (`src/server/server.ts`).
 	 */
@@ -88,6 +90,9 @@ interface RouteEntry {
 }
 
 const ROUTE_TABLE: readonly RouteEntry[] = [
+	{ method: "GET", pattern: "/toolkit", policy: "readOperator", build: toolkitStatusHandler },
+	{ method: "POST", pattern: "/toolkit/check", policy: "admin", build: toolkitCheckHandler },
+	{ method: "POST", pattern: "/toolkit/apply", policy: "admin", build: toolkitApplyHandler },
 	{ method: "GET", pattern: "/healthz", policy: "anonymous", build: () => healthzHandler() },
 	{ method: "GET", pattern: "/readyz", policy: "readOperator", build: readyzHandler },
 	{ method: "GET", pattern: "/version", policy: "anonymous", build: () => versionHandler() },
@@ -119,15 +124,6 @@ const ROUTE_TABLE: readonly RouteEntry[] = [
 		policy: "anonymous",
 		build: (deps) => setupHandoffHandler(deps.setupHandoff),
 	},
-	// warren-1b40: operator-gated reverse proxy to the judge extension's
-	// /verdicts.jsonl export. Server-held base URL + export token from env
-	// (see ./judge-proxy.ts); never the SPA fallback.
-	{
-		method: "GET",
-		pattern: "/extensions/judge/verdicts.jsonl",
-		policy: "readOperator",
-		build: () => judgeVerdictsProxyHandler(),
-	},
 	{ method: "GET", pattern: "/metrics", policy: "readOperator", build: metricsHandler },
 	// pl-7e38 step 12 (warren-d850): one-poll Operations snapshot, readPublic with a reduced projection.
 	{ method: "GET", pattern: "/ops/overview", policy: "readPublic", build: opsOverviewHandler },
@@ -146,7 +142,45 @@ const ROUTE_TABLE: readonly RouteEntry[] = [
 	{ method: "POST", pattern: "/alerts/heal", policy: "dispatch", build: healAlertHandler },
 	{ method: "GET", pattern: "/projects", policy: "readPublic", build: listProjectsHandler },
 	{ method: "POST", pattern: "/projects", policy: "admin", build: createProjectHandler },
+	{
+		method: "POST",
+		pattern: "/projects/new/preview",
+		policy: "admin",
+		build: previewNewProjectHandler,
+	},
+	{ method: "POST", pattern: "/projects/new", policy: "admin", build: createNewProjectHandler },
+	{
+		method: "GET",
+		pattern: "/projects/:id/readiness",
+		policy: "admin",
+		build: projectReadinessHandler,
+	},
+	{
+		method: "POST",
+		pattern: "/projects/:id/readiness/check",
+		policy: "admin",
+		build: (deps) => projectReadinessHandler(deps, true),
+	},
+	{
+		method: "POST",
+		pattern: "/projects/:id/setup-pr",
+		policy: "admin",
+		build: projectSetupHandler,
+	},
+
 	{ method: "GET", pattern: "/projects/:id", policy: "readPublic", build: getProjectHandler },
+	{
+		method: "GET",
+		pattern: "/projects/:id/settings",
+		policy: "readOperator",
+		build: projectSettingsHandler,
+	},
+	{
+		method: "PATCH",
+		pattern: "/projects/:id/settings",
+		policy: "admin",
+		build: (deps) => projectSettingsHandler(deps, true),
+	},
 	{
 		method: "GET",
 		pattern: "/projects/:id/warren-config",
@@ -325,6 +359,36 @@ const ROUTE_TABLE: readonly RouteEntry[] = [
 		policy: "readOperator",
 		build: previewConfigHandler,
 	},
+	{
+		method: "POST",
+		pattern: "/plan-approvals",
+		policy: "dispatch",
+		build: preparePlanApprovalHandler,
+	},
+	{
+		method: "GET",
+		pattern: "/plan-approvals/:id",
+		policy: "readOperator",
+		build: getPlanApprovalHandler,
+	},
+	{
+		method: "POST",
+		pattern: "/plan-approvals/:id/start",
+		policy: "dispatch",
+		build: startPlanApprovalHandler,
+	},
+	{
+		method: "POST",
+		pattern: "/plan-runs/:id/revisions",
+		policy: "dispatch",
+		build: revisePlanApprovalHandler,
+	},
+	{
+		method: "GET",
+		pattern: "/plan-runs/:id/approval",
+		policy: "readOperator",
+		build: planApprovalHistoryHandler,
+	},
 	{ method: "GET", pattern: "/plan-runs", policy: "readPublic", build: listPlanRunsHandler },
 	{ method: "POST", pattern: "/plan-runs", policy: "dispatch", build: createPlanRunHandler },
 	{ method: "GET", pattern: "/plan-runs/:id", policy: "readPublic", build: getPlanRunHandler },
@@ -392,13 +456,15 @@ export const API_PREFIXES: readonly string[] = [
 	"/ops",
 	"/preview",
 	"/plan-runs",
+	"/plan-approvals",
+	"/toolkit",
 	"/whoami",
 	// warren-2eec: instance facts surface (`GET /instance`).
 	"/instance",
 	"/github-app",
 	"/setup", // warren-48f8: the setup-handoff redemption page (an API path, not SPA).
 	"/events",
-	"/extensions", // warren-1b40: the judge export proxy surface.
+	"/extensions", // Retired paths remain API 404s, never SPA fallbacks.
 	"/forge", // warren-2601: installation repo listing for the Add Project picker.
 ];
 

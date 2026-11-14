@@ -166,7 +166,7 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 				.getByRole("article")
 				.filter({ has: page.getByRole("heading", { name: TITLE, exact: true }) });
 			await expect(card.getByText(LABEL, { exact: true })).toBeVisible();
-			await expect(card.locator('[aria-current="step"]')).toHaveText("Delivery");
+			await expect(card.locator('[aria-current="step"]')).toHaveCount(0);
 			await card.getByRole("link", { name: TITLE, exact: true }).click();
 			await expect(page.getByRole("heading", { name: TITLE, exact: true, level: 1 })).toBeVisible();
 			await expect(page.getByText(LABEL, { exact: true })).toBeVisible();

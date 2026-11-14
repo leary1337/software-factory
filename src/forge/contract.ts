@@ -1,3 +1,4 @@
+import type { AutoMergeMethod } from "../core/wire-merge.ts";
 /**
  * The `Forge` contract — the seam that decouples warren's domain from its
  * forge backend (GitHub today, FakeForge for the falsification tests).
@@ -120,6 +121,11 @@ export interface PendingChanges {
 }
 
 export interface ForgeDeploys {
+	readVerificationArtifact?(
+		ref: RepoRef,
+		runId: number,
+		artifactName: string,
+	): Promise<ForgeResult<unknown>>;
 	listDeployments(
 		ref: RepoRef,
 		environment: string,
@@ -166,15 +172,14 @@ export interface MergeProtection {
 /* Auto-merge (pl-92a3 — docs/design/forge-auto-merge.md)                 */
 /* --------------------------------------------------------------------- */
 
+export type { AutoMergeMethod } from "../core/wire-merge.ts";
 /**
  * The merge methods GitHub's `enablePullRequestAutoMerge` accepts, as the
  * CLOSED vocabulary the forge seam carries. The domain resolves the project
  * default (`squash`) before the call — the seam carries resolved intent,
  * like `PullRequestDraft` carries finished text.
  */
-export const AUTO_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
-
-export type AutoMergeMethod = (typeof AUTO_MERGE_METHODS)[number];
+export { AUTO_MERGE_METHODS } from "../core/wire-merge.ts";
 
 /** Options for {@link Forge.armAutoMerge}. */
 export interface ArmAutoMergeOptions {

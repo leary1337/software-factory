@@ -15,12 +15,13 @@ events, intervention, recovery, and Git delivery.
 
 `AgentRuntimeAdapter` keeps the kernel harness-neutral. A harness needs
 an adapter before the runtime can drive it. The current distribution
-ships Pi, Claude Code, and Codex adapters. The factory roles use Codex with
+ships Claude Code and Codex execution adapters; the Pi decoder reads historical runs. The factory roles use Codex with
 ChatGPT authentication; see [docs/codex-runtime.md](docs/codex-runtime.md)
 when changing authentication, models, or run limits.
 
-Runtime providers place each run in a local `bwrap` sandbox on Linux or
-`sandbox-exec` sandbox on macOS or a sibling Docker container.
+The local runtime runs Codex as guarded host processes on macOS, with separate
+Git workspaces and HOME directories. There is no OS or network sandbox.
+Cancellation, timeouts and restart recovery retain process-tree ownership.
 
 The kernel guarantees a pushed workspace branch. Project settings can
 add PR creation and tracker reactions around that boundary.
@@ -36,13 +37,13 @@ as opt-in features, not required infrastructure.
 - **seeds** — the integrated issue queue agents read from and write to.
   Activated by a `.seeds/` directory. Seeds is implementation #1 of the
   `IssueTracker` seam (`src/tracker/contract.ts`), with external
-  trackers reachable through the `RemoteTracker` bridge — see
+  trackers retired in this fork — see
   [docs/design/issue-tracker.md](docs/design/issue-tracker.md).
 
 The agent registry is entirely inline. `BUILTIN_AGENTS`
-(`src/registry/builtins/`) ships ten agents and boot seeds them into
-the agents table on every start: `claude-code`, `pi`,
-`planner`, `nightwatch`, `bugwatch`, `pr-fixer`, `healer`, `implementer`,
+(`src/registry/builtins/`) ships seven agents and boot seeds them into
+the agents table on every start: `claude-code`,
+`planner`, `pr-fixer`, `healer`, `implementer`,
 `reviewer`, and `rework`. There is
 no external agent library. `GET /agents` still reports
 `source: "builtin" | "library"` provenance. The `library` arm survives
@@ -64,40 +65,22 @@ the sequencing and [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) for policy.
 
 ## Runtime topology
 
-Warren runs against a swappable runtime provider, resolved once at boot
-from `WARREN_RUNTIME` (`src/runtime/registry.ts`) behind the
-`RuntimeProvider` contract (`src/runtime/contract.ts`). Two
-backends exist.
+Warren resolves `LocalProvider` at boot through `src/runtime/registry.ts` and
+`src/runtime/contract.ts`. The engine in `src/runtime/local/` materializes a
+private Git checkout and drives the adapter through a host-side loop. The
+adapters in `src/runtime/adapters/` own command and event formats.
 
-- `LocalProvider` (`src/runtime/local/`, the default) runs the
-  in-process engine. It materializes a checkout over a per-run private
-  git dir (warren-3c1e), composes a bwrap profile from the warren-owned sandbox (`src/sandbox/`), and drives
-  the agent through a host-side loop. The runtime adapters
-  (`src/runtime/adapters/`) own the per-harness command, parser, and
-  steering shapes.
-- `DockerProvider` (`src/runtime/docker/`, `WARREN_RUNTIME=docker`)
-  runs each agent as a sibling container over the docker socket. The
-  container boundary is the sandbox. See
-  [docs/design/runtime-docker-provider.md](docs/design/runtime-docker-provider.md).
+The current executable runtime is Codex on macOS. The Claude Code adapter is
+retained for future activation. Docker runtime, Pi execution and automatic
+patrols are retired. Historical events remain readable. Container deployment
+of a project's application is separate from the factory's execution runtime.
 
-### The burrow absorption (plan pl-3007)
-
-Warren once delegated the local sandbox to the co-tenanted
-[burrow](https://github.com/jayminwest/burrow) daemon. Plan pl-3007
-absorbed that substrate: the sandbox, the harness adapters, the spawn
-path, and the preview sidecars are warren-owned now. Warren no longer
-spawns `burrow serve`, links `@os-eco/burrow-cli`, or talks to a burrow
-socket. The burrow repo stays a standalone project.
-
-- The supervisor spawns only warren's HTTP server and forwards
-  SIGTERM/SIGINT to it.
-- The local engine persists run state in-process
-  (`src/runtime/local/run-store.ts`). A warren restart reconciles live
-  rows as lost, same as a daemon restart did.
-- The sandbox needs three apparmor/seccomp/systempaths-unconfined flags
-  plus `cap_add: SYS_ADMIN` on Linux for user-namespace nesting.
-  `docker-compose.yml` bakes them in. See
-  [docs/design/runtime-and-supervisor.md](docs/design/runtime-and-supervisor.md).
+`src/sandbox/` retains neutral process guardians, environment composition and
+private Git helpers. The bwrap, seatbelt, cgroup and network proxy execution
+paths are removed. Preview children use the same guarded process lifecycle.
+The supervisor forwards SIGTERM/SIGINT to the server. See
+[docs/codex-runtime.md](docs/codex-runtime.md) for current configuration and
+[docs/factory-runtime-acceptance.md](docs/factory-runtime-acceptance.md) for evidence.
 
 ## Per-project config (`.warren/config.yaml`)
 
@@ -205,7 +188,6 @@ bun run db:generate            # regenerate drizzle migrations (sqlite + postgre
 bun run gen:cli-ref            # regenerate the CLI reference (docs/cli-reference.md)
 bun run version:bump           # bump version across all four sites
 bun run acceptance             # end-to-end acceptance scenarios
-bun run acceptance:container   # acceptance scenarios in container mode
 bun run acceptance:public      # scenario 39, the public-instance leak guard
 bun run acceptance:nightly     # the nightly acceptance suite
 bun run check:ui-visual        # Playwright smoke over every UI screen (scripts/ui-visual/README.md)
@@ -263,7 +245,7 @@ run on inputs that did not change.
 - Prepare dependencies once, before the first test run. On a fresh
   clone, run `bun install` (its `prepare` script arms the hook) and
   `bun run ui:install`. The root suite includes the `src/ui/` tests.
-  `check:extensions` installs extension dependencies itself.
+  `check:ui-deps` repairs missing UI dependencies before the root gates.
 - While you iterate, run focused tests (`bun test path/to/x.test.ts`)
   and the cheap static gates (`bun run lint`, `bun run typecheck`).
   For the whole suite, run `bun run check:coverage` once. Do not run a
@@ -310,11 +292,7 @@ name.
   `ROUTE_TABLE` does not serve. A path the parser cannot resolve
   statically fails too, because a silent skip hides the drift this
   guard exists to catch
-- `scripts/check-extensions.ts` (warren-c26c) runs the `typecheck`
-  and `lint` scripts each `extensions/*` package declares. The root
-  tsconfig and Biome config exclude `extensions/` on purpose, so before
-  this guard an extension could sit red on main behind green gates. The
-  guard runs a frozen install first when a package has no `node_modules`
+- `scripts/check-ui-deps.ts` ensures the UI dependency workspace is installed.
 - `scripts/check-tailwind-arbitrary.ts` (warren-7bc4) counts Tailwind
   arbitrary values such as `text-[10px]` per `src/ui/src` file and fails
   any file over its count in `scripts/tailwind-arbitrary-budgets.json`.
@@ -730,35 +708,12 @@ The run-level provider retry (`src/runs/retry/provider-retry.ts`) is a
 third consumer. Its policy is in
 [docs/design/provider-retry.md](docs/design/provider-retry.md).
 
-## Extensions
+## Retired extensions
 
-`extensions/` holds out-of-process packages built against warren's
-published HTTP surface only. Each one is standalone: own
-`package.json`, own lockfile, own tsconfig, own tests.
-
-An extension never imports `src/` or `scripts/`, and core never
-imports it. `check:layers` enforces both directions, because an import
-either way compiles the extension into core and makes its removal
-breaking.
-
-Four extension packages ship in this fork. The flagship is
-`extensions/audit-log/` (plan pl-116e), a collector that tails run
-events, normalizes them into an append-only audit log, and exports it
-over `GET /audit-log.jsonl`. Beside it sits `extensions/judge/`
-(plan pl-17ca), which reads finished runs, judges them against the
-15-class rubric v1, stores verdicts append-only, and exports them
-over `GET /verdicts.jsonl`. `extensions/tracker-conformance/` (warren-53ea) is the
-warren-tracker/v1 conformance suite plus FakeTracker, the reference
-in-memory server. `extensions/campaign-controller/` (plan pl-91b6) is
-the first controller extension: it owns durable campaign state and
-drives warren's HTTP command APIs under an operator-approved policy —
-dry-run journaling in V0, plus a single policy-gated create-PR
-mutation from Phase 2.
-
-`extensions/audit-log/FRICTION.md` logs every place the extension
-author had to work around a missing warren surface, and that list is
-the spec for warren's delivery mechanism. Add to it when you hit a new
-one. See [docs/design/extensions.md](docs/design/extensions.md).
+The judge, audit-log, campaign-controller and tracker-conformance packages are
+retired. Built-in run history and events remain the diagnostic source. Their
+published documentation paths retain retirement notices. See
+[docs/design/extensions.md](docs/design/extensions.md).
 
 ## Golden snapshots
 

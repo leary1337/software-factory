@@ -15,6 +15,20 @@
 > lockstep with the code it describes. Cross-references to other SPEC
 > sections are repointed by the later sweep steps of `pl-1717`.
 
+## Retired patrols
+
+Factory redesign ticket 07 retires `nightwatch` and `bugwatch`. Their saved
+agent definitions and run history remain readable, but they are not offered as
+executable choices. New dispatches are refused before run creation. Loading old
+patrol triggers excludes them from active settings and reports a deprecation
+warning; the dispatcher also refuses them if a caller supplies a stale config.
+A previously completed patrol cannot automatically create another plan run.
+
+Explicit owner-configured schedules for approved work remain supported, as do
+project-clone recovery, CI repair and bounded retries. Scheduler removal must
+not disable those recovery paths. Alert-driven work remains subject to the
+approved-plan admission policy.
+
 ## Scheduler (cron + scheduled-for, 2026-05-11)
 
 R-06 from `ROADMAP.md` shipped via plan `pl-2f15` (warren-3f59). The

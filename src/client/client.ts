@@ -1,3 +1,6 @@
+import type { NewProjectPreview, NewProjectRequest } from "../core/new-project.ts";
+import type { ProjectSettingsResponse, ProjectSettingsUpdate } from "../core/project-settings.ts";
+import type { ProjectReadiness, ProjectSetupProposal } from "../core/readiness.ts";
 import { pollUntilTerminal } from "./client-helpers.ts";
 import { type EnvLike, loadWarrenClientConfigFromEnv, type WarrenClientConfig } from "./config.ts";
 import { WarrenClientError, WarrenUnreachableError } from "./errors.ts";
@@ -125,20 +128,47 @@ export class WarrenClient {
 		});
 	}
 
-	/**
-	 * `GET /whoami` — the identity and capability set warren admitted this
-	 * client as (warren-e195). Useful before a mutation: a client whose
-	 * capabilities lack `dispatch` is reading a public instance and will be
-	 * refused with 403, so it can say so up front instead of on failure.
-	 * Unlike `probe`, this is a gated route — the default `WARREN_AUTH=token`
-	 * mode 401s a client configured without a token.
-	 */
+	/** Return the authenticated identity and admitted capabilities. */
 	async whoami(signal?: AbortSignal): Promise<WhoamiResponse> {
 		return this.request<WhoamiResponse>("/whoami", { ...(signal ? { signal } : {}) });
 	}
 
 	async getProject(projectId: string): Promise<ProjectRow> {
 		return this.request<ProjectRow>(`/projects/${encodeURIComponent(projectId)}`);
+	}
+	async getProjectSettings(projectId: string): Promise<ProjectSettingsResponse> {
+		return this.request(`/projects/${encodeURIComponent(projectId)}/settings`);
+	}
+	async updateProjectSettings(
+		projectId: string,
+		input: ProjectSettingsUpdate,
+	): Promise<ProjectSettingsResponse> {
+		return this.request(`/projects/${encodeURIComponent(projectId)}/settings`, {
+			method: "PATCH",
+			body: JSON.stringify(input),
+		});
+	}
+
+	async getProjectReadiness(id: string): Promise<ProjectReadiness> {
+		return this.request(`/projects/${encodeURIComponent(id)}/readiness`);
+	}
+	async checkProjectReadiness(id: string): Promise<ProjectReadiness> {
+		return this.request(`/projects/${encodeURIComponent(id)}/readiness/check`, { method: "POST" });
+	}
+	async proposeProjectSetup(id: string): Promise<ProjectSetupProposal> {
+		return this.request(`/projects/${encodeURIComponent(id)}/setup-pr`, { method: "POST" });
+	}
+	async previewNewProject(input: NewProjectRequest): Promise<NewProjectPreview> {
+		return this.request("/projects/new/preview", { method: "POST", body: JSON.stringify(input) });
+	}
+	async createNewProject(
+		request: NewProjectRequest,
+		confirmation: string,
+	): Promise<{ project: ProjectRow; created: boolean; ready: false }> {
+		return this.request("/projects/new", {
+			method: "POST",
+			body: JSON.stringify({ request, confirmation }),
+		});
 	}
 
 	async listProjects(): Promise<ListProjectsResponse> {
@@ -339,18 +369,8 @@ export class WarrenClient {
 		return readNdjsonStream<T>(() => this.withTransportMapping(() => this.requestRaw(path, init)));
 	}
 
-	/* --------------------------------------------------------------- */
-	/* Plan-runs — warren-8ffc.                                        */
-	/* Wire envelope is camelCase, mirroring /runs.                    */
-	/* --------------------------------------------------------------- */
+	// Plan-run envelopes use the shared wire vocabulary.
 
-	/**
-	 * `POST /plan-runs` — dispatch a serial plan execution against a
-	 * seeds plan. Walks the plan's children one at a time, gating
-	 * each on the previous PR merging. Re-dispatching the same
-	 * `planId` after children land resumes from the next open child
-	 * (idempotent resume contract).
-	 */
 	async createPlanRun(input: CreatePlanRunInput): Promise<CreatePlanRunResponse> {
 		return this.request<CreatePlanRunResponse>("/plan-runs", {
 			method: "POST",
@@ -359,12 +379,6 @@ export class WarrenClient {
 		});
 	}
 
-	/**
-	 * `GET /plan-runs/:id` — full plan-run status: row + children +
-	 * fanned-out child `RunRow[]` (excludes children whose `runId` is
-	 * still null) so callers can render a detail view in one
-	 * round-trip.
-	 */
 	async getPlanRun(planRunId: string): Promise<PlanRunDetailResponse> {
 		return this.request<PlanRunDetailResponse>(`/plan-runs/${encodeURIComponent(planRunId)}`);
 	}

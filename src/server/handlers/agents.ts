@@ -9,6 +9,7 @@
 import { NotFoundError } from "../../core/errors.ts";
 import { type AgentSource, readAgentSource } from "../../registry/builtins/index.ts";
 import type { AgentDbRow } from "../../registry/index.ts";
+import { isRetiredAgent } from "../../registry/runtime-availability.ts";
 import { readProviderFrontmatter } from "../../registry/schema.ts";
 import { isPublicOnly, pickFields } from "../projection.ts";
 import { jsonResponse } from "../response.ts";
@@ -111,7 +112,9 @@ export function listAgentsHandler(deps: ServerDeps): RouteHandler {
 	return async (ctx) => {
 		const rows = await deps.repos.agents.listAll();
 		return jsonResponse(200, {
-			agents: rows.map((row) => projectAgent(withAgentSource(row), ctx.actor)),
+			agents: rows
+				.filter((row) => !isRetiredAgent(row))
+				.map((row) => projectAgent(withAgentSource(row), ctx.actor)),
 		});
 	};
 }

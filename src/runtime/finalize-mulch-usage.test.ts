@@ -7,8 +7,6 @@
 
 import { describe, expect, test } from "bun:test";
 import { fakeExec, fakeFs } from "../runs/reap/test-helpers.ts";
-import { collectFinalizeResult, type FinalizeGitRunner } from "./container/finalize-collect.ts";
-import { IN_POD_FINALIZE_WIRE_VERSION } from "./container/finalize-wire.ts";
 import type { FinalizeIntent } from "./contract.ts";
 import { finalizeLocalWorkspace } from "./local/finalize.ts";
 import { MULCH_USAGE_EVENT } from "./mulch-usage.ts";
@@ -53,44 +51,6 @@ describe("LocalProvider finalize — mulch usage", () => {
 			LOCAL_INTENT,
 			{ fs: fakeFs({}).fs, exec: fakeExec().exec },
 		);
-		expect(usageEvents(r.events)).toEqual([]);
-	});
-});
-
-describe("K8s in-pod finalize — mulch usage", () => {
-	const git: FinalizeGitRunner = async () => ({ exitCode: 0, stdout: "", stderr: "" });
-	const intent = {
-		version: IN_POD_FINALIZE_WIRE_VERSION,
-		attemptId: "fin_abcdefghjkmn",
-		branch: "warren/run_x",
-		push: false,
-		artifacts: [],
-		commit: [],
-	};
-
-	test("emits the mulch.usage event from the pod workspace", async () => {
-		const fs = {
-			readFile: async (p: string) => {
-				if (p === "/ws/.mulch/state/usage.jsonl") return USAGE;
-				throw new Error(`ENOENT ${p}`);
-			},
-			readdir: async () => [],
-		};
-		const r = await collectFinalizeResult(intent, "/ws", { fs, git });
-		expect(usageEvents(r.events)).toHaveLength(1);
-		expect(
-			(usageEvents(r.events)[0]?.payload as { injections: number } | undefined)?.injections,
-		).toBe(2);
-	});
-
-	test("a missing log (readFile throws) adds no event", async () => {
-		const fs = {
-			readFile: async (p: string): Promise<string> => {
-				throw new Error(`ENOENT ${p}`);
-			},
-			readdir: async () => [],
-		};
-		const r = await collectFinalizeResult(intent, "/ws", { fs, git });
 		expect(usageEvents(r.events)).toEqual([]);
 	});
 });

@@ -106,7 +106,7 @@ export interface AgentRuntimeAdapter {
 	/** Stateful parser scoped to one process, never shared by concurrent runs. */
 	createEventParser?(frontmatter?: AgentFrontmatter): (line: string) => AdapterRuntimeEvent[];
 	/** Prepare private HOME; return a cleanup that preserves refreshed credentials. */
-	prepareHome?(homePath: string): Promise<() => Promise<void>>;
+	prepareHome?(homePath: string, frontmatter?: AgentFrontmatter): Promise<() => Promise<void>>;
 	/** Finish durable HOME cleanup after the owning server has restarted. */
 	recoverHome?(homePath: string): Promise<void>;
 
@@ -208,41 +208,14 @@ export interface SpawnCommand {
 }
 
 /**
- * Allowlisted `pi` CLI option bag accepted under `frontmatter.pi`
- * (burrow-b5b4). Empty or whitespace-only strings are treated as unset.
- */
-export interface PiFrontmatterOptions {
-	/** Opt in to pi extension discovery by eliding --no-extensions. */
-	extensions?: boolean;
-	/** Trust project-local .pi settings/resources for this non-interactive run. */
-	approve?: boolean;
-	/** Disable all tools by default. Maps to --no-tools. */
-	noTools?: boolean;
-	/** Disable built-in tools while leaving extension/custom tools available. */
-	noBuiltinTools?: boolean;
-	/** Comma-separated or array-form allowlist for --tools. */
-	tools?: string | readonly string[];
-	/** Comma-separated or array-form denylist for --exclude-tools. */
-	excludeTools?: string | readonly string[];
-	/** Extra extension paths to load with repeated --extension flags. */
-	extension?: string | readonly string[];
-	/** Extra skill paths to load with repeated --skill flags. */
-	skill?: string | readonly string[];
-	/** Extra prompt template paths to load with repeated --prompt-template flags. */
-	promptTemplate?: string | readonly string[];
-	/** Extra theme paths to load with repeated --theme flags. */
-	theme?: string | readonly string[];
-}
-
-/**
  * Per-run agent frontmatter resolved by an upstream caller (warren's
  * `rendered_agent_json.frontmatter`). Adapters that accept provider /
  * model flags honor these to override their pinned defaults (burrow-b5b4).
  */
 export interface AgentFrontmatter {
+	toolkitVersion?: string;
 	provider?: string;
 	model?: string;
-	pi?: PiFrontmatterOptions;
 	/** Mulch experiment arm (`./mulch-arm.ts`); absent = default behavior. */
 	mulch?: "on" | "off";
 }

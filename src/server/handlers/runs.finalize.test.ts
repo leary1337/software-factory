@@ -1,23 +1,23 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { openDatabase, type WarrenDb } from "../../db/client.ts";
 import { createRepos, type Repos } from "../../db/repos/index.ts";
-import { FinalizeCoordinator } from "../../runtime/container/finalize-coordinator.ts";
-import {
-	IN_POD_FINALIZE_WIRE_VERSION,
-	type InPodFinalizeIntent,
-} from "../../runtime/container/finalize-wire.ts";
 import type { FinalizeResult } from "../../runtime/contract.ts";
 import { FakeProvider } from "../../runtime/fake/fake-provider.ts";
+import { FinalizeCoordinator } from "../../runtime/finalization/coordinator.ts";
+import {
+	FINALIZE_CALLBACK_WIRE_VERSION,
+	type FinalizeCallbackIntent,
+} from "../../runtime/finalization/wire.ts";
 import { bearerAuth, NO_AUTH } from "../auth.ts";
 import { startServer } from "../server.ts";
 import type { ServeHandle } from "../types.ts";
 import { depsFor, silentLogger, tcpUrl } from "./runs.test-helpers.ts";
 
 /**
- * HTTP coverage for the K8s finalize callback (warren-0d35):
- *   GET  /runs/:id/finalize-intent  — serve the parked intent to the in-pod harness
+ * HTTP coverage for the shared finalize callback (warren-0d35):
+ *   GET  /runs/:id/finalize-intent  — serve the parked intent to the runtime harness
  *   POST /runs/:id/finalize-result  — intake the collected FinalizeResult
- * The correlation/idempotency semantics live in `finalize-coordinator.test.ts`;
+ * The correlation/idempotency semantics live in the shared coordinator tests;
  * this file covers the route surface: auth gating, wire shape, validation, and
  * idempotent re-POST.
  */
@@ -26,9 +26,9 @@ function inertSandboxClient(): FakeProvider {
 	return new FakeProvider();
 }
 
-function sampleIntent(): Omit<InPodFinalizeIntent, "attemptId"> {
+function sampleIntent(): Omit<FinalizeCallbackIntent, "attemptId"> {
 	return {
-		version: IN_POD_FINALIZE_WIRE_VERSION,
+		version: FINALIZE_CALLBACK_WIRE_VERSION,
 		branch: "warren/run_x",
 		push: true,
 		artifacts: ["mulch", "seeds"],
@@ -95,7 +95,7 @@ describe("finalize callback endpoints", () => {
 		const base = await serveWith();
 		const res = await fetch(`${base}/runs/run_x/finalize-intent`);
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as { intent: InPodFinalizeIntent };
+		const body = (await res.json()) as { intent: FinalizeCallbackIntent };
 		expect(body.intent.attemptId).toBe(parked.attemptId);
 		expect(body.intent.branch).toBe("warren/run_x");
 		expect(body.intent.artifacts).toEqual(["mulch", "seeds"]);
@@ -108,7 +108,7 @@ describe("finalize callback endpoints", () => {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
-				version: IN_POD_FINALIZE_WIRE_VERSION,
+				version: FINALIZE_CALLBACK_WIRE_VERSION,
 				attemptId: parked.attemptId,
 				result: sampleResult(),
 			}),
@@ -122,7 +122,7 @@ describe("finalize callback endpoints", () => {
 		const parked = coordinator.register("run_x", sampleIntent());
 		const base = await serveWith();
 		const body = JSON.stringify({
-			version: IN_POD_FINALIZE_WIRE_VERSION,
+			version: FINALIZE_CALLBACK_WIRE_VERSION,
 			attemptId: parked.attemptId,
 			result: sampleResult(),
 		});
@@ -147,7 +147,7 @@ describe("finalize callback endpoints", () => {
 		const res = await fetch(`${base}/runs/run_x/finalize-result`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ version: IN_POD_FINALIZE_WIRE_VERSION, attemptId: "fin_x" }), // no result
+			body: JSON.stringify({ version: FINALIZE_CALLBACK_WIRE_VERSION, attemptId: "fin_x" }), // no result
 		});
 		expect(res.status).toBe(400);
 	});

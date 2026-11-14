@@ -57,6 +57,15 @@ export const projects = pgTable(
 	(t) => [index(INDEX_NAMES.projectsGitUrl).on(t.gitUrl)],
 );
 
+export const projectSettings = pgTable(TABLE_NAMES.projectSettings, {
+	projectId: text("project_id")
+		.primaryKey()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	settings: jsonb("settings").$type<Record<string, unknown>>().notNull(),
+	revision: integer("revision").notNull(),
+	updatedAt: text("updated_at").notNull(),
+});
+
 export const runs = pgTable(
 	TABLE_NAMES.runs,
 	{
@@ -384,3 +393,5 @@ export type ToolCallRow = typeof toolCalls.$inferSelect;
 export type ToolCallInsert = typeof toolCalls.$inferInsert;
 export type DispatchContextRow = typeof dispatchContext.$inferSelect;
 export type DispatchContextInsert = typeof dispatchContext.$inferInsert;
+
+export { planApprovals, planEffects, planTaskAttempts } from "./postgres-approvals.ts";

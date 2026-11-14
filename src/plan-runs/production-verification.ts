@@ -1,5 +1,10 @@
-import type { ProductionVerification } from "../core/production-verification.ts";
+import {
+	type ProductionVerification,
+	productionVerificationFromEvent,
+} from "../core/production-verification.ts";
 import type { ReviewRepos } from "./review.ts";
+
+export { productionVerificationFromEvent } from "../core/production-verification.ts";
 
 export async function loadProductionVerification(
 	repos: ReviewRepos,
@@ -8,12 +13,8 @@ export async function loadProductionVerification(
 	if (runId === null) return null;
 	const events = await repos.events.listByRun(runId);
 	for (const event of [...events].reverse()) {
-		if (event.kind !== "plan_run.deployment_verified") continue;
-		const payload: unknown = event.payloadJson;
-		if (typeof payload !== "object" || payload === null) continue;
-		if (!("expectedSha" in payload) || typeof payload.expectedSha !== "string") continue;
-		if (!("environment" in payload) || typeof payload.environment !== "string") continue;
-		return { sha: payload.expectedSha, environment: payload.environment, verifiedAt: event.ts };
+		const verified = productionVerificationFromEvent(event);
+		if (verified) return verified;
 	}
 	return null;
 }

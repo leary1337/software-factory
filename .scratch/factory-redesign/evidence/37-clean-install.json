@@ -1,0 +1,65 @@
+{
+  "sourceHead": "8032ecfadd7c6a2cb0d74262233886eb0159c995",
+  "snapshotKind": "working-tree snapshot; not a release commit",
+  "startedAt": "2026-11-14T19:38:42.360Z",
+  "package": {
+    "filename": "os-eco-warren-cli-0.19.3.tgz",
+    "integrity": "sha512-xUuaJlRLbzp6QPlF+vhO1vdWfVgmJKnIKtelZ04FsHGmdzD7qlb85ztG9PwUms3lKUi9U7hmpgnXeuo3UnK8UA==",
+    "count": 2198,
+    "manifestSha256": "16d4b1267baa45a98c41c52bc270b50bb9f331c6a06b8d4410354b0074602a58",
+    "manifest": "/Users/leary/Prog/software-factory/.scratch/factory-redesign/evidence/37-clean-install.hashes.json"
+  },
+  "productionDependencies": [
+    "@sentry/bun",
+    "commander",
+    "croner",
+    "drizzle-orm",
+    "js-yaml",
+    "pg",
+    "pino",
+    "zod"
+  ],
+  "skills": {
+    "templateIgnoreRules": true,
+    "catalogSkills": 73,
+    "factorySkills": 59,
+    "codexCount": 59,
+    "claudeCount": 59,
+    "skillVersion": "96b96b44c2c5e37cff7730193a6ec62ee3d8c9895acc7c3b630d948341710f5f",
+    "runtimes": [
+      "claude-code",
+      "codex"
+    ],
+    "mcpServers": [
+      "factory_exa",
+      "factory_context7",
+      "factory_graphify",
+      "factory_playwright"
+    ]
+  },
+  "server": {
+    "url": "http://127.0.0.1:63972",
+    "health": {
+      "ok": true
+    },
+    "agentNames": [
+      "claude-code",
+      "healer",
+      "implementer",
+      "planner",
+      "pr-fixer",
+      "reviewer",
+      "rework"
+    ],
+    "runtime": "local",
+    "toolkitVersion": "96f58585836e654d370ff45fd70fae3ef501ad515a969b5a014536e19c2499aa",
+    "uiAssetCount": 2,
+    "freshQueue": true
+  },
+  "serverStopped": true,
+  "codexAuthenticationAccessed": false,
+  "agentExecution": "Not performed in ticket 37. Ticket 38 owns real preparation, Codex execution and independent gate evidence; this report does not claim those checks passed.",
+  "status": "passed",
+  "finishedAt": "2026-11-14T19:38:52.983Z",
+  "artifacts": "/private/var/folders/kz/9y0bgw2j0637kt58vyzvr5bm0000gn/T/factory-clean-install-a1TC8F"
+}

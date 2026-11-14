@@ -32,7 +32,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { encodeExtensionUiDecline } from "../pi-stdin.ts";
 
 const GOLDEN_DIR = join(import.meta.dir, "__golden__");
 const UPDATE_GOLDEN = process.env.WARREN_UPDATE_PI_GOLDEN === "1";
@@ -159,17 +158,6 @@ describe("pi RPC handshake (golden wire-shape lock)", () => {
 			expect((req.id as string).length).toBeGreaterThan(0);
 			expect(typeof req.title).toBe("string");
 			expect(Array.isArray(req.options)).toBe(true);
-		});
-
-		test("auto-answer declines the real request by correlated id with cancelled:true", () => {
-			const req = envelopes.find((e) => e.type === "extension_ui_request");
-			expect(req).toBeDefined();
-			const reply = JSON.parse(encodeExtensionUiDecline(req)) as Record<string, unknown>;
-			expect(reply).toEqual({
-				type: "extension_ui_response",
-				id: req?.id,
-				cancelled: true,
-			});
 		});
 
 		test("declined extension_ui_request does not abort the run (agent_end still arrives)", () => {

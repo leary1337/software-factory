@@ -80,10 +80,6 @@
 				"tracker": "warren-23b5",
 				"max": 1
 			},
-			"src/ui/src/pages/telemetry/judge-tab.tsx": {
-				"tracker": "warren-23b5",
-				"max": 1
-			},
 			"src/ui/src/pages/telemetry/loop-tab.tsx": {
 				"tracker": "warren-23b5",
 				"max": 3

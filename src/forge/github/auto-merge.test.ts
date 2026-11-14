@@ -267,9 +267,7 @@ describe("armGitHubAutoMerge", () => {
 	test("refuses unknown naming the ForgeErrorKind when the GraphQL transport fails", async () => {
 		const h = makeHarness();
 		const pr = await h.openPr();
-		// Three scripted 500s exhaust the transport retry (the sleep seam records the waits).
-		h.stub.scriptGraphQL({ status: 500 });
-		h.stub.scriptGraphQL({ status: 500 });
+		// The received mutation may have committed despite its failed response.
 		h.stub.scriptGraphQL({ status: 500 });
 		const result = await h.arm(pr);
 		expect(result.ok).toBe(false);
@@ -277,6 +275,8 @@ describe("armGitHubAutoMerge", () => {
 			expect(result.error.reason).toBe("unknown");
 			expect(result.error.message).toContain("(http_error)");
 		}
+		expect(h.graphqlCalls()).toHaveLength(1);
+		expect(h.sleeps).toEqual([]);
 	});
 
 	test("refuses unknown naming the kind when the REST read fails", async () => {

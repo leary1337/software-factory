@@ -584,17 +584,7 @@ export function isTerminalPlanRunChildState(
 /* HTTP response envelopes (warren-42f1 / pl-882c step 3).                  */
 /* ----------------------------------------------------------------------- */
 
-/**
- * Error envelope rendered for every non-2xx response. Mirrors burrow's
- * `ErrorEnvelope` so an HTTP consumer hitting both surfaces uses one
- * decoder. `code` is the stable machine identifier; `message` is human;
- * `hint` is the optional recovery cue from `WarrenError.recoveryHint`.
- *
- * Defined ONCE here — the server (`src/server/types.ts`), the SDK
- * (`src/client/types.ts`) and the UI (`src/ui/src/api/types.ts`) re-export
- * it. warren-5334 tracked the three hand-mirrored copies this replaces.
- * Type-only, so the dependency-free-kernel rule is unaffected.
- */
+/** One HTTP error envelope for server, SDK and browser consumers. */
 export interface ErrorEnvelope {
 	error: {
 		code: string;
@@ -602,3 +592,15 @@ export interface ErrorEnvelope {
 		hint?: string;
 	};
 }
+
+export * from "./plan-approval.ts";
+export * from "./wire-preparation.ts";
+export * from "./wire-toolkit.ts";
+
+export const ROLLBACK_COMPATIBILITIES = [
+	"application-only",
+	"unknown",
+	"requires-data-change",
+] as const;
+export type RollbackCompatibility = (typeof ROLLBACK_COMPATIBILITIES)[number];
+export * from "./wire-recovery.ts";

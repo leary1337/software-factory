@@ -265,14 +265,10 @@ const BUILTIN_AGENT_ROLES: Readonly<Record<string, string>> = {
 	reviewer:
 		"Unattended agent that reviews a factory PR cold against its ticket and reports a verdict.",
 	rework: "Unattended agent that fixes the findings of an automated review on the PR branch.",
-	bugwatch: "Bug triage agent — investigates open bug seeds and produces a seeds fix plan per bug.",
 	"claude-code":
 		"General-purpose coding agent on the claude-code harness; dispatchable on a fresh install.",
 	healer:
 		"Closed-loop repair agent — diagnoses production alerts and opens a fresh fix branch + PR.",
-	nightwatch:
-		"Code patrol agent — scans repos for quality issues and files a seeds plan to fix them.",
-	pi: "Multi-provider coding-agent runtime (@earendil-works/pi-coding-agent); warren's default runtime.",
 	planner: "Interactive planning agent that turns a finalized intent into a structured seeds plan.",
 	"pr-fixer":
 		"CI-repair agent — fixes failing checks on warren-opened PRs directly on the PR branch.",

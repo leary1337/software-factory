@@ -1,3 +1,4 @@
+import type { DriveDeps } from "../../runtime/local/drive.ts";
 /** Resolves the runtime provider once at boot, the sole composition point. */
 
 import type { EnvLike } from "../../client/config.ts";
@@ -6,6 +7,7 @@ import { resolveRuntimeProvider } from "../../runtime/registry.ts";
 
 export interface ResolveBootRuntimeProviderInput {
 	readonly env: EnvLike;
+	readonly reserveEnvironmentRepair?: DriveDeps["reserveEnvironmentRepair"];
 	/** Lets the drive loop stamp `runs.workspace_ready_at` through the domain. */
 	readonly onWorkspaceReady?: (runId: string, at: Date) => void;
 }
@@ -14,7 +16,12 @@ export function resolveBootRuntimeProvider(
 	input: ResolveBootRuntimeProviderInput,
 ): RuntimeProvider {
 	return resolveRuntimeProvider(
-		input.onWorkspaceReady !== undefined ? { onWorkspaceReady: input.onWorkspaceReady } : {},
+		{
+			...(input.onWorkspaceReady ? { onWorkspaceReady: input.onWorkspaceReady } : {}),
+			...(input.reserveEnvironmentRepair
+				? { reserveEnvironmentRepair: input.reserveEnvironmentRepair }
+				: {}),
+		},
 		input.env,
 	);
 }

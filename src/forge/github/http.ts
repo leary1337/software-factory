@@ -35,7 +35,9 @@ export interface GitHubRequestInput {
 	readonly userAgent?: string;
 	/** Short call-site label folded into error messages, e.g. `GET /pulls/7`. */
 	readonly context: string;
-	/** Retry tuning; transient failures retry by default. Pass `maxRetries: 0` to disable. */
+	/** Per-attempt deadline through response-body consumption (default 30 seconds). */
+	readonly requestTimeoutMs?: number;
+	/** GET retry tuning. Mutations never retry here: their outcome may already be committed. */
 	readonly retry?: GitHubRetryOptions;
 }
 
@@ -44,7 +46,8 @@ const ERROR_BODY_MAX_CHARS = 500;
 
 /**
  * Execute one GitHub REST request: build headers, fetch, classify a
- * non-2xx response, retry transient failures per the module policy.
+ * non-2xx response, and retry transient GET failures per the module policy.
+ * Mutations return unknown outcomes for domain reconciliation, even with retry options.
  * Never throws — a thrown fetch surfaces as a `network` error.
  */
 export async function requestGitHub(input: GitHubRequestInput): Promise<GitHubTransportResult> {
@@ -58,12 +61,18 @@ export async function requestGitHub(input: GitHubRequestInput): Promise<GitHubTr
 		...(input.body !== undefined ? { body: JSON.stringify(input.body) } : {}),
 	};
 
+	const retry = init.method === "GET" ? (input.retry ?? {}) : { ...input.retry, maxRetries: 0 };
 	const retried = await withGitHubRetry(async () => {
+		// Keep this signal attached after headers: successful body parsing belongs to the caller.
+		const signal = AbortSignal.timeout(input.requestTimeoutMs ?? 30_000);
 		let res: Response;
 		try {
-			res = await fetchImpl(input.url, init);
+			res = await fetchImpl(input.url, { ...init, signal });
 		} catch (err) {
-			return { ok: false, error: networkError(err, input.context) };
+			return {
+				ok: false,
+				error: networkError(signal.aborted ? new Error("request timed out") : err, input.context),
+			};
 		}
 		if (!res.ok) {
 			const text = truncate(await readText(res), ERROR_BODY_MAX_CHARS);
@@ -73,7 +82,7 @@ export async function requestGitHub(input: GitHubRequestInput): Promise<GitHubTr
 			};
 		}
 		return { ok: true, value: res };
-	}, input.retry ?? {});
+	}, retry);
 	if (!retried.ok) return retried;
 	return { ok: true, response: retried.value };
 }

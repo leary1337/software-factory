@@ -1,4 +1,5 @@
 import type { PlanRunChildRow, PlanRunDetailResponse } from "../../api/types.ts";
+import { hasVerifiedRelease } from "./task-evidence.ts";
 import { taskStatus } from "./task-status.ts";
 
 export interface TaskAttempt {
@@ -66,10 +67,24 @@ export function groupTaskAttempts(rows: readonly TaskAttempt[]): TaskItem[] {
 					(row) => taskStatus(row.child, row.detail.planRun).group === "attention",
 				),
 				incidents: attempts.filter((row) => row.child.failureReason === "deployment_incident"),
-				delivered: attempts.find((row) => row.child.state === "merged"),
+				delivered: attempts.find((row) => hasVerifiedRelease(row.child)),
 			},
 		];
 	});
+}
+
+/** Keep recorded production incidents visible even when a later attempt is archived. */
+export function taskItemStatus(task: TaskItem) {
+	const status = taskStatus(task.current.child, task.current.detail.planRun);
+	if (task.incidents.length && ["complete", "history", "closed", "stopped"].includes(status.group))
+		return {
+			...status,
+			group: "attention" as const,
+			phase: "Delivery" as const,
+			label: "Production incident recorded",
+			action: "Open attempt history and inspect the incident's resolution.",
+		};
+	return status;
 }
 
 export function taskUrl(attempt: TaskAttempt): string {

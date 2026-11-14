@@ -1,40 +1,19 @@
 /**
- * The finalize callback endpoints for the K8s backend (pl-829f step 20 /
- * warren-0d35) — the control-plane half of the in-pod reap.
- *
- * The run pod's `emptyDir` workspace is unreachable from warren, so the
- * workspace-dependent half of reap (contract §4 `finalize`) runs INSIDE the pod
- * and talks to warren over these two authenticated routes (step 17's decision:
- * finalize deltas ride the HTTP callback, not the NDJSON log stream):
- *
- *   - `GET /runs/:id/finalize-intent` — the in-pod harness polls this (after the
- *     agent exits) to fetch the finalize INTENT `K8sProvider.finalize()` parked
- *     with the coordinator. `{ intent: null }` until warren has one; the intent
- *     object once reap is driving finalize.
- *   - `POST /runs/:id/finalize-result` — the harness POSTs its collected
- *     `FinalizeResult` here; the coordinator resolves the awaiting `finalize()`.
- *     Idempotent: a duplicate / stale / unknown POST still answers 200 so the
- *     pod's retry loop stops (see `FinalizeCoordinator`).
- *
- * Both are bearer-gated like every other `/runs` route — the pod carries the
- * per-run SCOPED callback token warren injected at create (warren-57fd), which
- * authorizes exactly this run's inbox + finalize surface and nothing else.
- * Neither is auth-exempt.
- *
- * The coordinator is the process-wide `sharedFinalizeCoordinator` by default (the
- * same instance `K8sProvider.finalize()` defaults to, so they correlate without
- * boot wiring); `deps.finalizeCoordinator` overrides it for tests.
+ * Authenticated finalization callbacks shared by runtime implementations.
+ * GET serves the registered intent; POST settles its correlated result.
+ * Duplicate, stale and unknown results retain idempotent 200 responses.
+ * The process-wide coordinator is overridable through server dependencies.
  */
 
-import { sharedFinalizeCoordinator } from "../../../runtime/container/finalize-coordinator.ts";
-import { parseFinalizeResultEnvelope } from "../../../runtime/container/finalize-wire.ts";
+import { sharedFinalizeCoordinator } from "../../../runtime/finalization/coordinator.ts";
+import { parseFinalizeResultEnvelope } from "../../../runtime/finalization/wire.ts";
 import { jsonResponse } from "../../response.ts";
 import type { RouteHandler, ServerDeps } from "../../types.ts";
 import { readJsonBody, requireParam } from "../index.ts";
 
 /**
  * `GET /runs/:id/finalize-intent` — serve the parked finalize intent to the
- * in-pod harness, or `{ intent: null }` when none is pending yet (the harness
+ * runtime harness, or `{ intent: null }` when none is pending yet (the harness
  * keeps polling). The intent already carries its `attemptId` — the correlation
  * key the harness echoes on its result POST.
  */
@@ -48,7 +27,7 @@ export function getRunFinalizeIntentHandler(deps: ServerDeps): RouteHandler {
 }
 
 /**
- * `POST /runs/:id/finalize-result` — intake for the in-pod harness's collected
+ * `POST /runs/:id/finalize-result` — intake for the runtime harness's collected
  * `FinalizeResult`. Validates the envelope (a malformed body is a 400 the harness
  * can retry), then hands it to the coordinator keyed by `runId` + `attemptId`.
  * The `outcome` (`accepted` | `duplicate` | `stale` | `unknown`) is echoed so the

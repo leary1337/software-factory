@@ -1,9 +1,15 @@
 # Judge on-demand evaluation
 
 **Kind:** proposal
-**Design state:** proposed
-**Delivery:** unscheduled
+**Design state:** retired
+**Delivery:** not-applicable
 **Arrived:** 2026-10-08
+
+> Retired by FACTORY-REDESIGN ticket 08. The judge, campaign-controller,
+> audit-log and tracker-conformance packages are no longer shipped.
+> Built-in run events, history, diagnostics and checks remain available.
+> The rest of this record describes historical designs, not supported setup.
+> See [IssueTracker](./issue-tracker.md) for the internal tracker.
 
 This record is the investigation and plan for seed `warren-eeff`. It asks
 whether the judge extension (`extensions/judge/`) is worth its cost.

@@ -88,28 +88,33 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			await openCase(page, { ...c, url: `/#/plan-runs/${fixture.ids.planRun.id}` }, fixture);
 			const progress = page.getByRole("region", { name: "Plan progress", exact: true });
 			await expect(progress.getByText("Task 7 of 12", { exact: true })).toBeVisible();
-			await expect(progress).toContainText("1 delivered in this attempt");
+			await expect(progress).toContainText("1 merged · 0 release verified");
 			await expect(progress).toContainText("5 previously closed");
 			await expect(progress).toContainText("5 waiting");
 		});
 
-		test("puts current work and live monitoring before old attempts", async ({ page }, info) => {
+		test("puts current work first and opens live monitoring inside the task", async ({
+			page,
+		}, info) => {
 			await openCase(page, c, fixture);
 			const current = page.getByRole("region", { name: "Current work", exact: true });
 			await expect(current.getByRole("heading", { name: TITLE })).toBeInViewport();
-			await expect(current.getByText("Task 7 of 12", { exact: true })).toBeVisible();
-			await expect(current.getByRole("link", { name: "Live log" })).toHaveAttribute(
+			await expect(current.getByRole("link", { name: "Live log" })).toHaveCount(0);
+			await current.getByRole("link", { name: TITLE, exact: true }).click();
+			await expect(page.getByText("Task 7 of 12", { exact: true })).toBeVisible();
+			await expect(page.getByRole("link", { name: "Live log" })).toHaveAttribute(
 				"href",
 				`#/runs/${fixture.ids.runs.running}`,
 			);
-			await expect(current.getByText(/Started|Stage running for/)).toBeVisible();
+			await expect(page.getByText(/Started|Stage running for/)).toBeVisible();
 			await screenshotCase(page, { ...c, name: `current-work.${c.viewport}.${c.theme}` }, info);
 		});
-		test("follows review activity and then removes delivered work from the current section", async ({
+		test("follows review in task details and keeps merged work waiting for release proof", async ({
 			page,
 		}) => {
 			await openCase(page, c, fixture);
-			const current = page.getByRole("region", { name: "Current work", exact: true });
+			await page.getByRole("link", { name: TITLE, exact: true }).click();
+			const current = page.locator("main");
 			await expect(current.getByRole("link", { name: "Live log" })).toHaveAttribute(
 				"href",
 				`#/runs/${fixture.ids.runs.running}`,
@@ -137,10 +142,18 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 				current.getByText("Execution succeeded. Waiting for the plan to update."),
 			).toBeVisible();
 			Object.assign(child, { state: "merged", prMergedAt: fixture.frozenNow });
-			await expect(current).toHaveCount(0, { timeout: 10000 });
+			await expect(page.getByText("Release not verified", { exact: true })).toBeVisible({
+				timeout: 10000,
+			});
+			await page.getByRole("link", { name: "All tasks", exact: true }).click();
 			await expect(
 				page
-					.getByRole("region", { name: "Completed", exact: true })
+					.getByRole("region", { name: "Current work", exact: true })
+					.getByRole("heading", { name: TITLE, exact: true }),
+			).toHaveCount(0);
+			await expect(
+				page
+					.getByRole("region", { name: "Waiting", exact: true })
 					.getByRole("heading", { name: TITLE }),
 			).toBeVisible();
 			await expect(page.getByRole("heading", { name: TITLE, exact: true })).toHaveCount(1);
@@ -177,7 +190,7 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 					},
 				});
 			});
-			await openCase(page, c, fixture);
+			await openCase(page, { ...c, url: `/#/plan-runs/${fixture.ids.planRun.id}?task=7` }, fixture);
 			const activity = page.getByRole("region", { name: "Current activity", exact: true });
 			await expect(activity).toContainText("Checking the rest timer.");
 			unavailable = true;
@@ -200,7 +213,7 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 						: { json: { events: [], total: 0, limit: 1, offset: 0 } },
 				),
 			);
-			await openCase(page, c, fixture);
+			await openCase(page, { ...c, url: `/#/plan-runs/${fixture.ids.planRun.id}?task=7` }, fixture);
 			const activity = page.getByRole("region", { name: "Current activity", exact: true });
 			await expect(activity).toContainText("Current activity is unknown.");
 			await expect(activity).not.toContainText("Loading current activity");

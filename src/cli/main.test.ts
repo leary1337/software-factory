@@ -33,6 +33,7 @@ describe("buildProgram", () => {
 			"run",
 			"serve",
 			"show",
+			"state",
 			"tail",
 			"up",
 			"wait",

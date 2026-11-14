@@ -48,8 +48,9 @@ export const VALIDATION_DISCIPLINE_BULLETS = `- Validation discipline. Broad tes
 /** Harness-agent mulch fragment: expertise load ritual + workspace path. */
 export const MULCH_FRAGMENT = `## Project expertise (mulch)
 
-- /workspace/.mulch/expertise/<domain>.jsonl holds the project's expertise records.
-- Run \`ml prime\` at the start of the session to load them, and record insights worth preserving with \`ml record\` before finishing.`;
+- .mulch/expertise/<domain>.jsonl holds the project's expertise records.
+- Memory is optional. If the \`ml\` command is unavailable, continue the task without memory.
+- When available, run \`ml init\` only if .mulch is missing, then \`ml prime\` to load records and \`ml record\` to preserve useful insights.`;
 
 /** Harness-agent tracker fragment: the project's issue queue + sd CLI. */
 export const TRACKER_FRAGMENT = `## Project issue queue (seeds)

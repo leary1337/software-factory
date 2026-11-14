@@ -1,29 +1,28 @@
 /**
  * Spawn-prep helpers for the host-side drive loop (warren-8a6e split from
  * `./drive.ts` to keep that file under the line-count budget). Owns runtime
- * resolution, restricted-network proxy arming, and the cancel-win settle path
+ * resolution, dependency preparation, and the cancel-win settle path
  * LocalEngine.cancel races against.
  */
 
-import {
-	type ProxyHandle,
-	proxyEnvVars,
-	type StartProxyOptions,
-	startProxy,
-} from "../../sandbox/proxy-server.ts";
+import type { ReserveEnvironmentRepair } from "../../preparation/repair.ts";
+import { runPreparation } from "../../preparation/run.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../sandbox/types.ts";
+import { resolveToolkitBundle, toolkitSkillPack } from "../../toolkit/versions.ts";
 import { forwardClaudeHostCredentials } from "../adapters/claude-credentials.ts";
 import { type AgentRuntimeAdapter, allAdapters, eventParserFor } from "../adapters/index.ts";
 import type { AgentFrontmatter } from "../adapters/types.ts";
 import type { RunSpec } from "../contract.ts";
+import { runHostProcess } from "./process-spawn.ts";
 import type { LocalRunRecord, LocalRunStore } from "./run-store.ts";
 import { materializeSkillPack } from "./skill-pack.ts";
 
 /** Subset of DriveDeps this module needs — avoids a drive.ts circular import. */
 export interface PrepareDeps {
-	readonly startProxy?: (opts: StartProxyOptions) => Promise<ProxyHandle>;
 	readonly registry?: { get(id: string): AgentRuntimeAdapter | undefined };
 	readonly now?: () => Date;
+	readonly reserveEnvironmentRepair?: ReserveEnvironmentRepair;
+	readonly spawn?: (profile: SandboxProfile, command: SpawnCommand) => Promise<SpawnResult>;
 }
 
 function readSpecFrontmatter(
@@ -82,7 +81,6 @@ export async function abandonSpawnedChild(
 	store: LocalRunStore,
 	record: LocalRunRecord,
 	proc: SpawnResult,
-	proxy: ProxyHandle | null,
 ): Promise<void> {
 	if (record.proc !== proc) {
 		try {
@@ -91,22 +89,21 @@ export async function abandonSpawnedChild(
 			/* already torn down */
 		}
 	}
-	await proxy?.stop();
 	await proc.exited.catch(() => 0);
 	settleCancelledIfNeeded(store, record);
 }
 
 export interface PreparedSpawn {
+	readonly deadlineAt?: number;
 	readonly runtime: AgentRuntimeAdapter;
 	readonly runProfile: SandboxProfile;
 	readonly runCommand: SpawnCommand;
-	readonly proxy: ProxyHandle | null;
 	readonly useStdinHold: boolean;
 	readonly finalizeHome?: () => Promise<void>;
 	readonly qualityGate?: RunSpec["qualityGate"];
 }
 
-/** Resolve runtime + command + optional restricted-network proxy, or null on fail. */
+/** Resolve runtime, prepare dependencies, and build the command, or null on fail. */
 export async function prepareSpawn(
 	store: LocalRunStore,
 	record: LocalRunRecord,
@@ -114,6 +111,7 @@ export async function prepareSpawn(
 	profile: SandboxProfile,
 	deps: PrepareDeps,
 ): Promise<PreparedSpawn | null> {
+	const deadlineAt = profile.timeoutMs === undefined ? undefined : Date.now() + profile.timeoutMs;
 	let runtime = (deps.registry ?? DEFAULT_REGISTRY).get(spec.runtimeId);
 	if (runtime === undefined) {
 		failBeforeSpawn(store, record, `runtime '${spec.runtimeId}' is not registered`, deps);
@@ -129,6 +127,22 @@ export async function prepareSpawn(
 		return null;
 	}
 
+	const preparedProfile = await runPreparation({
+		profile,
+		runId: record.runId,
+		reserveEnvironmentRepair: deps.reserveEnvironmentRepair,
+		config: spec.preparation,
+		stage: "agent",
+		runHome: record.homePath,
+		owner: record,
+		spawn:
+			deps.spawn ??
+			((profile, command) =>
+				runHostProcess(profile, command, { lifecyclePath: `${record.homePath}.lifecycle.json` })),
+		emit: (kind, payload) => {
+			store.appendEvent(record, { kind, stream: "system", payload });
+		},
+	});
 	const pendingMessages = store.claimPending(record, deps.now);
 	const frontmatter = readSpecFrontmatter(spec.metadata);
 	const buildSpawnCommand = runtime.buildSpawnCommand;
@@ -145,7 +159,13 @@ export async function prepareSpawn(
 	if (spec.runtimeId === "claude-code") {
 		await forwardClaudeHostCredentials(record.homePath).catch(() => {});
 		try {
-			await materializeSkillPack(record.homePath);
+			await materializeSkillPack(
+				record.homePath,
+				await toolkitSkillPack(frontmatter?.toolkitVersion),
+				frontmatter?.toolkitVersion
+					? resolveToolkitBundle(frontmatter.toolkitVersion).catalog.playwright.cliVersion
+					: undefined,
+			);
 		} catch (err) {
 			failBeforeSpawn(store, record, `skill pack not delivered: ${String(err)}`, deps);
 			return null;
@@ -165,74 +185,18 @@ export async function prepareSpawn(
 		? { ...baseCommand, holdStdin: true }
 		: baseCommand;
 
-	// warren-70bb: under network=restricted, start a per-run loopback CONNECT
-	// proxy that enforces allowedDomains and overlays HTTP(S)_PROXY.
-	const finalizeHome = once(await runtime.prepareHome?.(record.homePath));
-	let armed: ArmedProxy | null;
-	try {
-		armed = await armRestrictedProxy(store, record, profile, holdCommand, deps);
-	} catch (error) {
-		await finalizeHome?.();
-		throw error;
-	}
-	if (armed === null) {
-		await finalizeHome?.();
-		return null;
-	}
+	const finalizeHome = once(await runtime.prepareHome?.(record.homePath, frontmatter));
 	return {
 		runtime,
-		runProfile: armed.runProfile,
-		runCommand: armed.runCommand,
-		proxy: armed.proxy,
+		deadlineAt,
+		runProfile: { ...preparedProfile, network: "open" },
+		runCommand: holdCommand,
 		useStdinHold,
-		...(spec.qualityGate ? { qualityGate: spec.qualityGate } : {}),
+		...(spec.qualityGate
+			? { qualityGate: { ...spec.qualityGate, preparation: spec.preparation } }
+			: {}),
 		...(finalizeHome ? { finalizeHome } : {}),
 	};
-}
-
-interface ArmedProxy {
-	readonly runProfile: SandboxProfile;
-	readonly runCommand: SpawnCommand;
-	readonly proxy: ProxyHandle | null;
-}
-
-/**
- * When `profile.network === "restricted"`, start the per-run proxy and return
- * a profile+command pair with `proxyAddress` + HTTP(S)_PROXY set. On start
- * failure the run is terminalized failed and `null` is returned so the caller
- * bails without spawning. open/none return the inputs unchanged with no proxy.
- */
-async function armRestrictedProxy(
-	store: LocalRunStore,
-	record: LocalRunRecord,
-	profile: SandboxProfile,
-	command: SpawnCommand,
-	deps: PrepareDeps,
-): Promise<ArmedProxy | null> {
-	if (profile.network !== "restricted") {
-		return { runProfile: profile, runCommand: command, proxy: null };
-	}
-	const startProxyFn = deps.startProxy ?? startProxy;
-	let proxy: ProxyHandle;
-	try {
-		proxy = await startProxyFn({ allowedDomains: profile.allowedDomains });
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		failBeforeSpawn(store, record, `failed to start network proxy: ${message}`, deps);
-		return null;
-	}
-	const runProfile: SandboxProfile = {
-		...profile,
-		proxyAddress: { host: "127.0.0.1", port: proxy.port },
-	};
-	const runCommand: SpawnCommand = {
-		...command,
-		env: {
-			...(command.env ?? {}),
-			...proxyEnvVars(proxy.url),
-		},
-	};
-	return { runProfile, runCommand, proxy };
 }
 
 function once(cleanup: (() => Promise<void>) | undefined): (() => Promise<void>) | undefined {

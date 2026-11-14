@@ -22,7 +22,7 @@
  * down to reap, not to the move that creates the seam.
  */
 
-import { KNOWN_RUNTIME_IDS, type RuntimeId } from "../../core/wire.ts";
+import { isRetiredRuntimeId, KNOWN_RUNTIME_IDS, type RuntimeId } from "../../core/wire.ts";
 import { claudeCodeAdapter } from "./claude-code.ts";
 import { codexAdapter } from "./codex.ts";
 import { piAdapter } from "./pi.ts";
@@ -39,7 +39,6 @@ export type {
 	AdapterSpawnContext,
 	AgentFrontmatter,
 	AgentRuntimeAdapter,
-	PiFrontmatterOptions,
 	SpawnCommand,
 	SteeringMessage,
 } from "./types.ts";
@@ -59,9 +58,11 @@ export function adapterFor(runtimeId: RuntimeId): AgentRuntimeAdapter {
 	return RUNTIME_ADAPTERS[runtimeId];
 }
 
-/** Every adapter, in {@link KNOWN_RUNTIME_IDS} order. */
+/** Executable adapters only; historical decoders remain available through adapterFor. */
 export function allAdapters(): readonly AgentRuntimeAdapter[] {
-	return KNOWN_RUNTIME_IDS.map((id) => RUNTIME_ADAPTERS[id]);
+	return KNOWN_RUNTIME_IDS.filter((id) => !isRetiredRuntimeId(id)).map(
+		(id) => RUNTIME_ADAPTERS[id],
+	);
 }
 
 /** Stateful parsers are instantiated once per process. Stateless adapters keep their parser. */
@@ -71,7 +72,7 @@ export function eventParserFor(adapter: AgentRuntimeAdapter, frontmatter?: Agent
 
 /** Collect one declared list across every adapter, de-duplicated, in id order. */
 function union(pick: (adapter: AgentRuntimeAdapter) => readonly string[]): readonly string[] {
-	return [...new Set(allAdapters().flatMap(pick))];
+	return [...new Set(Object.values(RUNTIME_ADAPTERS).flatMap(pick))];
 }
 
 /**

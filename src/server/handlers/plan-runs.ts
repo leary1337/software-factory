@@ -1,3 +1,5 @@
+import { assertProjectReady } from "../../projects/readiness.ts";
+import { readinessDeps } from "./projects.readiness.ts";
 /**
  * PlanRun HTTP handlers (warren-f923 / pl-a258 step 6).
  *
@@ -34,7 +36,7 @@ import {
 	loadReviewMergeResult,
 	loadReviewSummaries,
 } from "../../plan-runs/review-summary.ts";
-import { loadTaskMetrics } from "../../plan-runs/task-metrics-load.ts";
+import { loadTaskObservations } from "../../plan-runs/task-metrics-load.ts";
 import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
@@ -92,13 +94,18 @@ export function createPlanRunHandler(deps: ServerDeps): RouteHandler {
 		const issues = optionalStringArray(body, "issues");
 
 		const projectId = requireString(body, "project");
+		const readiness = await assertProjectReady(readinessDeps(deps), projectId);
 		// warren-6c4c: mint the pre-dispatch refresh-fetch credential per-spawn
 		// through the boot forge (forge-contract.md §4); no config object
 		// holds a token.
 		const project = await deps.repos.projects.require(projectId);
 		const gitSecret = await mintGitCredential(deps.forge, project.gitUrl);
 		const result = await createPlanRun({
+			readiness,
 			projectId,
+			...(optionalString(body, "commandKey")
+				? { commandKey: optionalString(body, "commandKey") }
+				: {}),
 			...(planId !== undefined ? { planId } : {}),
 			...(issues !== undefined ? { issues } : {}),
 			agentName: requireString(body, "agent"),
@@ -198,6 +205,9 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 			? new Map()
 			: await loadPlanRunBudgetView(deps.repos, planRun);
 		return jsonResponse(200, {
+			approval: isPublicOnly(ctx.actor)
+				? undefined
+				: ((await deps.repos.planApprovals.forRun(id)) ?? undefined),
 			planRun: {
 				...projectPlanRun(planRun, ctx.actor),
 				planName: await planName(deps, planRun.projectId, planRun.planId),
@@ -214,12 +224,12 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 									child.runId !== null
 										? await loadReviewMergeResult(deps.repos, child.runId)
 										: null,
-								metrics: await loadTaskMetrics(
+								...(await loadTaskObservations(
 									deps.repos,
 									planRun.projectId,
 									child,
 									(deps.now?.() ?? new Date()).getTime(),
-								),
+								)),
 								budget: budgets.get(child.seq) ?? null,
 								reviewFailure:
 									child.runId !== null ? await loadReviewFailure(deps.repos, child.runId) : null,

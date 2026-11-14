@@ -1,38 +1,4 @@
-/**
- * Warren-owned preview sidecar registry (warren-4bf3, plan pl-3007 phase 3).
- * Lifted from burrow's `src/server/sidecars.ts` and re-homed onto the
- * internalized sandbox so the per-run preview seam no longer talks to the
- * burrow daemon's `POST /burrows/:id/sidecars` HTTP API.
- *
- * Sidecars are long-lived non-agent processes scoped to a run's sandbox.
- * Warren's R-19 per-run preview environments are the load-bearing consumer:
- * after the agent run terminates, warren spawns `preview.command` (e.g.
- * `bun run dev`) as a sidecar inside the same sandbox profile the agent
- * used and routes external HTTP traffic at it via an inbound port-forward
- * (`src/sandbox/inbound-forward.ts`).
- *
- * Lifecycle model (parity with the burrow registry it replaces):
- *   - Storage is in-memory (per warren server process). Sidecars are
- *     ephemeral — a server restart drops them, exactly as a burrow daemon
- *     restart did. Re-spawning across restarts is the preview subsystem's
- *     job (it re-launches from the preview row).
- *   - Each sidecar spawns through warren's own `runSandboxed`
- *     (`src/sandbox/sandbox.ts`) against the run's stored `SandboxProfile`
- *     — the same profile the agent used — resolved via the injected
- *     `profileFor` lookup (backed by the LocalProvider's run store).
- *   - Per-sandbox cap (default 4, override via `WARREN_SIDECAR_CAP`)
- *     bounds blast radius; over-cap creates throw
- *     `SidecarCapExceededError`.
- *   - `cascadeDelete` is the cleanup hook the LocalProvider's `terminate`
- *     calls so a torn-down sandbox never leaves a dev server bound to a
- *     host port.
- *
- * One behavior tighten versus burrow: a spawn or forward-bind failure
- * THROWS (with the sidecar cleaned up) instead of returning a
- * `state: "failed"` record. Burrow's HTTP handler returned 201 either
- * way, so a failed spawn surfaced downstream as a `connect_timeout`;
- * throwing lets the launch flow report the accurate `create_failed`.
- */
+/** Per-run native preview processes with bounded logs, isolated lifecycle and cascade teardown. */
 
 import { NotFoundError, ValidationError, WarrenError } from "../../../core/errors.ts";
 import {
@@ -40,8 +6,8 @@ import {
 	type StartForwardOptions,
 	startInboundForward,
 } from "../../../sandbox/inbound-forward.ts";
-import { runSandboxed } from "../../../sandbox/sandbox.ts";
 import type { SandboxProfile, SpawnCommand, SpawnResult } from "../../../sandbox/types.ts";
+import { spawnPreviewProcess } from "./process.ts";
 
 const DEFAULT_CAP = 4;
 
@@ -97,7 +63,7 @@ export interface LocalSidecarRegistryDeps {
 	 * which surfaces as `NotFoundError` on create and `has() === false`.
 	 */
 	readonly profileFor: (sandboxId: string) => SandboxProfile | null;
-	/** Test seam: alternate sandboxed-spawn impl (defaults to `runSandboxed`). */
+	/** Test seam: alternate sandboxed-spawn impl (defaults to `runHostProcess`). */
 	readonly spawn?: SidecarSpawnFn;
 	/** Test seam: alternate inbound-forward starter. */
 	readonly startForward?: ForwardStarter;
@@ -188,7 +154,7 @@ export class LocalSidecarRegistry {
 
 	constructor(private readonly deps: LocalSidecarRegistryDeps) {
 		this.cap = deps.cap ?? resolveCap();
-		this.spawn = deps.spawn ?? runSandboxed;
+		this.spawn = deps.spawn ?? spawnPreviewProcess;
 		this.startForward = deps.startForward ?? startInboundForward;
 		this.logCap = deps.logCapBytes ?? DEFAULT_LOG_CAP;
 	}
@@ -264,6 +230,7 @@ export class LocalSidecarRegistry {
 				session.message = err instanceof Error ? err.message : String(err);
 				session.state = "failed";
 				proc.cancel();
+				await proc.exited;
 				throw new WarrenSidecarSpawnError(session.message);
 			}
 		}
@@ -349,6 +316,7 @@ export class LocalSidecarRegistry {
 		} catch {
 			// already gone
 		}
+		await session.process?.exited;
 		await session.forward?.stop().catch(() => undefined);
 		session.forward = null;
 	}

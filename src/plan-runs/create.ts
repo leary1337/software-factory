@@ -1,3 +1,5 @@
+import type { ReadinessEvidence } from "../core/readiness.ts";
+import { freezeTrackerPlan } from "./approval-legacy.ts";
 /**
  * Plan-run creation orchestration (warren-e240 / pl-882c step 8).
  *
@@ -49,6 +51,9 @@ export const PLAN_RUN_ACCEPTED_PLAN_STATUSES: readonly PlanStatus[] = [
 ];
 
 export interface CreatePlanRunOrchestrationInput {
+	readonly readiness?: ReadinessEvidence;
+	readonly commandKey?: string;
+	readonly resolveToolkitVersion?: () => Promise<string>;
 	readonly projectId: string;
 	/**
 	 * Tracker plan id (`pl-XXXX`) — the classic form. Mutually exclusive
@@ -307,8 +312,16 @@ export async function createPlanRun(
 		throw new NotFoundError(`agent not found: ${input.agentName}`);
 	}
 
+	const approval = await freezeTrackerPlan(
+		input,
+		dispatchProject,
+		tracker,
+		childIds,
+		agent.renderedJson,
+	);
 	// (5/6) persist.
 	return input.repos.planRuns.create({
+		approvalId: approval.id,
 		planId,
 		source,
 		projectId: project.id,

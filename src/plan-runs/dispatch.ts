@@ -1,4 +1,8 @@
 import { resolvePollTarget } from "../runs/pr-merge.ts";
+import { approvalMetadata, loadTaskApproval } from "./approved-dispatch.ts";
+import { budgetedSpawnOptions, reserveDispatchAttempt } from "./attempt-dispatch.ts";
+import { recoveryBaseCommit } from "./recovery-source.ts";
+import { attachTaskAttemptRun } from "./task-budget.ts";
 /**
  * Spawn wrapper for the PlanRun coordinator (pl-a258 step 5 / warren-2623).
  *
@@ -92,6 +96,9 @@ async function reviewBaseBranch(
 export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorSpawnFn {
 	const spawnRunFn = input.spawnRunFn ?? spawnRun;
 	return async ({
+		recoveryOf,
+		attemptKey,
+		attemptKind,
 		planRun,
 		child,
 		prompt,
@@ -102,10 +109,44 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 		onRunCreated,
 	}) => {
 		const project = await input.repos.projects.require(planRun.projectId);
+		const approval = await loadTaskApproval(input.repos, planRun.id, child.seq);
+		const reservation = await reserveDispatchAttempt(
+			input.repos,
+			approval,
+			{
+				planRun,
+				child,
+				prompt,
+				attemptKey,
+				attemptKind,
+			},
+			agentName,
+		);
+		if (reservation?.runId) {
+			await onRunCreated?.(reservation.runId);
+			return { runId: reservation.runId };
+		}
 		const ref = planRun.ref ?? project.defaultBranch;
 		const gitCredential =
 			input.forge === undefined ? undefined : await mintGitCredential(input.forge, project.gitUrl);
 		const budget = await preparePlanRunBudget(input, { planRun, child }, project, gitCredential);
+		const frozenOptions = await budgetedSpawnOptions(
+			input.repos,
+			approval,
+			agentName,
+			planRun.id,
+			child.seq,
+			input.now,
+		);
+		baseCommit = await recoveryBaseCommit({
+			fallback: baseCommit,
+			repos: input.repos,
+			recoveryOf,
+			projectId: project.id,
+			localPath: project.localPath,
+			role: agentName,
+			spawn: input.projectSpawn,
+		});
 		const result = await spawnRunFn({
 			repos: input.repos,
 			runtimeProvider: input.runtimeProvider,
@@ -116,9 +157,11 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 			projectId: planRun.projectId,
 			prompt,
 			trigger: "plan-run",
+			retryOf: recoveryOf,
 			baseCommit,
 			reviewFindings,
 			onRunRowCreated: async (runId) => {
+				if (reservation) await attachTaskAttemptRun(input.repos, reservation.key, runId);
 				if (budget) {
 					const now = (input.now ?? (() => new Date()))();
 					const anchor = child.runId ?? runId;
@@ -139,23 +182,23 @@ export function createPlanRunSpawn(input: CreatePlanRunSpawnInput): CoordinatorS
 			dispatchOrigin: "plan_run",
 			...(existingBranch === undefined ? { seedId: child.seedId } : {}),
 			...planRunOverrides(planRun),
+			...frozenOptions,
 			...(existingBranch !== undefined ? { existingBranch } : { ref }),
 			metadata: {
 				planRunId: planRun.id,
 				planId: planRun.planId,
 				childSeq: child.seq,
+				...approvalMetadata(approval),
 			},
 			projectsConfig: input.projectsConfig,
 			projectSpawn: input.projectSpawn,
 			gitCredential,
 			warrenConfigs: input.warrenConfigs,
-			seedsCli: input.seedsCli,
-			...(input.issueTracker !== undefined ? { issueTracker: input.issueTracker } : {}),
+			seedsCli: approval?.snapshot.taskSource === "internal" ? undefined : input.seedsCli,
+			issueTracker: approval?.snapshot.taskSource === "internal" ? undefined : input.issueTracker,
 			dispatcherHandle: planRun.dispatcherHandle,
-			...(input.runBranchPrefixDefault !== undefined
-				? { runBranchPrefixDefault: input.runBranchPrefixDefault }
-				: {}),
-			...(input.now !== undefined ? { now: input.now } : {}),
+			runBranchPrefixDefault: input.runBranchPrefixDefault,
+			now: input.now,
 		});
 		input.bridges.start(result.run.id, result.sandboxRun.id, result.sandbox.id);
 		return { runId: result.run.id };

@@ -2,7 +2,7 @@
  * Server entry for the ui-visual fixture boot (warren-010b): the REAL
  * warren server, booted through `bootServer`'s existing `now` seam with
  * the clock pinned to `WARREN_UI_VISUAL_NOW` (epoch ms). Mirrors the
- * scenario-43 precedent (`scripts/acceptance/lib/remote-tracker-server-entry.ts`).
+ * the acceptance fixture boot seam.
  *
  * Unlike `src/server/main/index.ts`, this entry owns SIGTERM/SIGINT: it
  * calls `stop()` and exits 0, so the fixture boot's shutdown is clean

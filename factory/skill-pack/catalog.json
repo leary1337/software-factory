@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    { "source": "owner", "directory": "owner/skills", "audiences": ["personal"] },
+    { "source": "mattpocock", "directory": "mattpocock/skills", "audiences": ["personal", "factory"] },
+    { "source": "factory", "directory": "factory/skills", "audiences": ["personal", "factory"] },
+    { "source": "pstack", "directory": "pstack/skills", "audiences": ["personal", "factory"] }
+  ],
+  "overrides": { "tdd": "mattpocock" },
+  "personalOnly": ["automate-me", "make-bot-ui", "reflect", "setup-pstack"],
+  "resources": ["pstack/.claude-plugin", "pstack/agents", "pstack/docs", "rules"]
+}

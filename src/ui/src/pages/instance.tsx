@@ -1,7 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { metaApi } from "@/api/client.ts";
 import type { InstanceFactsResponse } from "@/api/instance-types.ts";
+import { SidebarFooter } from "@/components/console/console-sidebar.tsx";
+import { Alert } from "@/components/ui/alert.tsx";
+import { Spinner } from "@/components/ui/spinner.tsx";
+import { formatError } from "@/lib/format-error.ts";
 import { cn } from "@/lib/utils.ts";
+import { ToolkitSettings } from "./toolkit-settings.tsx";
 
 /**
  * The Direction C Instance page (warren-e680 / pl-7e38 step 18) —
@@ -19,7 +25,7 @@ import { cn } from "@/lib/utils.ts";
 
 /** Runtime kind → the label the console's vocabulary uses. */
 const RUNTIME_LABELS: Record<InstanceFactsResponse["runtime"], string> = {
-	local: "local · bwrap",
+	local: "local process",
 	docker: "docker · sibling container",
 };
 
@@ -330,14 +336,48 @@ export function InstancePage() {
 		<div className="flex min-h-full flex-col gap-3.5 px-3.5 pt-6 pb-12 md:gap-5 md:px-6">
 			<header className="flex flex-col gap-1.5">
 				<h1 className="font-semibold text-(--color-text) text-[17px] leading-[22px] tracking-[-0.025em] md:text-[22px] md:leading-7">
-					Instance
+					Settings
 				</h1>
 				<p className="max-w-prose text-(--color-text-2) text-xs leading-4 md:text-sm md:leading-[18px]">
-					Server settings, read-only. Configure via environment or a project&apos;s
-					.warren/config.yaml.
+					Shared tools and local connection. Choose execution profiles in each project.
 				</p>
 			</header>
-			<InstancePageBody facts={facts.data} />
+			<div className="md:hidden">
+				<SidebarFooter />
+			</div>
+			<ToolkitSettings />
+			<section className="space-y-2 rounded-xl border border-(--color-border) p-4">
+				<h2 className="font-semibold text-base">Connection</h2>
+				<p className="text-(--color-text-2) text-sm">
+					This browser controls the factory at {window.location.origin}.
+				</p>
+				<p className="text-(--color-text-2) text-sm">
+					Closing this page does not stop tasks. Reopen it to restore their current state. The Mac
+					must stay powered on and awake; device interruption is reported separately.
+				</p>
+			</section>
+			<details>
+				<summary className="cursor-pointer text-sm">Diagnostics</summary>
+				<nav
+					aria-label="Diagnostics"
+					className="my-4 flex flex-wrap gap-4 text-(--color-primary) text-sm"
+				>
+					<Link to="/runs">Executions</Link>
+					<Link to="/agents">Agent definitions</Link>
+					<Link to="/telemetry">Telemetry</Link>
+					<Link to="/ops">Operations</Link>
+					<Link to="/setup">Connection setup</Link>
+				</nav>
+				{facts.isPending ? (
+					<Spinner label="Loading instance facts" />
+				) : facts.isError ? (
+					<Alert variant="danger" title="Could not load instance facts">
+						{formatError(facts.error)}
+					</Alert>
+				) : (
+					<InstancePageBody facts={facts.data} />
+				)}
+			</details>
 		</div>
 	);
 }

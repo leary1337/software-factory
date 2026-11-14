@@ -1,23 +1,8 @@
-/**
- * `LocalProvider` — the self-host / single-container `RuntimeProvider`
- * (contract in `../contract.ts`).
- *
- * As of warren-ea0a (plan pl-3007 phase 3) the provider is IN-PROCESS only:
- * it spawns agents through the warren-owned sandbox (`src/sandbox/`,
- * warren-5af7) driven by the host-side drive loop (`./drive.ts`, shaped on
- * the k8s in-pod entrypoint, warren-0efe). Workspaces materialize warren-side
- * (`src/workspace/materialize.ts`); events persist directly into the
- * in-process run store (`./run-store.ts`). Method bodies live in
- * `./engine.ts` (`LocalEngine`). The legacy burrow-backed mode — and the
- * `src/burrow-client/` facade it wrapped — are deleted.
- *
- * `finalize` runs the SAME host-side reap merge functions the legacy mode
- * did — only the workspace-path resolution + tracker reads differ (run store
- * + host FS); `src/runs/reap/**` is untouched.
- */
+/** LocalProvider owns trusted Codex process execution, workspace lifecycle and Git delivery. */
 
 import type { ReapExec, ReapFs } from "../../runs/reap/types.ts";
 import type { EnvLike } from "../../runs/spawn/callback-env.ts";
+import { CODEX_RUNTIME_ID } from "../adapters/codex.ts";
 import type {
 	FinalizeIntent,
 	FinalizeResult,
@@ -35,6 +20,8 @@ import type {
 } from "../contract.ts";
 import type { DriveDeps } from "./drive.ts";
 import { LocalEngine, type SidecarCascade } from "./engine.ts";
+import { assertLocalProcessPlatform } from "./execution-mode.ts";
+import { resolveCodexExecutable } from "./process-spawn.ts";
 import type { LocalRunStore } from "./run-store.ts";
 
 /** Dependencies the provider methods wrap. */
@@ -76,27 +63,31 @@ export interface LocalProviderDeps {
  */
 export const LOCAL_PROVIDER_CAPABILITIES: RuntimeCapabilities = Object.freeze({
 	previewPorts: true,
-	networkPolicy: "domain-allowlist",
+	networkPolicy: "none",
 	longLived: true,
 	midRunSteering: true,
-	enforcedResourceLimits: true,
+	enforcedResourceLimits: false,
 	workspaceArchive: true,
 	workspaceGc: true,
 });
 
 export class LocalProvider implements RuntimeProvider {
-	readonly capabilities: RuntimeCapabilities = LOCAL_PROVIDER_CAPABILITIES;
+	readonly capabilities: RuntimeCapabilities;
 	readonly kind = "local" as const;
 
 	private readonly engine: LocalEngine;
 
 	constructor(deps: LocalProviderDeps = {}) {
+		const env = deps.serverEnv ?? process.env;
+		assertLocalProcessPlatform(env);
+		const drive: DriveDeps = { ...deps.drive, codexBin: resolveCodexExecutable(env) };
+		this.capabilities = LOCAL_PROVIDER_CAPABILITIES;
 		this.engine = new LocalEngine({
 			...(deps.serverEnv !== undefined ? { serverEnv: deps.serverEnv } : {}),
 			...(deps.store !== undefined ? { store: deps.store } : {}),
 			...(deps.fs !== undefined ? { fs: deps.fs } : {}),
 			...(deps.exec !== undefined ? { exec: deps.exec } : {}),
-			...(deps.drive !== undefined ? { drive: deps.drive } : {}),
+			drive,
 			...(deps.sidecars !== undefined ? { sidecars: deps.sidecars } : {}),
 		});
 	}
@@ -106,7 +97,9 @@ export class LocalProvider implements RuntimeProvider {
 	 * and start the drive loop (`./engine.ts`).
 	 */
 	create(spec: RunSpec): Promise<RunHandle> {
-		return this.engine.create(spec);
+		if (spec.runtimeId !== CODEX_RUNTIME_ID)
+			throw new Error("Local process execution currently supports only Codex");
+		return this.engine.create({ ...spec, network: "open" });
 	}
 
 	/** Ordered, resumable, lossless event stream (see ./engine.ts). */

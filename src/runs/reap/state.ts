@@ -1,6 +1,6 @@
 import type { Repos } from "../../db/repos/index.ts";
 import type { RunFailureReason, RunTerminalState } from "../../db/schema.ts";
-import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../../runtime/container/agent-uid-drop.ts";
+import { UID_DROP_PREFLIGHT_ERROR_PREFIX } from "../../runtime/launch-errors.ts";
 import { backfillTerminalUsage } from "../usage-hydrate.ts";
 
 export function isTerminal(state: string): boolean {
@@ -99,7 +99,7 @@ function isSpawnExecErrorEvent(ev: EventRowLike): boolean {
 /**
  * True for the K8s entrypoint's uid-drop preflight refusal (warren-950d).
  * The in-pod entrypoint emits it on `stream=system` before ever spawning the
- * agent (`src/runtime/container/agent-uid-drop.ts`), so the run has zero model
+ * agent, so the historical run has zero model
  * turns and — without this arm — collapsed into `no_model_response`, which
  * reads as a credential/provider fault. It is a spawn-class infrastructure
  * failure: the agent process was never started. Anchored to the system
@@ -156,7 +156,14 @@ function sawModelTurnEvent(events: readonly EventRowLike[]): boolean {
  */
 export async function detectSpawnExecFailure(repos: Repos, runId: string): Promise<boolean> {
 	const events = await repos.events.listByRun(runId);
-	return !sawModelTurnEvent(events) && events.some(isSpawnClassFailureEvent);
+	return (
+		!sawModelTurnEvent(events) &&
+		events.some(
+			(event) =>
+				isSpawnClassFailureEvent(event) ||
+				(event.stream === "system" && event.kind === "preparation.failed"),
+		)
+	);
 }
 
 /** Read the text body out of an event payload (string or `{text}` shape). */
@@ -182,6 +189,8 @@ export async function inferFailureReason(
 	// implies the agent was spawned and ran (stdin-held runtimes only arm the
 	// watchdog after a successful spawn), so spawn/sandbox arms can never apply.
 	if (events.some(isStdinHoldTimeoutEvent)) return "agent_died";
+	if (events.some((event) => event.stream === "system" && event.kind === "preparation.failed"))
+		return "spawn_failed";
 	if (sawModelTurnEvent(events)) return "crashed";
 	// warren-4e2a: the spawn-exec arm wins over the sandbox arm — a
 	// spawn that never exec'd is an infra fault one level below a sandbox

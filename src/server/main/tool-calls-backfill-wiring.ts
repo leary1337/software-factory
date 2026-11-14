@@ -20,12 +20,14 @@ export interface BootToolCallsBackfillInput {
 	readonly logger: Logger;
 }
 
-/** Kick one backfill pass; never awaited, never crashes boot. */
-export function bootToolCallsBackfill(input: BootToolCallsBackfillInput): void {
-	void backfillToolCallRollup(input.repos, { logger: input.logger }).catch((err) => {
-		input.logger.warn(
-			{ err: err instanceof Error ? err.message : String(err) },
-			"tool-calls rollup backfill failed; will retry next boot",
-		);
-	});
+/** Kick one backfill pass; does not block boot; shutdown can drain it. */
+export function bootToolCallsBackfill(input: BootToolCallsBackfillInput): Promise<void> {
+	return backfillToolCallRollup(input.repos, { logger: input.logger })
+		.then(() => {})
+		.catch((err) => {
+			input.logger.warn(
+				{ err: err instanceof Error ? err.message : String(err) },
+				"tool-calls rollup backfill failed; will retry next boot",
+			);
+		});
 }

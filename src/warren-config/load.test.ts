@@ -34,6 +34,23 @@ function fs(files: Record<string, string>, opts?: { withDir?: boolean }): FsHarn
 }
 
 describe("loadWarrenConfig", () => {
+	test("disables old patrol triggers with a visible warning while retaining approved schedules", async () => {
+		const triggers = ["nightwatch", "bugwatch", "implementer"].map((role) => ({
+			id: role,
+			role,
+			kind: "cron",
+			cron: "0 3 * * *",
+			prompt: "approved task",
+		}));
+		const result = await loadWarrenConfig({
+			projectPath: PROJECT,
+			...fs({ [TRIGGERS_PATH]: JSON.stringify(triggers) }),
+		});
+		expect(result.triggers?.map((trigger) => trigger.role)).toEqual(["implementer"]);
+		expect(result.warnings[0]?.message).toContain("Automatic patrols are retired");
+		expect(result.errors).toEqual([]);
+	});
+
 	test("project clone missing on disk → throws WarrenConfigUnavailableError", async () => {
 		await expect(
 			loadWarrenConfig({

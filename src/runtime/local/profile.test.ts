@@ -2,17 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { KNOWN_PROVIDER_NAMES, PROVIDER_ENV_REGISTRY } from "../../core/providers.ts";
 import { makePrivateGitFixture } from "../../sandbox/git-scope.test-helpers.ts";
 import { resolvePrivateGitScope } from "../../sandbox/git-scope.ts";
 import type { MaterializedWorkspace } from "../../workspace/materialize.ts";
 import type { RunSpec } from "../contract.ts";
 import {
 	buildLocalSandboxProfile,
-	DEFAULT_ALLOWED_DOMAINS,
-	PI_PROVIDER_ENV_KEYS,
-	parseSandboxSection,
-	readLocalSandboxConfig,
 	resolveEnvPassthrough,
 	resolveToolchainPaths,
 } from "./profile.ts";
@@ -47,56 +42,8 @@ describe("resolveEnvPassthrough", () => {
 		expect(resolveEnvPassthrough("claude-code", undefined)).toContain("CLAUDE_CODE_OAUTH_TOKEN");
 	});
 
-	test("returns the pi base allowlist with no provider override", () => {
-		expect(resolveEnvPassthrough("pi", undefined)).toEqual([
-			"ANTHROPIC_API_KEY",
-			"ANTHROPIC_AUTH_TOKEN",
-			"ANTHROPIC_BASE_URL",
-			"EXA_API_KEY",
-		]);
-	});
-
-	test("unions the provider key delta for a non-anthropic pi provider", () => {
-		expect(resolveEnvPassthrough("pi", { provider: "openai" })).toContain("OPENAI_API_KEY");
-		expect(resolveEnvPassthrough("pi", { provider: "google" })).toContain("GEMINI_API_KEY");
-		// case-insensitive, matching burrow's normalization
-		expect(resolveEnvPassthrough("pi", { provider: "OpenAI" })).toContain("OPENAI_BASE_URL");
-	});
-
-	test("forwards OPENCODE_API_KEY for an opencode-go pi run", () => {
-		const passthrough = resolveEnvPassthrough("pi", { provider: "opencode-go" });
-		expect(passthrough).toContain("OPENCODE_API_KEY");
-		expect(passthrough).toContain("ANTHROPIC_API_KEY");
-	});
-
-	test("warren-81e0: forwards the openrouter key set for an openrouter pi run", () => {
-		// Regression: a project `defaultProvider: openrouter` (e.g. warren's own
-		// `.warren/config.yaml`) folds onto the pi argv as `--provider openrouter`,
-		// but the burrow-inherited PI_PROVIDER_ENV_KEYS lacked openrouter, so the
-		// key never entered the sandbox/container and pi died with
-		// "No API key found for openrouter" despite the operator holding it.
-		const passthrough = resolveEnvPassthrough("pi", { provider: "openrouter" });
-		expect(passthrough).toContain("OPENROUTER_API_KEY");
-		expect(passthrough).toContain("OPENROUTER_BASE_URL");
-		expect(passthrough).toContain("ANTHROPIC_API_KEY"); // base rides along
-	});
-
-	test("warren-81e0: PI_PROVIDER_ENV_KEYS covers the canonical provider registry", () => {
-		// Drift guard: every non-anthropic provider in PROVIDER_ENV_REGISTRY
-		// (src/core/providers.ts) must contribute its full key set here, so the
-		// local/docker passthrough can never again lag dispatch-time vocabulary.
-		for (const name of KNOWN_PROVIDER_NAMES) {
-			if (name === "anthropic") continue;
-			const registration = PROVIDER_ENV_REGISTRY[name];
-			for (const key of [...registration.envKeys, ...registration.optionalEnvKeys]) {
-				expect(PI_PROVIDER_ENV_KEYS[name]).toContain(key);
-			}
-		}
-	});
-
-	test("keeps the pi base for the default provider and unknown providers", () => {
-		expect(resolveEnvPassthrough("pi", { provider: "anthropic" })).not.toContain("OPENAI_API_KEY");
-		expect(resolveEnvPassthrough("pi", { provider: "mystery" })).not.toContain("OPENAI_API_KEY");
+	test("forwards no credentials to retired Pi", () => {
+		expect(resolveEnvPassthrough("pi", { provider: "openai" })).toEqual([]);
 	});
 
 	test("returns no passthrough for an unknown runtime", () => {
@@ -108,13 +55,13 @@ describe("resolveToolchainPaths", () => {
 	// The macOS git preflight records a /usr/bin/git substitution on
 	// process.env (warren-1219). Another suite's real preflight can leave it
 	// set, which would leak /usr/bin into these injected-`which` results.
-	const savedSandboxGit = process.env.WARREN_SANDBOX_GIT;
+	const savedSandboxGit = process.env.WARREN_GIT_BIN;
 	beforeEach(() => {
-		delete process.env.WARREN_SANDBOX_GIT;
+		delete process.env.WARREN_GIT_BIN;
 	});
 	afterEach(() => {
-		if (savedSandboxGit === undefined) delete process.env.WARREN_SANDBOX_GIT;
-		else process.env.WARREN_SANDBOX_GIT = savedSandboxGit;
+		if (savedSandboxGit === undefined) delete process.env.WARREN_GIT_BIN;
+		else process.env.WARREN_GIT_BIN = savedSandboxGit;
 	});
 
 	// Empty third arg suppresses the host bun-install auto-grant so these
@@ -160,61 +107,6 @@ describe("resolveToolchainPaths", () => {
 	});
 });
 
-describe("parseSandboxSection", () => {
-	test("parses the [sandbox] scalars and arrays", () => {
-		const config = parseSandboxSection(
-			[
-				"[sandbox]",
-				'allowed_domains = ["api.anthropic.com", "github.com"]',
-				'read_only_paths = ["~/.claude"]',
-				"memory_limit_mb = 4096",
-				"cpu_limit = 2",
-				"timeout_minutes = 30",
-				"",
-				"[env]",
-				'ignored = "yes"',
-			].join("\n"),
-		);
-		expect(config.allowedDomains).toEqual(["api.anthropic.com", "github.com"]);
-		expect(config.readOnlyPaths).toEqual(["~/.claude"]);
-		expect(config.memoryLimitMb).toBe(4096);
-		expect(config.cpuLimit).toBe(2);
-		expect(config.timeoutMs).toBe(30 * 60_000);
-	});
-
-	test("ignores keys outside [sandbox] and malformed values", () => {
-		const config = parseSandboxSection('[other]\nmemory_limit_mb = 1\n[sandbox]\ncpu_limit = "x"');
-		expect(config.memoryLimitMb).toBeUndefined();
-		expect(config.cpuLimit).toBeUndefined();
-	});
-
-	test("returns an empty config for an empty body", () => {
-		expect(parseSandboxSection("")).toEqual({});
-	});
-});
-
-describe("readLocalSandboxConfig", () => {
-	test("reads burrow.toml off the project root", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			writeFileSync(join(root, "burrow.toml"), "[sandbox]\nmemory_limit_mb = 2048\n");
-			const config = await readLocalSandboxConfig(root);
-			expect(config.memoryLimitMb).toBe(2048);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
-	test("yields an empty config when no burrow.toml exists", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			expect(await readLocalSandboxConfig(root)).toEqual({});
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-});
-
 describe("buildLocalSandboxProfile", () => {
 	test("applies the factory runtime deadline when no project or run limit is set", async () => {
 		const profile = await buildLocalSandboxProfile({
@@ -226,14 +118,15 @@ describe("buildLocalSandboxProfile", () => {
 		expect(profile.timeoutMs).toBe(20 * 60_000);
 	});
 
-	test("a project with no burrow.toml gets the default allowlist", async () => {
+	test("uses an open host network without an OS allowlist", async () => {
 		const profile = await buildLocalSandboxProfile({
 			spec: makeSpec({ network: "restricted" }),
 			env: {},
 			workspace: fakeWorkspace(),
 			homePath: "/tmp/home",
 		});
-		expect(profile.allowedDomains).toEqual([...DEFAULT_ALLOWED_DOMAINS]);
+		expect(profile.allowedDomains).toEqual([]);
+		expect(profile.network).toBe("open");
 	});
 
 	test("binds the workspace and the separate writable HOME (warren-c865)", async () => {
@@ -313,48 +206,6 @@ describe("buildLocalSandboxProfile", () => {
 		expect(profile.workspaceGit).toBeUndefined();
 	});
 
-	test("per-run resources win over burrow.toml limits", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			writeFileSync(join(root, "burrow.toml"), "[sandbox]\nmemory_limit_mb = 1024\n");
-			const profile = await buildLocalSandboxProfile({
-				spec: makeSpec({
-					hostClonePathHint: root,
-					resources: { memoryMiB: 8192, cpuMillicores: 1500 },
-				}),
-				env: {},
-				workspace: fakeWorkspace(),
-				homePath: "/tmp/home",
-			});
-			expect(profile.memoryLimitMb).toBe(8192);
-			expect(profile.cpuLimit).toBe(1.5);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
-	test("falls back to burrow.toml limits when the spec is silent", async () => {
-		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
-		try {
-			writeFileSync(
-				join(root, "burrow.toml"),
-				'[sandbox]\nmemory_limit_mb = 3072\nallowed_domains = ["api.anthropic.com"]\ntimeout_minutes = 5\n',
-			);
-			const profile = await buildLocalSandboxProfile({
-				spec: makeSpec({ hostClonePathHint: root, network: "restricted" }),
-				env: {},
-				workspace: fakeWorkspace(),
-				homePath: "/tmp/home",
-			});
-			expect(profile.memoryLimitMb).toBe(3072);
-			expect(profile.allowedDomains).toEqual(["api.anthropic.com"]);
-			expect(profile.timeoutMs).toBe(300_000);
-			expect(profile.network).toBe("restricted");
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
 	test("spec timeoutMs wins over burrow.toml timeout_minutes", async () => {
 		const root = mkdtempSync(join(tmpdir(), "warren-profile-"));
 		try {
@@ -371,7 +222,7 @@ describe("buildLocalSandboxProfile", () => {
 		}
 	});
 
-	test("resolves the pi provider env delta off the run frontmatter", async () => {
+	test("omits retired Pi provider credentials", async () => {
 		const profile = await buildLocalSandboxProfile({
 			spec: makeSpec({ runtimeId: "pi" }),
 			env: {},
@@ -379,12 +230,12 @@ describe("buildLocalSandboxProfile", () => {
 			homePath: "/tmp/home",
 			frontmatter: { provider: "groq" },
 		});
-		expect(profile.envPassthrough).toContain("GROQ_API_KEY");
+		expect(profile.envPassthrough).toEqual([]);
 	});
 });
 
-describe("resolveToolchainPaths (WARREN_SANDBOX_GIT override, warren-1219)", () => {
-	const ENV = "WARREN_SANDBOX_GIT";
+describe("resolveToolchainPaths (WARREN_GIT_BIN override, warren-1219)", () => {
+	const ENV = "WARREN_GIT_BIN";
 
 	afterEach(() => {
 		delete process.env[ENV];

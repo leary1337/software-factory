@@ -8,11 +8,8 @@
  */
 
 import type { ProjectRow } from "../../projects/index.ts";
-import {
-	type DefaultsConfig,
-	type LoadedWarrenConfig,
-	loadWarrenConfig,
-} from "../../warren-config/index.ts";
+import { loadEffectiveProjectConfig } from "../../projects/settings.ts";
+import type { DefaultsConfig, LoadedWarrenConfig } from "../../warren-config/index.ts";
 import { isPublicOnly, pickFields } from "../projection.ts";
 import { jsonResponse } from "../response.ts";
 import type { RouteHandler, ServerDeps } from "../types.ts";
@@ -46,12 +43,16 @@ export const REDACTED_WARREN_CONFIG_FIELDS = [
 	"qualityGate",
 	"acceptance",
 	"planRunBudget",
+	"taskBudgets",
+	"preparation",
+	"memoryEnabled",
 	"migrations",
 	"deploy",
 	"agentImage",
 	"preview",
 	"agent",
 	"interactiveAgents",
+	"executionProfiles",
 	"resources",
 	"admission",
 	"ciFixer",
@@ -73,10 +74,11 @@ export async function loadProjectWarrenConfig(
 	id: string,
 ): Promise<{ project: ProjectRow; loaded: LoadedWarrenConfig }> {
 	const project = await deps.repos.projects.require(id);
-	const loaded =
-		deps.warrenConfigs !== undefined
-			? await deps.warrenConfigs.get(project.id, project.localPath)
-			: await loadWarrenConfig({ projectPath: project.localPath });
+	const loaded = await loadEffectiveProjectConfig({
+		project,
+		settings: deps.repos.projectSettings,
+		warrenConfigs: deps.warrenConfigs,
+	});
 	return { project, loaded };
 }
 

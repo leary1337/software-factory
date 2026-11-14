@@ -4,8 +4,10 @@ import { useWorkspaceReturn } from "@/components/console/workspace-navigation.ts
 import { Alert } from "@/components/ui/alert.tsx";
 import { TaskActivity } from "../tasks/task-activity.tsx";
 import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
+import { taskCopy } from "../tasks/task-copy.ts";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
+import { TaskRecoveryStatus } from "../tasks/task-recovery-status.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
 import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
 import { AttemptHistoryPanel } from "./attempt-history-panel.tsx";
@@ -21,6 +23,7 @@ export function TaskDetail({
 	child: PlanRunChildRow;
 }) {
 	const run = detail.runs.find((entry) => entry.id === child.runId);
+	const approved = detail.approval?.snapshot.tasks.find((task) => task.seq === child.seq);
 	const status = taskStatus(child, detail.planRun);
 	const backToPlan = useWorkspaceReturn(`/plan-runs/${encodeURIComponent(detail.planRun.id)}`);
 	const backToTasks = useWorkspaceReturn("/tasks");
@@ -34,7 +37,7 @@ export function TaskDetail({
 			</Link>
 			<header className="flex flex-wrap items-center gap-3">
 				<h1 className="min-w-0 break-words font-semibold text-xl">
-					{child.title ?? `Task ${child.seq}`}
+					{approved?.title ?? child.title ?? `Task ${child.seq}`}
 				</h1>
 				<span className="rounded border border-(--color-border) px-2 py-1 text-xs">
 					{status.label}
@@ -50,6 +53,9 @@ export function TaskDetail({
 					</a>
 				) : null}
 			</header>
+			<p className="wrap-anywhere whitespace-pre-line text-(--color-text-2) text-sm">
+				{approved?.description ?? taskCopy(run?.prompt, child.title).description}
+			</p>
 			<TaskProgress child={child} plan={detail.planRun} />
 			<Alert
 				className="text-(--color-fg)"
@@ -68,8 +74,13 @@ export function TaskDetail({
 			</p>
 			{status.group === "active" ? <TaskActivity child={child} /> : null}
 			<TaskBudgetPanel child={child} />
+			<TaskRecoveryStatus recovery={child.recovery} />
 			{child.failureReason === "deployment_incident" ? (
-				<DeploymentIncident planRunId={detail.planRun.id} runId={child.runId} />
+				<DeploymentIncident
+					planRunId={detail.planRun.id}
+					runId={child.runId}
+					recovery={child.recovery?.rollback}
+				/>
 			) : null}
 
 			<AttemptHistoryPanel

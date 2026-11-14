@@ -5,7 +5,10 @@ import { resolvePollTarget } from "../runs/pr-merge.ts";
 import { decideAutoMerge } from "../runs/reap/auto-merge-policy.ts";
 import { type AutoMergeSnapshot, readAutoMergeSnapshot } from "../runs/reap/auto-merge-snapshot.ts";
 import type { ReapExec } from "../runs/reap/types.ts";
+import { DefaultsConfigSchema } from "../warren-config/schema.ts";
+import { loadTaskApproval } from "./approved-dispatch.ts";
 import type { CoordinatorMergeFn } from "./coordinator.ts";
+import { planPermissionDecision } from "./permissions.ts";
 import { blockedMerge, mergeForgeProblem, policyMergeProblem } from "./review-merge-problems.ts";
 import type { publishReviewedHead } from "./review-publish.ts";
 import { mergeWithWarren, waitingMerge } from "./review-warren-merge.ts";
@@ -22,14 +25,14 @@ export function createReviewHeadReader(forge: Forge) {
 /** The remote base policy and the exact reviewed head must both authorize merge. */
 interface ReviewSnapshotDeps {
 	forge: Forge;
-	repos: Pick<Repos, "projects">;
+	repos: Pick<Repos, "projects"> & Partial<Pick<Repos, "planApprovals">>;
 	exec: ReapExec;
 	readSnapshot?: typeof readAutoMergeSnapshot;
 	publishHead?: typeof publishReviewedHead;
 }
 
 export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeFn {
-	return async (prUrl, branch, reviewedCommit, projectId) => {
+	return async (prUrl, branch, reviewedCommit, projectId, approvalContext) => {
 		const target = resolvePollTarget(deps.forge, prUrl);
 		if (target.kind === "unparseable")
 			return blockedMerge(
@@ -61,6 +64,9 @@ export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeF
 				"The project has no local checkout for merge verification.",
 				"Restore the project checkout and retry verification.",
 			);
+		const grant = await approvedMergePaths(deps, approvalContext, snapshot);
+		await freezeMergeSettings(deps, approvalContext, snapshot);
+		if (grant.kind === "blocked") return grant.result;
 		return mergeSnapshot(
 			deps,
 			deps.forge,
@@ -71,6 +77,7 @@ export function createReviewedMerge(deps: ReviewSnapshotDeps): CoordinatorMergeF
 			branch,
 			pr.value.baseBranch,
 			projectId,
+			grant.paths,
 		);
 	};
 }
@@ -85,6 +92,7 @@ async function mergeSnapshot(
 	branch: string,
 	baseBranch: string,
 	projectId: string,
+	approvedPlanPaths?: readonly string[],
 ): Promise<ReviewMergeResult> {
 	if (!snapshot.headCommit)
 		return blockedMerge(
@@ -101,6 +109,7 @@ async function mergeSnapshot(
 	const policy = decideAutoMerge({
 		...snapshot,
 		independentlyReviewed: true,
+		approvedPlanPaths,
 		forgeCanArm: snapshot.config?.verification === "warren" || forge.capabilities.autoMergeArm,
 		ciFixerRun: false,
 	});
@@ -244,4 +253,49 @@ export function createReviewChangedPathsReader(deps: ReviewSnapshotDeps) {
 		// as a transient unreadable diff. The merge policy still refuses them.
 		return snapshot.changedPaths.kind === "unsafe" ? [] : snapshot.changedPaths.paths;
 	};
+}
+
+async function approvedMergePaths(
+	deps: ReviewSnapshotDeps,
+	context: { planRunId: string; seq: number } | undefined,
+	snapshot: AutoMergeSnapshot,
+): Promise<{ kind: "allowed"; paths?: string[] } | { kind: "blocked"; result: ReviewMergeResult }> {
+	if (!context) return { kind: "allowed" };
+	const approval = await deps.repos.planApprovals?.forRun(context.planRunId);
+	if (!approval) return { kind: "allowed" };
+	if (snapshot.changedPaths.kind !== "changed" || snapshot.diffText === undefined)
+		return {
+			kind: "blocked",
+			result: blockedMerge(
+				"permission_diff_unavailable",
+				"Cannot verify special changes against the approved plan.",
+				"Restore diff access and retry verification.",
+			),
+		};
+	const decision = planPermissionDecision(
+		approval.snapshot,
+		context.seq,
+		snapshot.changedPaths.paths,
+		snapshot.diffText,
+	);
+	if (decision.blocked.length)
+		return {
+			kind: "blocked",
+			result: blockedMerge(
+				"plan_permission_required",
+				`The approved plan does not permit: ${decision.blocked.map((item) => `${item.kind}: ${item.path}`).join(", ")}`,
+				"Approve a specific remaining-plan revision before retrying review.",
+			),
+		};
+	return { kind: "allowed", paths: decision.allowed };
+}
+
+async function freezeMergeSettings(
+	deps: ReviewSnapshotDeps,
+	context: { planRunId: string; seq: number } | undefined,
+	snapshot: AutoMergeSnapshot,
+) {
+	if (!context) return;
+	const frozen = await loadTaskApproval(deps.repos, context.planRunId, context.seq);
+	if (frozen) snapshot.config = DefaultsConfigSchema.parse(frozen.snapshot.settings).pr?.autoMerge;
 }

@@ -16,11 +16,11 @@ describe("spawnRun: per-agent tool policy (warren-8dee)", () => {
 		await db.close();
 	});
 
-	test("forwards frontmatter.tools as burrow run metadata so pi can build --tools/--exclude-tools", async () => {
+	test("forwards frontmatter.tools as burrow run metadata to the runtime adapter", async () => {
 		await repos.agents.upsert({
-			name: "pi",
+			name: "codex",
 			renderedJson: makeAgentJson({
-				name: "pi",
+				name: "codex",
 				frontmatter: {
 					source: "builtin",
 					tools: { allow: ["read", "grep"], deny: ["write"], noBuiltins: true },
@@ -31,7 +31,7 @@ describe("spawnRun: per-agent tool policy (warren-8dee)", () => {
 		await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "p",
 		});
@@ -48,14 +48,14 @@ describe("spawnRun: per-agent tool policy (warren-8dee)", () => {
 
 	test("omits frontmatter.tools when the agent declares no policy", async () => {
 		await repos.agents.upsert({
-			name: "pi",
-			renderedJson: makeAgentJson({ name: "pi", frontmatter: { source: "builtin" } }),
+			name: "codex",
+			renderedJson: makeAgentJson({ name: "codex", frontmatter: { source: "builtin" } }),
 		});
 		const { client, calls } = makeSandboxClient();
 		await spawnRun({
 			repos,
 			runtimeProvider: makeProvider(client),
-			agentName: "pi",
+			agentName: "codex",
 			projectId: "prj_xxxxxxxxxxxx",
 			prompt: "p",
 		});

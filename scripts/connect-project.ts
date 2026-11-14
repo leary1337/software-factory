@@ -1,4 +1,8 @@
 #!/usr/bin/env bun
+import { scaffold } from "../src/projects/template.ts";
+
+export { fillPlaceholders, scaffold } from "../src/projects/template.ts";
+
 /**
  * Connects a repository to the factory. The /connect-project command drives it.
  *
@@ -9,24 +13,15 @@
  */
 
 import { spawnSync } from "node:child_process";
-import {
-	cpSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	statSync,
-	writeFileSync,
-} from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { Command } from "commander";
 import { load } from "js-yaml";
 import { parseDefaultsConfig } from "../src/warren-config/schema.ts";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
 const CONNECT_DIR = join(REPO_ROOT, "factory", "connect");
-const TEMPLATE_DIR = join(REPO_ROOT, "factory", "template");
 const BRANCH = "factory/connect";
 const TEMPLATE_GATE = "./scripts/check.sh";
 
@@ -65,28 +60,6 @@ export function upsertAgentSkillsBlock(existing: string): string {
 /** CLAUDE.md wins when both or only it exists; AGENTS.md is the default. */
 export function chooseAgentsFile(dir: string): string {
 	return existsSync(join(dir, "CLAUDE.md")) ? "CLAUDE.md" : "AGENTS.md";
-}
-
-export function fillPlaceholders(text: string, project: string, module: string): string {
-	return text.replaceAll("__PROJECT__", project).replaceAll("__MODULE__", module);
-}
-
-function walkFiles(dir: string): string[] {
-	return readdirSync(dir).flatMap((name) => {
-		const path = join(dir, name);
-		return statSync(path).isDirectory() ? walkFiles(path) : [path];
-	});
-}
-
-/** Copy the project template into `dir`, filling in its name and Go module. */
-export function scaffold(dir: string, project: string, module: string): void {
-	cpSync(TEMPLATE_DIR, dir, { recursive: true });
-	for (const file of walkFiles(dir)) {
-		if (file.includes("/node_modules/") || basename(file) === "bun.lock") continue;
-		const text = readFileSync(file, "utf8");
-		const filled = fillPlaceholders(text, project, module);
-		if (filled !== text) writeFileSync(file, filled);
-	}
 }
 
 /** Keep existing config byte-for-byte, but never silently ignore the requested gate. */
@@ -134,7 +107,6 @@ function run(command: string[], cwd: string): string {
 
 function initTrackers(dir: string): void {
 	if (!existsSync(join(dir, ".seeds"))) run(["sd", "init"], dir);
-	if (!existsSync(join(dir, ".mulch"))) run(["ml", "init"], dir);
 }
 
 function defaultBranchOf(dir: string): string {
@@ -218,7 +190,9 @@ function createNew(name: string, parent: string, shouldRegister: boolean): void 
 
 function main(argv: readonly string[]): void {
 	const command = new Command("bun scripts/connect-project.ts")
-		.description("Connect a project to the local factory. Requires git, gh, sd and ml.")
+		.description(
+			"Connect a project to the local factory. Requires git, gh and sd. Memory remains opt-in.",
+		)
 		.addHelpText(
 			"after",
 			"\nUse $connect-project in Codex for glossary, verification and planning.\nGitHub token access must include the selected project before register.",

@@ -128,6 +128,29 @@ describe("project deployment", () => {
 			changes: [{ sha: "feature", title: "Add feature" }],
 		});
 	});
+	test("uses durable workflow, environment and SHA input overrides for display and dispatch", async () => {
+		await writeFile(join(directory, ".github/workflows/operator.yml"), "name: Operator deploy\n");
+		await createRepos(db).projectSettings.compareAndSet(projectId, 0, {
+			deploy: { workflow: "operator.yml", environment: "staging", shaInput: "approved_sha" },
+		});
+		const displayed = await getProjectDeployOverview(deps, projectId);
+		expect(displayed).toMatchObject({
+			configured: true,
+			workflow: "operator.yml",
+			environment: "staging",
+		});
+		let request: unknown;
+		deploys.dispatch = async (_ref, workflow, branch, inputs) => {
+			request = { workflow, branch, inputs };
+			return { ok: true, value: undefined };
+		};
+		await startProjectDeploy(deps, projectId);
+		expect(request).toEqual({
+			workflow: "operator.yml",
+			branch: "master",
+			inputs: { approved_sha: "a".repeat(40) },
+		});
+	});
 	test("rejects dispatch when active workflow lookup fails", async () => {
 		deploys.listRuns = async () => ({
 			ok: false,

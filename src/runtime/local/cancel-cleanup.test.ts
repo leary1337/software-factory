@@ -15,13 +15,13 @@ const auth = (token: string) =>
 	});
 
 test.skipIf(process.platform !== "darwin")(
-	"cancel drains the real sandbox and saves rotated credentials before returning",
+	"cancel drains the real process and saves rotated credentials before returning",
 	async () => {
 		const root = await realpath(await mkdtemp(join(tmpdir(), "factory-cancel-")));
 		const store = new LocalRunStore();
 		const source = join(root, "auth.json");
 		const adapter: AgentRuntimeAdapter = {
-			runtimeId: "fixture",
+			runtimeId: "codex",
 			harnessStatePrefixes: [],
 			terminalErrorEnvelopeTypes: [],
 			prepareHome: (home: string) => prepareCodexCredentials(home, source),
@@ -32,7 +32,7 @@ test.skipIf(process.platform !== "darwin")(
 					`printf '%s' '${auth("rotated")}' > "$HOME/.codex/auth.json"; echo committed > committed.txt; git add committed.txt; git commit -m work; echo pending > pending.txt; echo $$ > ready.pid; sleep 30`,
 				],
 			}),
-		} as unknown as AgentRuntimeAdapter;
+		};
 		const provider = new LocalProvider({
 			serverEnv: { WARREN_DATA_DIR: join(root, "data") },
 			store,
@@ -59,7 +59,7 @@ test.skipIf(process.platform !== "darwin")(
 				branch: "test/cancel",
 				baseBranch: "main",
 				hostClonePathHint: host,
-				runtimeId: "fixture",
+				runtimeId: "codex",
 				prompt: "wait",
 				network: "none",
 				env: {},

@@ -1,6 +1,6 @@
 /**
  * warren-8d95: `seededArtifactResetPaths` reconstructs the warren-seeded
- * pure-context artifact paths (agent envelope + `.pi/**` + `.seeds/workflow.txt`) from
+ * pure-context artifact paths (agent envelope + `.seeds/workflow.txt`) from
  * the run's stored agent envelope, excluding the mirror-managed `.mulch/` family.
  */
 
@@ -34,7 +34,7 @@ describe("seededArtifactResetPaths", () => {
 		expect(envelope?.contents.endsWith("\n")).toBe(true);
 	});
 
-	test("includes .pi/ drops and .seeds/workflow.txt but excludes .mulch/", () => {
+	test("includes current context drops and excludes retired Pi artifacts and .mulch/", () => {
 		const paths = seededArtifactResetPaths(
 			agent({
 				pi_skills: '{"name":"lint","body":"run the linter"}',
@@ -42,7 +42,7 @@ describe("seededArtifactResetPaths", () => {
 				expertise_seed: '{"domain":"build","content":"x"}',
 			}),
 		).map((p) => p.path);
-		expect(paths).toContain(".pi/skills/lint/SKILL.md");
+		expect(paths.some((path) => path.startsWith(".pi/"))).toBe(false);
 		expect(paths).toContain(".seeds/workflow.txt");
 		expect(paths).toContain(".warren/agent.json");
 		expect(paths.some((p) => p.startsWith(".mulch/"))).toBe(false);

@@ -1,3 +1,4 @@
+import { activeToolkitVersion } from "../../toolkit/versions.ts";
 /**
  * `spawnRun` — composition flow (docs/design/agent-composition.md). Resolves the cached
  * agent, builds a neutral `RunSpec`, and dispatches via `provider.create(spec)`
@@ -9,22 +10,19 @@
 import { NotFoundError, ValidationError } from "../../core/errors.ts";
 import { withProjectCloneLock } from "../../projects/clone-lock.ts";
 import { refreshProject } from "../../projects/manage.ts";
-import {
-	readProviderFrontmatter,
-	readRuntimeId,
-	withProviderOverrides,
-} from "../../registry/schema.ts";
+import { readRunnableRuntimeId } from "../../registry/runtime-availability.ts";
+import { readProviderFrontmatter, withProviderOverrides } from "../../registry/schema.ts";
 import type { RunHandle, RunSpec, RuntimeProvider } from "../../runtime/contract.ts";
-import { interactiveRuntimeOverride } from "../../warren-config/schema.ts";
 import { composeRunBranch, resolveRunBranchPrefix } from "../branch.ts";
 import { parseBurrowConfig } from "../burrow-config.ts";
 import { lifecycleBus } from "../lifecycle-bus.ts";
 import { buildSeedFiles } from "../seed.ts";
 import { validateTargetBranch } from "../target-branch.ts";
 import { withRunAdmission } from "./admission.ts";
-import { readCachedAgent, readProjectDefaults, resolveOverride } from "./agent-cache.ts";
+import { readCachedAgent } from "./agent-cache.ts";
 import { injectWarrenCallbackEnv } from "./callback-env.ts";
 import { composeDispatchPrompt, recordContextMetrics } from "./context-metrics.ts";
+import { readDispatchDefaults, resolveDispatchProfile } from "./execution-profile.ts";
 
 export { composeDispatchPrompt } from "./context-metrics.ts";
 
@@ -76,7 +74,7 @@ export async function spawnRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 
 async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	const agentRow = await input.repos.agents.get(input.agentName);
-	if (!agentRow) {
+	if (!agentRow && !input.agentSnapshot) {
 		throw new NotFoundError(`agent not found: ${input.agentName}`);
 	}
 	const project = await input.repos.projects.require(input.projectId);
@@ -96,7 +94,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	const baseRefField = existingBranch ?? input.ref;
 	const pushTarget = existingBranch ?? targetBranch;
 
-	const baseAgent = readCachedAgent(agentRow.renderedJson, agentRow.name);
+	const baseAgent = input.agentSnapshot ?? readCachedAgent(agentRow?.renderedJson, input.agentName);
 	const burrowConfig = parseBurrowConfig(baseAgent.sections.burrow_config);
 
 	// warren-4b11: continuation runs ("re-run with follow-up") seed their
@@ -137,29 +135,35 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	// frontmatter, operator per-run override winning. Order: operator
 	// override > .warren/defaults.json > agent frontmatter, all riding the
 	// same `withProviderOverrides` path onto frozen `rendered_agent_json`.
-	const projectDefaults = await readProjectDefaults(
-		input.warrenConfigs,
-		projectAfterRefresh.id,
-		projectAfterRefresh.localPath,
-	);
-	const effectiveProvider = resolveOverride(
-		input.providerOverride,
-		projectDefaults?.defaultProvider,
-	);
-	const effectiveModel = resolveOverride(input.modelOverride, projectDefaults?.defaultModel);
+	const projectDefaults = await readDispatchDefaults(input, projectAfterRefresh);
+	const {
+		provider: effectiveProvider,
+		model: effectiveModel,
+		runtime: runtimeOverride,
+	} = resolveDispatchProfile(input, projectDefaults);
 	// warren-cb46: gate tracker/mulch prompt fragments on the project's real
 	// capabilities before anything freezes the agent (prompt-capabilities.ts).
-	const agent = gateAgentPrompts(
+	const promptedAgent = gateAgentPrompts(
 		withMulchArm(
 			withProviderOverrides(baseAgent, {
 				...(effectiveProvider !== undefined ? { providerOverride: effectiveProvider } : {}),
 				...(effectiveModel !== undefined ? { modelOverride: effectiveModel } : {}),
 			}),
-			input.mulchArm,
+			input.mulchArm ?? (projectDefaults?.memoryEnabled === true ? "on" : "off"),
 		),
 		projectAfterRefresh,
 		input.issueTracker,
 	);
+	const runtimeId = readRunnableRuntimeId(promptedAgent, runtimeOverride);
+	// Persist the actual choice so historical readers never infer a new default.
+	const agent = {
+		...promptedAgent,
+		frontmatter: {
+			...promptedAgent.frontmatter,
+			runtime: runtimeId,
+			toolkitVersion: input.toolkitVersion ?? (await activeToolkitVersion()),
+		},
+	};
 	// warren-bad5: validate only after the override > project default >
 	// agent frontmatter chain has been fully resolved.
 	const { provider: declaredProvider, model: declaredModel } = readProviderFrontmatter(
@@ -168,7 +172,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	assertNoKnownProviderModelMismatch(declaredProvider, declaredModel);
 
 	// Build the seed payload BEFORE creating the warren row so a malformed
-	// expertise_seed / pi_skills / pi_prompts section surfaces as a clean
+	// expertise_seed section surfaces as a clean
 	// `RunSpawnError` with no half-spawned row to garbage-collect. Anything
 	// burrow rejects later still rolls back via the try/catch below.
 	const seedResult = buildSeedFiles(agent);
@@ -244,10 +248,7 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 	);
 
 	const runEnv = composeRunEnv(run.id, projectDefaults?.qualityGate, input.serverEnv);
-
-	// warren-b802: per-project runtime override (planner stays 'builtin').
-	const runtimeOverride = interactiveRuntimeOverride(agent.name, projectDefaults);
-	const runtimeId = readRuntimeId(agent, runtimeOverride);
+	runEnv.WARREN_MEMORY_ENABLED = promptedAgent.frontmatter.mulch === "on" ? "1" : "0";
 
 	// warren-9ce3: read dispatcherHandle + dispatchOrigin (were dropped silently).
 	const log = bindRunLogger(input.logger, run.id, {
@@ -308,7 +309,9 @@ async function dispatchRun(input: SpawnRunInput): Promise<SpawnRunResult> {
 		),
 		metadata: composeBurrowMetadata(input.metadata, agent.frontmatter),
 		...(qualityGate ? { qualityGate } : {}),
+		...(projectDefaults?.preparation ? { preparation: projectDefaults.preparation } : {}),
 		mode: input.mode ?? "batch",
+		...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
 		network: burrowConfig.network ?? "none",
 		seedFiles: seedResult.files,
 		env: runEnv,

@@ -317,6 +317,12 @@ export interface RefreshProjectResponse {
  * refusal-bypass flag. All optional; an empty body scaffolds an empty
  * defaults block.
  */
+export type {
+	ProjectSettings,
+	ProjectSettingsResponse,
+	ProjectSettingsUpdate,
+} from "../core/project-settings.ts";
+
 export interface InitProjectInput {
 	defaultRole?: string;
 	defaultPrompt?: string;

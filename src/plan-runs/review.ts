@@ -1,3 +1,4 @@
+import { approvedReviewBudget } from "./approved-dispatch.ts";
 import { decideReviewStep } from "./review-decision.ts";
 import { spawnReviewStep } from "./review-dispatch.ts";
 
@@ -6,7 +7,7 @@ export { decideReviewStep } from "./review-decision.ts";
 import { failedGateChangesReport } from "../core/review-check-failure.ts";
 import type { ReviewEvidence, ReviewFinding } from "../core/review-findings.ts";
 import { parseReviewArtifacts, parseReviewEvidence } from "../runtime/review-artifacts.ts";
-import { loadReviewBudget, type ReviewLoopBudget, reviewBudgetReason } from "./review-progress.ts";
+import { type ReviewLoopBudget, reviewBudgetReason } from "./review-progress.ts";
 
 export { MAX_REWORKS } from "./review-progress.ts";
 
@@ -42,6 +43,7 @@ export const REVIEWED_AGENT = "implementer";
 export type ReviewOutcome = "passed" | "changes_left" | "broken";
 
 export interface ReviewStepRecord {
+	readonly runId?: string;
 	readonly failureReason?: RunFailureReason | null;
 	readonly recoveryReason?: string;
 	readonly step: ReviewStepKind;
@@ -158,6 +160,7 @@ async function loadStep(
 	// The run state still prevents this text from being accepted as a passing review.
 	const report = findings ?? (await readResultText(repos, stepRun.id));
 	return {
+		runId: stepRun.id,
 		failureReason: stepRun.state === "cancelled" ? null : stepRun.failureReason,
 		recoveryReason: payload.recoveryReason,
 		gateVerified,
@@ -242,7 +245,11 @@ export async function advanceReview(
 	run: RunRow,
 	prUrl: string,
 ): Promise<HandleInFlightDecision | null> {
-	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
+	if (
+		input.planRun.agentName !== REVIEWED_AGENT &&
+		!(await input.repos.planApprovals?.forRun(input.planRun.id))
+	)
+		return null;
 	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
 	if (hasPendingReviewRetry(events))
 		return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
@@ -252,7 +259,7 @@ export async function advanceReview(
 	if (stale === null) return { kind: "result", result: { kind: "waiting_for_run" } };
 	if (stale) return spawnReviewStep(input, run, prUrl, { kind: "spawn", step: "review" });
 	const finished = events.find((event) => event.kind === "plan_run.review_finished");
-	const budget = loadReviewBudget();
+	const budget = await approvedReviewBudget(input.repos, input.planRun.id, input.child.seq);
 	if (finished) {
 		const { report } = finished.payloadJson as { report?: string };
 		const resumed = resumeFinishedReview(steps, budget, report);
@@ -287,7 +294,11 @@ export async function resumeReviewDelivery(
 	run: RunRow,
 	prUrl: string,
 ): Promise<HandleInFlightDecision | null> {
-	if (input.planRun.agentName !== REVIEWED_AGENT) return null;
+	if (
+		input.planRun.agentName !== REVIEWED_AGENT &&
+		!(await input.repos.planApprovals?.forRun(input.planRun.id))
+	)
+		return null;
 	const events = currentReviewEvents(await input.repos.events.listByRun(run.id));
 	if (events.some((event) => event.kind === "plan_run.review_finished")) return null;
 	const pending = await pendingReviewDelivery(input, run.id);

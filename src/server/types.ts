@@ -83,6 +83,8 @@ export interface RouteContext {
 	 * `X-Forwarded-For` and only falls back here.
 	 */
 	readonly clientIp?: string;
+	/** Keep an authenticated, independently time-bounded operation alive while it works. */
+	readonly keepResponseAlive?: () => void;
 	/**
 	 * The authorized caller and its capability set (warren-1ff0), from the
 	 * `AuthProvider` that admitted the request. Undefined on auth-exempt
@@ -139,6 +141,8 @@ export interface Logger {
  * — a fresh spawn registers one, shutdown aborts them all.
  */
 export interface ServerDeps {
+	/** Readiness Git I/O seam, independent of clone refresh in test embeddings. */
+	readonly readinessSpawn?: import("../projects/clone.ts").SpawnFn;
 	readonly repos: Repos;
 	/**
 	 * Live db handle — used by the `/readyz` `db_reachable` probe (R-13 pl-f17e
@@ -191,12 +195,12 @@ export interface ServerDeps {
 	/** Preview sidecar resolver (warren-e24d), gated on `previewPorts`. The local
 	 * backend's combined facade resolver satisfies both preview consumer seams. */
 	readonly previewSidecars?: import("../runtime/local/preview/sidecars.ts").LocalSidecarsResolver;
-	/** K8s in-pod finalize correlation registry (warren-0d35); defaults to the
+	/** Runtime finalize callback correlation registry (warren-0d35); defaults to the
 	 * shared singleton, so prod needs no wiring — tests inject a private instance. */
-	readonly finalizeCoordinator?: import("../runtime/container/finalize-coordinator.ts").FinalizeCoordinator;
+	readonly finalizeCoordinator?: import("../runtime/finalization/coordinator.ts").FinalizeCoordinator;
 	/**
 	 * Durable salvage-bundle directory (warren-cd3b). The `POST /runs/:id/salvage`
-	 * intake writes pod-captured git bundles here (`<runId>.bundle`); boot wires
+	 * intake writes runtime-captured git bundles here (`<runId>.bundle`); boot wires
 	 * `<dataDir>/salvage`. Absent ⇒ the intake refuses with a 500 rather than
 	 * silently dropping the run's only recoverable copy.
 	 */
