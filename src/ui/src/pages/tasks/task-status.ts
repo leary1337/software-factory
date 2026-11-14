@@ -27,10 +27,10 @@ export function taskStatus(child: PlanRunChildRow, plan: PlanState) {
 }
 
 function taskPhase(child: PlanRunChildRow): TaskPhase | null {
+	if (child.failureReason === "deployment_incident") return "Delivery";
 	if (child.state === "merged") return hasVerifiedRelease(child) ? "Complete" : "Delivery";
 	if (child.state === "skipped" || child.state === "pending") return null;
-	if (child.reviewMerge || child.prMergedAt || child.failureReason === "deployment_incident")
-		return "Delivery";
+	if (child.reviewMerge || child.prMergedAt) return "Delivery";
 	if (child.reviewStage === "ready_to_merge" || (child.state === "pr_open" && !child.reviewStage))
 		return "Delivery";
 	return child.reviewStage ? "Review" : "Implementation";
@@ -109,32 +109,23 @@ function mergeStatus(child: PlanRunChildRow): TaskStatus | null {
 }
 
 function terminalStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus | null {
-	if (child.state === "merged")
-		return hasVerifiedRelease(child)
-			? {
-					group: "complete",
-					label: "Release verified",
-					action: "The published version and user scenario were verified.",
-				}
-			: {
-					group: "waiting",
-					label: "Release not verified",
-					detail: "Code is merged. Release verification has not been recorded.",
-					action: "Open the project to check delivery.",
-				};
-	if (child.state === "skipped")
-		return {
-			group: "closed",
-			label: "Previously closed",
-			action: "Closed in the tracker before dispatch. Delivery is not confirmed by this status.",
-		};
 	if (child.failureReason === "deployment_incident")
 		return {
 			group: "attention",
 			label: "Production incident",
 			action: "Inspect production, repair or roll back, then resume verification.",
 		};
-	if (plan.state === "cancelled" || (plan.state === "failed" && child.state === "pending"))
+	if (child.state === "merged") return mergedStatus(child, plan);
+	if (child.state === "skipped")
+		return {
+			group: "closed",
+			label: "Previously closed",
+			action: "Closed in the tracker before dispatch. Delivery is not confirmed by this status.",
+		};
+	if (
+		(plan.state === "cancelled" && child.state !== "failed") ||
+		(plan.state === "failed" && child.state === "pending")
+	)
 		return {
 			group: "stopped",
 			label: plan.state === "cancelled" ? "Cancelled" : "Not started",
@@ -169,4 +160,19 @@ function taskFailureMessage(reason: string): string {
 	if (category === "parent_pr_merge_timeout")
 		return "The previous task's merge did not finish in time.";
 	return "The task could not finish. Open its diagnostics to inspect the recorded cause.";
+}
+
+function mergedStatus(child: PlanRunChildRow, plan: PlanState): TaskStatus {
+	return hasVerifiedRelease(child)
+		? {
+				group: "complete",
+				label: "Release verified",
+				action: "The published version and user scenario were verified.",
+			}
+		: {
+				group: plan.state === "running" || plan.state === "queued" ? "waiting" : "history",
+				label: "Release not verified",
+				detail: "Code is merged. Release verification has not been recorded.",
+				action: "Open the project to check delivery.",
+			};
 }

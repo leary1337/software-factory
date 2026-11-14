@@ -36,7 +36,7 @@ import {
 	loadReviewMergeResult,
 	loadReviewSummaries,
 } from "../../plan-runs/review-summary.ts";
-import { loadTaskMetrics } from "../../plan-runs/task-metrics-load.ts";
+import { loadTaskObservations } from "../../plan-runs/task-metrics-load.ts";
 import { isPublicOnly } from "../projection.ts";
 import { jsonResponse, ndjsonResponse } from "../response.ts";
 import { reserveEventStreamSlot } from "../stream-limits.ts";
@@ -224,12 +224,12 @@ export function getPlanRunHandler(deps: ServerDeps): RouteHandler {
 									child.runId !== null
 										? await loadReviewMergeResult(deps.repos, child.runId)
 										: null,
-								metrics: await loadTaskMetrics(
+								...(await loadTaskObservations(
 									deps.repos,
 									planRun.projectId,
 									child,
 									(deps.now?.() ?? new Date()).getTime(),
-								),
+								)),
 								budget: budgets.get(child.seq) ?? null,
 								reviewFailure:
 									child.runId !== null ? await loadReviewFailure(deps.repos, child.runId) : null,

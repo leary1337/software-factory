@@ -1,5 +1,6 @@
 /** factory-10 (and factory-09 evidence): projects contain plans, and merge alone is not delivery. */
 import { expect, test } from "@playwright/test";
+import type { PlanApproval } from "../../../src/core/plan-approval.ts";
 import { harnessCases, openCase } from "../harness.ts";
 
 const { fixture, cases } = harnessCases();
@@ -28,6 +29,7 @@ for (const c of cases.filter(
 					await route.fulfill({
 						json: {
 							...body,
+							approval: approvedReceipt(body.planRun.id, body.planRun.projectId, child.seq),
 							children: [
 								{
 									...child,
@@ -114,4 +116,47 @@ for (const c of cases.filter((entry) => entry.page.id === "overview")) {
 			await expect.soft(panel.getByText("Production проверен", { exact: true })).toHaveCount(0);
 		});
 	});
+}
+
+function approvedReceipt(planRunId: string, projectId: string, seq: number): PlanApproval {
+	return {
+		id: "receipt-approval",
+		commandKey: "receipt-command",
+		digest: "receipt-digest",
+		revision: 1,
+		supersedesId: null,
+		planRunId,
+		decision: "Approved",
+		createdAt: fixture.frozenNow,
+		snapshot: {
+			version: 1,
+			taskSource: "internal",
+			projectId,
+			title: "Clear receipts",
+			tasks: [
+				{
+					seq,
+					id: "receipt-task",
+					title: "Make receipts understandable",
+					description: "Explain every charge before payment.",
+					acceptance: ["All charges are explained"],
+					dependsOn: [],
+					releaseAfter: true,
+					permissions: [],
+					initialStatus: "open",
+				},
+			],
+			profiles: {
+				implementation: { runtime: "codex", model: "executor-model" },
+				review: { runtime: "codex", model: "reviewer-model" },
+			},
+			toolkitVersion: "saved-tools",
+			settings: {},
+			agents: {},
+			budgets: { repairs: 2, reworks: 2, runMs: 60000, activeMs: 600000, externalWaitMs: 600000 },
+			permissions: [],
+			baseBranch: "main",
+			agentName: "implementer",
+		},
+	};
 }

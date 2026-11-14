@@ -1,14 +1,14 @@
 import { Link } from "react-router-dom";
 import { AttemptHistory } from "./attempt-history.tsx";
-import { type TaskItem, taskUrl } from "./task-attempts.ts";
+import { type TaskItem, taskItemStatus, taskUrl } from "./task-attempts.ts";
 import { TaskCardFrame } from "./task-card-frame.tsx";
-import { taskCopy } from "./task-copy.ts";
+import { TaskRecoveryStatus } from "./task-recovery-status.tsx";
 import { taskStatus } from "./task-status.ts";
 
 export function TaskCard({ task }: { task: TaskItem }) {
 	const { child, detail, project } = task.current;
 	const approved = detail.approval?.snapshot.tasks.find((task) => task.seq === child.seq);
-	const status = taskStatus(child, detail.planRun);
+	const status = taskItemStatus(task);
 	const run = detail.runs.find((entry) => entry.id === child.runId);
 	if (run?.failureReason === "spawn_failed")
 		status.detail =
@@ -19,10 +19,11 @@ export function TaskCard({ task }: { task: TaskItem }) {
 			project={project}
 			{...(approved
 				? { title: approved.title, description: approved.description }
-				: taskCopy(run?.prompt, child.title))}
+				: { title: child.title?.trim() || `Task ${child.seq}`, description: "" })}
 			status={status}
 			href={taskUrl(task.current)}
 		>
+			<TaskRecoveryStatus recovery={child.recovery} compact />
 			{review?.status === "passed" && review.gateVerified && review.reviewedCommit ? (
 				<p className="text-(--color-text-2) text-sm">
 					Independent review and checks passed for {review.reviewedCommit.slice(0, 8)}.

@@ -1,12 +1,12 @@
 {
-  "sourceHead": "ab664b0c894f2f5c242598ca12cac33e00060280",
+  "sourceHead": "8032ecfadd7c6a2cb0d74262233886eb0159c995",
   "snapshotKind": "working-tree snapshot; not a release commit",
-  "startedAt": "2026-11-14T18:47:47.105Z",
+  "startedAt": "2026-11-14T19:38:42.360Z",
   "package": {
     "filename": "os-eco-warren-cli-0.19.3.tgz",
-    "integrity": "sha512-km1sopnabdegaD3BNRZScIQeVx7yoyW2wHuMA5YzYK1PnFj/JNKK1Cn5Dzm1fC8UdT3VqzMEJqYNaLngLiekAQ==",
-    "count": 2190,
-    "manifestSha256": "98c2b07e4e7cdfbfdcf5039c7462779f0f1d5da34a395bf5a46e54799c5cc110",
+    "integrity": "sha512-xUuaJlRLbzp6QPlF+vhO1vdWfVgmJKnIKtelZ04FsHGmdzD7qlb85ztG9PwUms3lKUi9U7hmpgnXeuo3UnK8UA==",
+    "count": 2198,
+    "manifestSha256": "16d4b1267baa45a98c41c52bc270b50bb9f331c6a06b8d4410354b0074602a58",
     "manifest": "/Users/leary/Prog/software-factory/.scratch/factory-redesign/evidence/37-clean-install.hashes.json"
   },
   "productionDependencies": [
@@ -38,7 +38,7 @@
     ]
   },
   "server": {
-    "url": "http://127.0.0.1:65154",
+    "url": "http://127.0.0.1:63972",
     "health": {
       "ok": true
     },
@@ -60,6 +60,6 @@
   "codexAuthenticationAccessed": false,
   "agentExecution": "Not performed in ticket 37. Ticket 38 owns real preparation, Codex execution and independent gate evidence; this report does not claim those checks passed.",
   "status": "passed",
-  "finishedAt": "2026-11-14T18:48:54.632Z",
-  "artifacts": "/private/var/folders/kz/9y0bgw2j0637kt58vyzvr5bm0000gn/T/factory-clean-install-I3QL07"
+  "finishedAt": "2026-11-14T19:38:52.983Z",
+  "artifacts": "/private/var/folders/kz/9y0bgw2j0637kt58vyzvr5bm0000gn/T/factory-clean-install-a1TC8F"
 }

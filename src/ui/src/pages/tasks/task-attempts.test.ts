@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import type { PlanRunChildRow, PlanRunDetailResponse, PlanRunRow } from "../../api/types.ts";
 import { childSummary } from "../plan-runs/walk-state.ts";
 import { planProgressCounts } from "./plan-progress-summary.ts";
-import { groupTaskAttempts, type TaskAttempt, taskExecutionId } from "./task-attempts.ts";
+import {
+	groupTaskAttempts,
+	type TaskAttempt,
+	taskExecutionId,
+	taskItemStatus,
+} from "./task-attempts.ts";
 import { taskStatus } from "./task-status.ts";
 
 const verification = {
@@ -33,6 +38,21 @@ function attempt(
 }
 
 describe("groupTaskAttempts", () => {
+	test("keeps a recorded incident visible when a later attempt enters history", () => {
+		const incident = attempt(
+			"1",
+			{ state: "failed" },
+			{ state: "failed", failureReason: "deployment_incident" },
+		);
+		for (const state of ["merged", "skipped", "pending"] as const) {
+			const later = attempt("2", { state: "cancelled" }, { state });
+			const [task] = groupTaskAttempts([incident, later]);
+			if (!task) throw new Error("Expected task");
+			expect(task.current).toBe(later);
+			expect(taskItemStatus(task).group).toBe("attention");
+			expect(taskItemStatus(task).label).toBe("Production incident recorded");
+		}
+	});
 	test("counts a repeated plan child once when combining cached and selected attempts", () => {
 		const current = attempt("2");
 		const older = attempt("1", { state: "cancelled" });

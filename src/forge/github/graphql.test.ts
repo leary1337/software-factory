@@ -86,20 +86,20 @@ describe("requestGitHubGraphQL", () => {
 		}
 	});
 
-	test("retries transient 5xx in-band and surfaces the exhausted classification", async () => {
+	test("returns transient mutation failure without a blind retry", async () => {
 		const { fetch, calls } = recordingFetch(
 			Array.from({ length: 3 }, () => jsonResponse(500, { message: "boom" })),
 		);
 		const result = await requestGitHubGraphQL({
 			...baseInput(),
 			fetch,
-			retry: { sleep: async () => {} },
+			retry: { maxRetries: 9, sleep: async () => {} },
 		});
 		expect(result.ok).toBe(false);
 		if (!result.ok && result.error.kind === "http") {
 			expect(result.error.error.kind).toBe("http_error");
 		}
-		expect(calls).toHaveLength(3);
+		expect(calls).toHaveLength(1);
 	});
 
 	test("wraps a thrown fetch as a network error", async () => {

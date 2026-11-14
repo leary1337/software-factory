@@ -1,4 +1,5 @@
 import type { TaskMetrics } from "../core/task-metrics.ts";
+import { projectTaskRecovery, type TaskRecoverySummary } from "../core/task-recovery.ts";
 import type { Repos } from "../db/repos/index.ts";
 import type { EventRow, PlanRunChildRow, RunRow } from "../db/schema.ts";
 import { aggregateTaskMetrics, type TaskMetricRun } from "./task-metrics.ts";
@@ -14,6 +15,7 @@ function linkedRuns(run: RunRow, events: readonly EventRow[]): string[] {
 		const fields: Record<string, string> = {
 			"plan_run.review_step": "stepRunId",
 			"plan_run.child_retried": "previousRunId",
+			"plan_run.deployment_repair": "previousRunId",
 			"reap.provider_retry_dispatched": "newRunId",
 			"run.retry_dispatched": "retryRunId",
 		};
@@ -25,12 +27,12 @@ function linkedRuns(run: RunRow, events: readonly EventRow[]): string[] {
 }
 
 /** Bounded and cycle-safe; absent or cross-project links are explicitly incomplete. */
-export async function loadTaskMetrics(
+export async function loadTaskObservations(
 	repos: Pick<Repos, "runs" | "events">,
 	projectId: string,
 	child: PlanRunChildRow,
 	now = Date.now(),
-): Promise<TaskMetrics> {
+): Promise<{ metrics: TaskMetrics; recovery: TaskRecoverySummary }> {
 	const pending = child.runId ? [child.runId] : [];
 	const seen = new Set<string>();
 	const entries: TaskMetricRun[] = [];
@@ -48,11 +50,29 @@ export async function loadTaskMetrics(
 		entries.push({ run, events });
 		pending.push(...linkedRuns(run, events).filter((linked) => !seen.has(linked)));
 	}
-	return aggregateTaskMetrics(
+	const metrics = aggregateTaskMetrics(
 		child,
 		entries,
 		missing,
 		pending.some((id) => !seen.has(id)),
 		now,
 	);
+	const history = entries
+		.flatMap((entry) => entry.events)
+		.sort((a, b) => a.ts.localeCompare(b.ts) || a.id - b.id);
+	return {
+		metrics,
+		recovery: projectTaskRecovery(
+			history.map((event) => ({ kind: event.kind, payload: event.payloadJson, ts: event.ts })),
+		),
+	};
+}
+
+export async function loadTaskMetrics(
+	repos: Pick<Repos, "runs" | "events">,
+	projectId: string,
+	child: PlanRunChildRow,
+	now = Date.now(),
+): Promise<TaskMetrics> {
+	return (await loadTaskObservations(repos, projectId, child, now)).metrics;
 }

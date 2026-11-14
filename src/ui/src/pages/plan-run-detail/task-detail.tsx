@@ -7,6 +7,7 @@ import { TaskBudgetPanel } from "../tasks/task-budget-panel.tsx";
 import { taskCopy } from "../tasks/task-copy.ts";
 import { TaskMetricsPanel } from "../tasks/task-metrics-panel.tsx";
 import { TaskProgress } from "../tasks/task-progress.tsx";
+import { TaskRecoveryStatus } from "../tasks/task-recovery-status.tsx";
 import { taskStatus } from "../tasks/task-status.ts";
 import { TaskStatusMessage } from "../tasks/task-status-message.tsx";
 import { AttemptHistoryPanel } from "./attempt-history-panel.tsx";
@@ -73,8 +74,13 @@ export function TaskDetail({
 			</p>
 			{status.group === "active" ? <TaskActivity child={child} /> : null}
 			<TaskBudgetPanel child={child} />
+			<TaskRecoveryStatus recovery={child.recovery} />
 			{child.failureReason === "deployment_incident" ? (
-				<DeploymentIncident planRunId={detail.planRun.id} runId={child.runId} />
+				<DeploymentIncident
+					planRunId={detail.planRun.id}
+					runId={child.runId}
+					recovery={child.recovery?.rollback}
+				/>
 			) : null}
 
 			<AttemptHistoryPanel

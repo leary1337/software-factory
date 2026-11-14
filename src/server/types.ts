@@ -83,6 +83,8 @@ export interface RouteContext {
 	 * `X-Forwarded-For` and only falls back here.
 	 */
 	readonly clientIp?: string;
+	/** Keep an authenticated, independently time-bounded operation alive while it works. */
+	readonly keepResponseAlive?: () => void;
 	/**
 	 * The authorized caller and its capability set (warren-1ff0), from the
 	 * `AuthProvider` that admitted the request. Undefined on auth-exempt

@@ -1,6 +1,7 @@
 import type { PlanRunBudgetSummary } from "../../../core/plan-run-budget.ts";
 import type { ProductionVerification } from "../../../core/production-verification.ts";
 import type { TaskMetrics } from "../../../core/task-metrics.ts";
+import type { TaskRecoverySummary } from "../../../core/task-recovery.ts";
 import type { ReviewMergeResult, ReviewStepSummary } from "./review-types.ts";
 
 // HTTP response shapes; wire enums are NOT
@@ -622,6 +623,7 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	recovery?: TaskRecoverySummary;
 	productionVerification?: ProductionVerification | null;
 	reviewMerge?: ReviewMergeResult | null;
 	metrics?: TaskMetrics;

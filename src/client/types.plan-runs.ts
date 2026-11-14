@@ -3,6 +3,7 @@ import type { ProductionVerification } from "../core/production-verification.ts"
 import type { ReviewMergeResult } from "../core/review-merge.ts";
 import type { ReviewStepSummary } from "../core/review-result.ts";
 import type { TaskMetrics } from "../core/task-metrics.ts";
+import type { TaskRecoverySummary } from "../core/task-recovery.ts";
 /**
  * Plan-run wire types (warren-8ffc), split out of `./types.ts`
  * (warren-fcc8) to keep that file under its line budget.
@@ -52,6 +53,7 @@ export interface PlanRunRow {
 }
 
 export interface PlanRunChildRow {
+	recovery?: TaskRecoverySummary;
 	productionVerification?: ProductionVerification | null;
 	reviewMerge?: ReviewMergeResult | null;
 	metrics?: TaskMetrics;

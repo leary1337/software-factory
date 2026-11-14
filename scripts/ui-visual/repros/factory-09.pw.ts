@@ -1,6 +1,6 @@
 /** factory-09: standalone work and its human description belong in the task queue. */
 import { expect, test } from "@playwright/test";
-import type { PlanRunDetailResponse } from "../../../src/ui/src/api/types.ts";
+import type { PlanRunDetailResponse, RunRow } from "../../../src/ui/src/api/types.ts";
 import { harnessCases, openCase } from "../harness.ts";
 
 const { fixture, cases } = harnessCases();
@@ -27,11 +27,14 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 			page,
 		}) => {
 			await page.route(/\/plan-runs(?:\?|$)/, (route) => route.fulfill({ json: { planRuns: [] } }));
-			await page.route(/\/runs(?:\?|$)/, async (route) => {
-				const response = await route.fetch();
-				const body = await response.json();
-				const run = body.runs[0];
-				await route.fulfill({
+			const response = await page.request.get(`${fixture.baseUrl}/runs?limit=100`, {
+				headers: { Authorization: `Bearer ${fixture.token}` },
+			});
+			const body = (await response.json()) as { runs: RunRow[]; total: number };
+			const run = body.runs[0];
+			if (!run) throw new Error("Expected fixture execution");
+			await page.route(/\/runs(?:\?|$)/, (route) =>
+				route.fulfill({
 					json: {
 						...body,
 						total: 1,
@@ -45,8 +48,8 @@ for (const c of cases.filter((entry) => entry.page.id === "tasks")) {
 							},
 						],
 					},
-				});
-			});
+				}),
+			);
 			await openCase(page, c, fixture);
 			await expect(page.getByText("Make checkout understandable", { exact: true })).toBeVisible();
 			await expect(

@@ -19,7 +19,7 @@ export function TaskGroupSection({
 			{title} <span className="text-(--color-text-2)">({count})</span>
 		</>
 	);
-	if (group === "history" || group === "stopped" || group === "closed")
+	if (group === "history" || group === "stopped" || group === "closed" || group === "complete")
 		return (
 			<section aria-label={title}>
 				<details open={searching || undefined} className="space-y-3">

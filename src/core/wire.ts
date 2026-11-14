@@ -603,3 +603,4 @@ export const ROLLBACK_COMPATIBILITIES = [
 	"requires-data-change",
 ] as const;
 export type RollbackCompatibility = (typeof ROLLBACK_COMPATIBILITIES)[number];
+export * from "./wire-recovery.ts";

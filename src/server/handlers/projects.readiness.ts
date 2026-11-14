@@ -14,16 +14,23 @@ export function readinessDeps(deps: ServerDeps) {
 	};
 }
 export function projectReadinessHandler(deps: ServerDeps, check = false): RouteHandler {
-	return async (ctx) =>
-		jsonResponse(
+	return async (ctx) => {
+		if (check) ctx.keepResponseAlive?.();
+		return jsonResponse(
 			200,
 			await (check ? checkProjectReadiness : getProjectReadiness)(
 				readinessDeps(deps),
 				requireParam(ctx, "id"),
 			),
 		);
+	};
 }
 export function projectSetupHandler(deps: ServerDeps): RouteHandler {
-	return async (ctx) =>
-		jsonResponse(200, await proposeProjectSetup(readinessDeps(deps), requireParam(ctx, "id")));
+	return async (ctx) => {
+		ctx.keepResponseAlive?.();
+		return jsonResponse(
+			200,
+			await proposeProjectSetup(readinessDeps(deps), requireParam(ctx, "id")),
+		);
+	};
 }

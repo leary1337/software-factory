@@ -73,6 +73,20 @@ export function groupTaskAttempts(rows: readonly TaskAttempt[]): TaskItem[] {
 	});
 }
 
+/** Keep recorded production incidents visible even when a later attempt is archived. */
+export function taskItemStatus(task: TaskItem) {
+	const status = taskStatus(task.current.child, task.current.detail.planRun);
+	if (task.incidents.length && ["complete", "history", "closed", "stopped"].includes(status.group))
+		return {
+			...status,
+			group: "attention" as const,
+			phase: "Delivery" as const,
+			label: "Production incident recorded",
+			action: "Open attempt history and inspect the incident's resolution.",
+		};
+	return status;
+}
+
 export function taskUrl(attempt: TaskAttempt): string {
 	return `/plan-runs/${encodeURIComponent(attempt.detail.planRun.id)}?task=${attempt.child.seq}`;
 }

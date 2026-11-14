@@ -6,9 +6,11 @@ import { Alert } from "@/components/ui/alert.tsx";
 import { Spinner } from "@/components/ui/spinner.tsx";
 import { useEventStream } from "@/hooks/use-event-stream.ts";
 import { formatError } from "@/lib/format-error.ts";
+import { projectTaskRecovery } from "../../../../core/task-recovery.ts";
 import { CancelRunButton } from "../run-detail/steering-panel.tsx";
 import { standaloneStatus } from "./standalone-tasks.ts";
 import { taskCopy } from "./task-copy.ts";
+import { TaskRecoveryStatus } from "./task-recovery-status.tsx";
 import { TaskStatusMessage } from "./task-status-message.tsx";
 
 export function StandaloneTaskDetail() {
@@ -25,7 +27,7 @@ export function StandaloneTaskDetail() {
 		queryFn: ({ signal }) => runsApi.get(originalId, signal),
 	});
 	const run = current.data;
-	const { events } = useEventStream(id, run?.state === "running");
+	const { events, error: historyError } = useEventStream(id, run?.state === "running");
 	if (current.isPending || original.isPending) return <Spinner label="Loading task" />;
 	if (!run || !original.data)
 		return (
@@ -34,7 +36,7 @@ export function StandaloneTaskDetail() {
 			</Alert>
 		);
 	const copy = taskCopy(original.data.prompt);
-	const preparation = events.filter((event) => event.kind.startsWith("preparation.")).at(-1);
+	const recovery = projectTaskRecovery(events);
 	return (
 		<div className="space-y-4 px-3.5 py-6 md:px-6">
 			<Link
@@ -53,10 +55,10 @@ export function StandaloneTaskDetail() {
 				</Alert>
 			) : null}
 			<TaskStatusMessage status={standaloneStatus(run)} />
-			{preparation?.kind === "preparation.failed" ? (
-				<Alert variant="warning" title="Environment preparation failed">
-					The project environment failed before execution or verification. Open diagnostics for the
-					failing setup step.
+			<TaskRecoveryStatus recovery={recovery} />
+			{historyError ? (
+				<Alert variant="warning" title="Recovery history unavailable">
+					{historyError}
 				</Alert>
 			) : null}
 			<div className="flex flex-wrap gap-4 text-sm">

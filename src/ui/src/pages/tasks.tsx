@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input.tsx";
 import { useListParams } from "@/hooks/use-list-params.ts";
 import { StandaloneTaskCard } from "./tasks/standalone-task-card.tsx";
 import { standaloneStatus, standaloneTasks } from "./tasks/standalone-tasks.ts";
-import { groupTaskAttempts } from "./tasks/task-attempts.ts";
+import { groupTaskAttempts, taskItemStatus } from "./tasks/task-attempts.ts";
 import { TaskCard } from "./tasks/task-card.tsx";
 import { TaskGroupSection } from "./tasks/task-group-section.tsx";
 import { TaskListNotices } from "./tasks/task-list-notices.tsx";
-import { TASK_GROUPS, taskStatus } from "./tasks/task-status.ts";
+import { TASK_GROUPS } from "./tasks/task-status.ts";
 
 export function TasksPage() {
 	const { params, update } = useListParams();
@@ -125,9 +125,7 @@ export function TasksPage() {
 				search={search}
 			/>
 			{TASK_GROUPS.map(({ key, title }) => {
-				const rows = matched.filter(
-					({ current }) => taskStatus(current.child, current.detail.planRun).group === key,
-				);
+				const rows = matched.filter((task) => taskItemStatus(task).group === key);
 				const individual = standalone.filter(
 					(task) => standaloneStatus(task.current).group === key,
 				);

@@ -12,6 +12,34 @@ const plan = { state: "running" } as PlanRunRow;
 const child = { state: "pr_open", reviewStage: "ready_to_merge" } as PlanRunChildRow;
 
 describe("taskStatus", () => {
+	test("archives unverified merges only after the plan stops", () => {
+		for (const state of ["succeeded", "failed", "cancelled"] as const) {
+			const result = taskStatus({ ...child, state: "merged" }, { state });
+			expect(result.group).toBe("history");
+			expect(result.label).toBe("Release not verified");
+		}
+		for (const state of ["running", "queued"] as const)
+			expect(taskStatus({ ...child, state: "merged" }, { state }).group).toBe("waiting");
+	});
+	test("keeps merged incidents and failed cancelled tasks visible", () => {
+		for (const state of ["merged", "failed"] as const) {
+			const result = taskStatus(
+				{
+					...child,
+					state,
+					failureReason: "deployment_incident",
+					productionVerification: verification,
+				},
+				{ state: "cancelled" },
+			);
+			expect(result.group).toBe("attention");
+			expect(result.label).toBe("Production incident");
+			expect(result.phase).toBe("Delivery");
+		}
+		expect(taskStatus({ ...child, state: "failed" }, { state: "cancelled" }).group).toBe(
+			"attention",
+		);
+	});
 	test("prioritizes a production incident after an earlier refused merge", () => {
 		const result = taskStatus(
 			{

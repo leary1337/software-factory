@@ -30,7 +30,7 @@ export function TaskCardFrame({
 				</Link>
 			</h3>
 			{description && description !== "Description not provided." ? (
-				<p className="wrap-anywhere whitespace-pre-line text-(--color-text-2) text-sm">
+				<p className="wrap-anywhere line-clamp-3 whitespace-pre-line text-(--color-text-2) text-sm">
 					{description}
 				</p>
 			) : null}

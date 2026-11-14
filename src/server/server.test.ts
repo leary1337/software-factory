@@ -270,7 +270,7 @@ describe("startServer — lifecycle", () => {
 		//
 		// This is asserted on the constant rather than through a request on
 		// purpose. `idleTimeout` fires on socket inactivity while a request
-		// is being read, and that timer does not run under `bun test`: the
+		// or handler is quiet, and that timer does not run under `bun test`: the
 		// same stalled request a listener closes after ~1s under `bun run`
 		// is served in full here. A behavioural assertion would pass
 		// whatever the default is, which is worse than no test.

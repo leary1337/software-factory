@@ -71,8 +71,16 @@ rules. Repeat the check when packaged inputs change; do not treat this snapshot 
 proof for a later artifact.
 
 The approved redesign UI also received a measured bundle baseline through the
-repository's supported update command. JavaScript measured 777,350 bytes raw and
-226,091 bytes gzip, compared with earlier ceilings of 740,082 and 216,380 bytes.
+repository's supported update command. JavaScript measured 782,759 bytes raw and
+227,532 bytes gzip, compared with earlier ceilings of 740,082 and 216,380 bytes.
 This covers the new project settings, plan approval/revisions, toolkit and readiness
-controls without a new heavy UI dependency. The budget file records the explicit
+controls, compact task history, and visible environment repair/rollback without a new
+heavy UI dependency. The budget file records the explicit
 feature allowance and the tool's standard headroom.
+
+The final UI verification ran 551 browser cases successfully, with five deliberate
+skips. After the last recovery projection correction, all 16 focused recovery and
+task-page smoke cases passed again. The matrix covered 393px and 1440px viewports in
+light and dark themes; no laptop-rendered golden baselines were generated. Terminal
+merged tasks and completed work are collapsed, active delivery and incidents remain
+visible, and full legacy instructions remain inside task details.
